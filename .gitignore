@@ -1,0 +1,17 @@
+# Local project settings
+/.idea/
+/.vscode/
+/.aws/
+/.codex/
+/.agents/
+*.iml
+
+# Local environment files
+/.env
+/.env.*
+!/.env.example
+
+# OS and logs
+.DS_Store
+Thumbs.db
+*.log

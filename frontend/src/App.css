@@ -1,0 +1,20 @@
+.typewriter { white-space: pre-line; min-height: 3.45em; transition: opacity .45s ease; }
+.typewriter.is-fading { opacity: 0; }
+.typewriter::after { content: ''; display: inline-block; width: 3px; height: .9em; margin-left: .08em; vertical-align: -.08em; background: #0b1437; animation: twBlink .85s step-end infinite; border-radius: 1px; }
+@keyframes twBlink { 50% { opacity: 0; } }
+.hero-fade { opacity: 0; transform: translateY(12px); animation: heroFadeIn .6s cubic-bezier(.22,1,.36,1) forwards; }
+@keyframes heroFadeIn { to { opacity: 1; transform: translateY(0); } }
+.v-marquee { display: flex; flex-direction: column; gap: 16px; animation: scrollUp 40s linear infinite; will-change: transform; }
+.v-marquee.reverse { animation-name: scrollDown; }
+.v-marquee:hover, .h-marquee:hover { animation-play-state: paused; }
+@keyframes scrollUp { to { transform: translateY(-50%); } }
+@keyframes scrollDown { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+.v-mask { mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent); }
+.h-marquee-wrap { mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent); }
+.h-marquee { display: flex; gap: 20px; width: max-content; animation: scrollLeft 60s linear infinite; will-change: transform; }
+@keyframes scrollLeft { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .typewriter { transition: none; }
+  .typewriter::after, .v-marquee, .h-marquee { animation: none; }
+  .hero-fade { opacity: 1; transform: none; animation: none; }
+}
