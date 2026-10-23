@@ -1,0 +1,2 @@
+-- V1: Create Identity & Account Tables
+-- email_identities, accounts, account_sessions, provider_applications, email_challenges, provider_profiles
