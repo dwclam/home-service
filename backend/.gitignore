@@ -6,6 +6,7 @@ target/
 .env
 .env.*
 !.env.example
+docs/
 ### STS ###
 .apt_generated
 .classpath

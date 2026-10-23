@@ -172,19 +172,23 @@ Các quy tắc nhận đơn, hủy, thu tiền, hoàn tiền và chi trả đư�
 
 Trước khi code mỗi luồng, người BE và FE liên quan chốt endpoint, request/response, enum, phân trang, định dạng thời gian/tiền và lỗi validation. Mỗi file dùng chung có người phụ trách chính; các bên trao đổi trước khi sửa.
 
-## 6. Các mốc triển khai
+## 6. Kế hoạch triển khai trong 5 tuần
 
-Chưa gán ngày hoàn thành vì nhóm chưa chốt thời hạn và thời gian làm việc. Các mốc dưới đây thể hiện thứ tự phụ thuộc và kết quả có thể demo.
+Chi tiết công việc từng người, thứ tự hoàn thành use case và các điều kiện nghiệm thu nằm trong [Kế hoạch triển khai 5 tuần](ke-hoach-trien-khai-5-tuan.md).
 
-| Mốc | Công việc chính | Điều kiện nghiệm thu |
+Tuần 1 tính từ ngày nhóm bắt đầu; chưa gán ngày lịch khi chưa có mốc bắt đầu chính thức. Lâm xác nhận quỹ thời gian khoảng **8–12 giờ/người/tuần**, tương ứng khoảng **200–300 giờ cho cả nhóm trong 5 tuần**. Trong đó, dành tuần 5 (40–60 giờ của cả nhóm) cho kiểm tra, sửa lỗi và demo.
+
+Với quỹ thời gian này, mục tiêu hoàn thành đầy đủ 50 UC trong 5 tuần khá rủi ro. Kế hoạch chi tiết đề xuất **27 UC cốt lõi (P0)**, sau đó mới mở các nhóm mở rộng P1/P2 theo năng lực còn lại. Đây là đề xuất ưu tiên để nhóm đối chiếu yêu cầu môn học; danh sách 50 UC và người được giao vẫn giữ nguyên. Hiện chỉ UC15/UC26 đã được xác định hoãn.
+
+| Tuần | Trọng tâm | Kết quả phải demo cuối tuần |
 | --- | --- | --- |
-| 1. Nền tảng và tài khoản | Lâm làm bảo mật/OTP/đăng ký/duyệt; Thuỷ dựng mô hình đơn và quy tắc lịch; Cường làm danh mục/hồ sơ/địa chỉ; TLam làm router/xác thực; Minh làm dashboard layout. | Khách đăng ký/xác thực/đăng nhập được; NCC nộp hồ sơ, admin duyệt, NCC đổi mật khẩu lần đầu. |
-| 2. Có dịch vụ để đặt | Cường làm dịch vụ/tìm kiếm; Thuỷ làm lịch rảnh; TLam làm tra cứu; Minh làm quản lý dịch vụ/lịch NCC. | NCC đăng được dịch vụ/lịch; khách tìm và xem được dịch vụ, địa chỉ và khoảng phù hợp. |
-| 3. Hoàn thành một đơn | Thuỷ làm vòng đời đơn; Lâm làm thu cọc/phần còn lại; Cường làm API xem đơn; hai FE nối đầy đủ luồng. | Khách đặt → NCC nhận → trả cọc → bắt đầu → hoàn thành → trả phần còn lại, trạng thái thống nhất ở mọi vai trò. |
-| 4. Ngoại lệ và chi trả | Thuỷ làm hủy/hết hạn; Lâm làm hoàn/đối soát/chi trả; hai FE xử lý kết quả và trạng thái chưa rõ. | Hủy/hoàn đúng chính sách; chống tác động tiền lặp; ghi nhận nghĩa vụ và chi trả đúng trạng thái. |
-| 5. Giao tiếp và hoàn thiện | Thuỷ làm chat/hỗ trợ; Cường làm đánh giá/báo cáo; hai FE tích hợp và kiểm tra chéo. | Chat/hỗ trợ đúng quyền; khiếu nại chặn khoản chưa chi theo chính sách; đánh giá và báo cáo đúng dữ liệu nguồn. |
+| 1 | Nền tảng, tài khoản, dữ liệu nền và khung giao diện | Khách đăng ký/xác thực/đăng nhập/đăng xuất được qua FE–BE; có tài khoản phát triển NCC/admin và hợp đồng API. |
+| 2 | Duyệt NCC, dịch vụ, lịch và yêu cầu đặt | Nộp/duyệt NCC → đăng dịch vụ/mở lịch → khách đặt → NCC nhận → đơn chờ cọc. |
+| 3 | Hoàn thành luồng đơn và thu tiền | Khách cọc → NCC bắt đầu/hoàn thành → khách trả phần còn lại; có tra cứu đơn, xử lý deadline và callback lặp. |
+| 4 | Hoàn thiện P0, kiểm tra ngoại lệ và mở rộng có điều kiện | Đạt tiêu chí P0; chỉ nhận nhóm P1 khi còn đủ thời gian làm trọn luồng; cuối tuần chốt chức năng. |
+| 5 | Kiểm tra, sửa lỗi, đóng gói và diễn tập | Chạy được từ database mới, kiểm tra chéo vai trò, hoàn thiện tài liệu/slide và diễn tập demo. |
 
-Các phần độc lập có thể làm song song. Hoàn thành mốc được xác định bằng kết quả tích hợp trên cùng bộ dữ liệu khách/NCC/admin.
+Tích hợp FE–BE từ tuần 1 và demo bằng dữ liệu chung mỗi tuần. Tuần 5 là phần thời gian dự phòng cho lỗi tích hợp và kết quả kiểm tra; các chức năng chưa xong cuối tuần 4 phải được ghi nhận rõ để xử lý hoặc thống nhất điều chỉnh phạm vi. Nếu môn học bắt buộc đủ 50 UC, nhóm cần tăng quỹ thời gian hoặc thống nhất lại yêu cầu; kế hoạch 27 UC không tự thay thế yêu cầu bắt buộc đó.
 
 ## 7. Điều kiện bàn giao và review
 

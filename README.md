@@ -7,7 +7,7 @@ Dự án gồm giao diện đặt dịch vụ tại nhà và backend cung cấp 
 | Phần | Công nghệ chính |
 | --- | --- |
 | Frontend | React 19, Vite 8, Tailwind CSS 3, Lucide React |
-| Backend | Java 21, Spring Boot 4, Spring Web MVC, Spring Data JPA |
+| Backend | Java 21, Spring Boot 4, Spring Web MVC, Spring Data JPA, Spring Security |
 | Cơ sở dữ liệu | PostgreSQL |
 
 ## Yêu cầu
@@ -32,6 +32,10 @@ SERVER_PORT=8080
 ```
 
 `DB_URL` phải trỏ đến database PostgreSQL đã tồn tại. Có thể xóa dòng `SERVER_PORT` để dùng cổng mặc định `8080`. File `.env` được Git bỏ qua; không đưa mật khẩu vào mã nguồn.
+
+Dự án dùng được Neon với URL JDBC PostgreSQL có `sslmode=require`; giữ nguyên thông tin Neon đã cấu hình trong `.env`. Các cấu hình mới có mặc định: `FRONTEND_ORIGINS=http://localhost:5173`, `COOKIE_SECURE=false` cho HTTP local, `SHOW_SQL=false`, `FLYWAY_ENABLED=false`. Khi dùng HTTPS, đặt `COOKIE_SECURE=true`.
+
+Hibernate đang dùng `ddl-auto: validate`. Đã chuẩn bị Flyway nhưng chưa bật/chưa có migration tài khoản; bật sau khi bổ sung migration đầu tiên. Xem [cấu hình backend và hợp đồng CSRF](docs/backend-config.md) trước khi nối frontend.
 
 Chạy backend từ thư mục `backend`:
 
@@ -67,7 +71,7 @@ cd backend
 ./mvnw test
 ```
 
-Test backend khởi tạo Spring context và cần cấu hình database hợp lệ. Bản build frontend nằm trong `frontend/dist/` và được Git bỏ qua.
+Test backend dùng profile `test` với H2 trong bộ nhớ, không cần kết nối Neon. Các bài kiểm tra cấu hình bao gồm quyền truy cập, CORS, CSRF, lỗi JSON và hash mật khẩu. Bản build frontend nằm trong `frontend/dist/` và được Git bỏ qua.
 
 ## Cấu trúc
 
@@ -78,4 +82,4 @@ docs/test-cnweb.html             Mẫu giao diện ban đầu
 docs/FE-guideline-lite (1).md    Quy định giao diện FE
 ```
 
-Trang chủ được ghép trong `frontend/src/App.jsx`. Dữ liệu hiển thị mẫu nằm ở `frontend/src/data/home.js`. Hiện backend mới có endpoint kiểm tra `/api/health`; chức năng nghiệp vụ và kết nối API từ frontend chưa được triển khai.
+Trang chủ được ghép trong `frontend/src/App.jsx`. Dữ liệu hiển thị mẫu nằm ở `frontend/src/data/home.js`. Backend có `/api/health`, `/api/auth/csrf` và cấu hình bảo mật nền. API đăng nhập, phiên tài khoản và các chức năng nghiệp vụ chưa được triển khai; frontend chưa nối API.

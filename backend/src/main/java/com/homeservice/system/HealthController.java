@@ -1,4 +1,4 @@
-package com.homeservice.auth;
+package com.homeservice.system;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -8,7 +8,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
-public class TestController {
+public class HealthController {
 
     @GetMapping("/health")
     public Map<String, String> health() {
