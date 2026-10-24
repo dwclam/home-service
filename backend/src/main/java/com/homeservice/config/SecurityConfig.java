@@ -43,9 +43,9 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/provider/**").hasRole("PROVIDER")
-                        .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
+                        .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/provider/**", "/api/v1/provider/**").hasRole("PROVIDER")
+                        .requestMatchers("/api/customer/**", "/api/v1/customer/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated());
         return http.build();
     }

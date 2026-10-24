@@ -2,9 +2,11 @@ package com.homeservice.common.exception;
 
 import com.homeservice.common.dto.ApiError;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -14,6 +16,18 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiError> handleBusinessException(BusinessException exception) {
+        ApiError error = new ApiError("BUSINESS_ERROR", exception.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiError> handleResourceNotFoundException(ResourceNotFoundException exception) {
+        ApiError error = new ApiError("NOT_FOUND", exception.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
@@ -32,6 +46,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception exception, Object body, HttpHeaders headers,
             HttpStatusCode status, WebRequest request
     ) {
+        if (body instanceof ApiError) {
+            return super.handleExceptionInternal(exception, body, headers, status, request);
+        }
         ApiError error = switch (status.value()) {
             case 400 -> new ApiError("BAD_REQUEST", "Yêu cầu không hợp lệ.");
             case 404 -> new ApiError("NOT_FOUND", "Không tìm thấy tài nguyên.");

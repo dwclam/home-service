@@ -38,3 +38,14 @@ app:
   security:
     allowed-origins: ${FRONTEND_ORIGINS:http://localhost:5173}
     secure-cookies: ${COOKIE_SECURE:false}
+  booking:
+    policy:
+      deposit-percent: 30
+      platform-fee-percent: 20
+      cancel-cutoff-minutes: 30
+      early-refund-percent: 50
+      late-refund-percent: 0
+      provider-refund-percent: 100
+      system-refund-percent: 100
+      lead-time-minutes: 60
+      request-expire-minutes: 30
