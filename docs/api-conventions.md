@@ -18,5 +18,14 @@ Tài liệu quy định chuẩn thiết kế API RESTful cho hệ thống Nestif
   - `/api/v1/public/...`
 
 ## 3. Cấu trúc Response
-- Dữ liệu phân trang: sử dụng `PageResponse<T>`.
-- Xử lý lỗi tập trung: trả về mã lỗi và thông báo chi tiết qua `GlobalExceptionHandler`.
+- **Response thành công chuẩn**: Mọi API trả về dữ liệu bọc trong `StandardResponse<T>`:
+  ```json
+  {
+    "success": true,
+    "message": "Đặt lịch thành công",
+    "data": { ... },
+    "timestamp": "2026-10-24T07:20:00Z"
+  }
+  ```
+- **Dữ liệu phân trang**: Được bọc trong `data` dưới dạng `PageResponse<T>`.
+- **Xử lý lỗi tập trung**: Trả về mã lỗi và thông báo chi tiết qua `GlobalExceptionHandler` (sử dụng `ApiError`).
