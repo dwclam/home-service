@@ -1,6 +1,6 @@
 # Nestify — Thiết kế database final
 
-**Phiên bản:** 1.1 — 21/10/2026. **Phạm vi hiện tại: 22 bảng, PostgreSQL, dùng ENUM cho trạng thái/phân loại cố định.**
+**Phiên bản:** 1.2 — 24/10/2026 (chuyển xác thực sang JWT access và refresh theo lựa chọn của trưởng nhóm). **Phạm vi hiện tại: 22 bảng, PostgreSQL, dùng ENUM cho trạng thái/phân loại cố định.**
 
 Tài liệu này là đặc tả để các thành viên BE/FE cùng đọc và triển khai. Mỗi cột nằm trên một dòng, bao gồm cả PK/FK, thời gian tạo/cập nhật, kiểu dữ liệu, NULL và mặc định. Đây là tài liệu thiết kế; chưa chạy SQL hoặc tạo migration.
 
@@ -9,6 +9,7 @@ Tài liệu này là đặc tả để các thành viên BE/FE cùng đọc và 
 | Nội dung | Quy tắc áp dụng |
 | --- | --- |
 | Tài khoản | Một email một loại tài khoản. Khách xác thực email; hồ sơ NCC xác thực và được admin duyệt trước khi có account NCC. NCC được cấp mật khẩu tạm và phải đổi lần đầu. |
+| Xác thực | Access và refresh đều là JWT; access đi qua Bearer header, refresh qua cookie HttpOnly. Bảng refresh_tokens quản lý rotation/thu hồi; không có bảng phiên được tra trên mỗi request nghiệp vụ. |
 | Đặt dịch vụ | NCC nhận đơn trước, khách cọc sau. Phạm vi thiết kế bản đầu được đề xuất là một đơn một gói giá cố định, một NCC một công việc tại một thời điểm. |
 | Thu tiền | Khách trả 30% cọc và phần 70% còn lại cho Nestify; Nestify chi phần NCC được hưởng. |
 | Hủy bởi khách | Trước giờ hẹn từ 30 phút trở lên hoàn 50% cọc; trước giờ hẹn dưới 30 phút hoàn 0%. |
@@ -34,11 +35,17 @@ Tài liệu này là đặc tả để các thành viên BE/FE cùng đọc và 
 
 ### 1.2. Các mặc định còn mang tính đề xuất
 
-Các dòng sau giúp đặc tả luồng hoàn chỉnh, **chưa phải quyết định chủ dự án xác nhận**: một đơn một gói giá cố định, một NCC một lịch công việc tại một thời điểm; đặt trước tối thiểu 60 phút; NCC phản hồi tối đa 30 phút; giữ cọc tối đa 15 phút; trả phần còn lại trong 24 giờ; OTP 10 phút/5 lần sai/gửi lại sau 60 giây; phiên tối đa 14 ngày; thu qua cổng được cấu hình; admin duyệt chi thủ công; Nestify chịu phí xử lý; giữ chi khi có khiếu nại; một review/đơn không sửa nội dung; không đổi email/loại account ở bản đầu.
+Các dòng sau giúp đặc tả luồng hoàn chỉnh, **chưa phải quyết định chủ dự án xác nhận**: một đơn một gói giá cố định, một NCC một lịch công việc tại một thời điểm; đặt trước tối thiểu 60 phút; NCC phản hồi tối đa 30 phút; giữ cọc tối đa 15 phút; trả phần còn lại trong 24 giờ; OTP 10 phút/5 lần sai/gửi lại sau 60 giây; refresh JWT tối đa 14 ngày; thu qua cổng được cấu hình; admin duyệt chi thủ công; Nestify chịu phí xử lý; giữ chi khi có khiếu nại; một review/đơn không sửa nội dung; không đổi email/loại account ở bản đầu.
 
 Khách không tự hủy đúng/sau giờ hẹn; chuyển hỗ trợ. NCC không thể tiếp tục khi đang làm được admin xử lý với hoàn đủ cọc. Hoàn tùy ý sau COMPLETED hoặc sau khi đã chi, bù trừ/thu hồi nợ NCC, giỏ hàng, nhân viên nhiều lịch song song và báo giá phát sinh chưa thuộc luồng chuẩn bản đầu.
 
-`usecase-final.md` là tài liệu đối chiếu chức năng nhưng chưa đồng bộ toàn bộ thay đổi rút gọn. Khi có khác biệt về số bảng, thông báo ứng dụng, ngân hàng một tài khoản hoặc chat hỗ trợ, dùng quyết định trong **bản DB 1.1 này**. Mã UC15/UC26 được giữ để tham khảo lịch sử và đang hoãn.
+`usecase-final.md` là tài liệu đối chiếu chức năng nhưng chưa đồng bộ toàn bộ thay đổi rút gọn. Khi có khác biệt về số bảng, thông báo ứng dụng, ngân hàng một tài khoản hoặc chat hỗ trợ, dùng quyết định trong **bản DB 1.2 này**. Mã UC15/UC26 được giữ để tham khảo lịch sử và đang hoãn.
+
+### 1.3. Phạm vi xác thực hiện đã triển khai
+
+Backend đã có JWT cho khách hàng: đăng ký/OTP, login, refresh, `/me` và logout dưới `/api/auth`. Login/refresh NCC/admin, đổi/reset mật khẩu và API khóa account là phạm vi triển khai tiếp; yêu cầu thu hồi khi khóa/reset bên dưới là thiết kế cho các luồng đó.
+
+Access JWT mặc định 15 phút, xác thực chữ ký/claim mà không tra bảng phiên. Refresh JWT mặc định tối đa 14 ngày từ lần login, có trạng thái trong `refresh_tokens` để rotation một lần và phát hiện reuse. Không có claim `sid`; `family_id` chỉ liên kết lịch sử refresh trong database. Hợp đồng cụ thể và giới hạn logout ở [customer-auth.md](customer-auth.md).
 
 ## 2. Cách đọc cột và quy ước triển khai
 
@@ -46,7 +53,7 @@ Khách không tự hủy đúng/sau giờ hẹn; chuyển hỗ trợ. NCC không
 | --- | --- |
 | NULL? = Không | Bắt buộc có giá trị; NULL? = Có được phép trống hoặc chưa biết theo điều kiện nghiệp vụ. |
 | PK, FK, UNIQUE | Khóa chính, khóa ngoại, giá trị/cặp giá trị không trùng. Điều kiện xuyên bảng được nêu dưới mỗi bảng và tại mục 7. |
-| IDENTITY | id BIGINT tự tăng khi triển khai. Hai ngoại lệ: email_identities dùng email, provider_profiles dùng account_id; không thêm id dư. |
+| IDENTITY | id BIGINT tự tăng khi triển khai. Ngoại lệ: email_identities dùng email, provider_profiles dùng account_id, refresh_tokens dùng UUID khớp jti của refresh JWT; không thêm id dư. |
 | Thời gian | TIMESTAMPTZ, mặc định giờ máy chủ; hiển thị ngày Việt Nam. Khoảng lịch dùng [bắt đầu, kết thúc). |
 | created_at/updated_at | Được liệt kê trực tiếp trong từng bảng. DEFAULT chỉ gán lúc tạo; backend/trigger phải cập nhật updated_at khi sửa. |
 | UUID request key | Sinh một lần cho một hành động, gửi lại cùng hành động dùng lại khóa. Không sinh khóa mới mỗi lần retry mạng. |
@@ -54,7 +61,7 @@ Khách không tự hủy đúng/sau giờ hẹn; chuyển hỗ trợ. NCC không
 | Tỷ lệ | SMALLINT 0..100: 30 nghĩa là 30%, thay cách basis point của bản cũ. Chụp tỷ lệ/chính sách trên đơn. |
 | Làm tròn | ROUND_HALF_UP đến đồng: phần lẻ từ 0,5 đồng lên một đồng. Dùng decimal/số nguyên an toàn, tránh tràn phép nhân. |
 | Chuỗi và tệp | Trim/chuẩn hóa trường cần thiết; nội dung bắt buộc không được rỗng. Ảnh/tài liệu/chứng từ lưu URL/object key, không lưu nhị phân. |
-| Bí mật | Mật khẩu/OTP/token chỉ lưu hash; số tài khoản mã hóa, khóa mã hóa ở ngoài DB. |
+| Bí mật | Mật khẩu/OTP và refresh token chỉ lưu hash; không lưu access token. Khóa ký JWT ở biến môi trường/secret, không ở bảng token. Số tài khoản mã hóa, khóa mã hóa ở ngoài DB. |
 | Xóa dữ liệu | Không cascade xóa account → đơn/tiền/chat/hồ sơ. Các FK lịch sử dùng RESTRICT/NO ACTION; khóa/ẩn/lưu trữ thay xóa cứng dữ liệu nghiệp vụ. |
 | Default nghiệp vụ | Default tỷ lệ là giá trị cho đơn mới; không áp lại cấu hình mới vào đơn cũ. Deadline chụp theo từng đơn. |
 
@@ -97,13 +104,13 @@ Thêm giá trị enum phải có migration, đồng bộ BE/FE và kiểm tra ch
 
 | Nhóm | Bảng |
 | --- | --- |
-| Tài khoản/NCC — 6 | email_identities, accounts, account_sessions, provider_applications, email_challenges, provider_profiles |
+| Tài khoản/NCC — 6 | email_identities, accounts, refresh_tokens, provider_applications, email_challenges, provider_profiles |
 | Dịch vụ/lịch/địa chỉ — 5 | categories, services, service_images, provider_availability, customer_addresses |
 | Đơn — 2 | bookings, booking_status_history |
 | Thu/hoàn/chi — 4 | payment_transactions, gateway_events, refunds, payouts |
 | Đánh giá/chat/hỗ trợ — 5 | reviews, conversations, messages, complaints, admin_audit_logs |
 
-**Tổng 22 bảng.** booking_status_history và admin_audit_logs chỉ ghi thêm; messages chỉ cập nhật read_at. Ba bảng này không có updated_at. Các bảng còn lại liệt kê đủ created_at/updated_at. Gateway payload và dữ liệu request tiền đã gửi giữ nguyên, chỉ cập nhật kết quả/liên kết xử lý.
+**Tổng 22 bảng.** booking_status_history và admin_audit_logs chỉ ghi thêm; messages chỉ cập nhật read_at; refresh_tokens ghi thời điểm sử dụng/thu hồi bằng used_at/revoked_at. Bốn bảng này không có updated_at. Các bảng còn lại liệt kê đủ created_at/updated_at. Gateway payload và dữ liệu request tiền đã gửi giữ nguyên, chỉ cập nhật kết quả/liên kết xử lý.
 
 ## 5. Từ điển đầy đủ từng cột
 
@@ -151,28 +158,31 @@ Danh tính đăng nhập chung của khách, NCC đã duyệt và admin; lưu qu
 
 - FK ghép `(email, account_type)` → `email_identities(email, account_type)`; không chỉ kiểm tra email tồn tại.
 - Khách mới là PENDING_EMAIL; NCC chỉ tạo sau duyệt và nhận email đã xác thực từ hồ sơ; admin cấp nội bộ.
-- ACTIVE bắt buộc đã xác thực email. SUSPENDED bắt buộc có thời điểm/lý do khóa. Khóa/đặt lại mật khẩu thu hồi phiên, không xóa lịch sử đơn hay nghĩa vụ tiền.
+- ACTIVE bắt buộc đã xác thực email. SUSPENDED bắt buộc có thời điểm/lý do khóa. Khóa/đặt lại mật khẩu thu hồi toàn bộ refresh token, không xóa lịch sử đơn hay nghĩa vụ tiền.
 
-### 03. `account_sessions`
+### 03. `refresh_tokens`
 
-Mỗi dòng là một phiên đăng nhập có thể hết hạn hoặc bị thu hồi; một account có thể có nhiều phiên.
+Mỗi dòng theo dõi một refresh JWT đã cấp; một account có thể có nhiều dòng. API nghiệp vụ xác thực bằng access JWT có chữ ký, không tra bảng này.
 
 | Cột | Kiểu PostgreSQL | NULL? | Khóa / mặc định / kiểm tra | Mục đích |
 | --- | --- | --- | --- | --- |
-| `id` | `BIGINT` | Không | PK; IDENTITY | Mã định danh nội bộ của bản ghi. |
-| `account_id` | `BIGINT` | Không | FK → accounts.id | Account sở hữu phiên. |
-| `token_hash` | `TEXT` | Không | UNIQUE | Hash token phiên, server dùng kiểm tra phiên hợp lệ. |
-| `expires_at` | `TIMESTAMPTZ` | Không | — | Hạn sử dụng phiên. |
-| `last_seen_at` | `TIMESTAMPTZ` | Có | — | Lần hoạt động gần nhất. |
-| `revoked_at` | `TIMESTAMPTZ` | Có | — | Đã thu hồi thì phiên không được dùng nữa. |
-| `created_at` | `TIMESTAMPTZ` | Không | DEFAULT CURRENT_TIMESTAMP | Thời điểm tạo bản ghi. |
-| `updated_at` | `TIMESTAMPTZ` | Không | DEFAULT CURRENT_TIMESTAMP | Thời điểm cập nhật gần nhất; backend/trigger cập nhật khi ghi. |
+| `id` | `UUID` | Không | PK; backend sinh | Khớp claim `jti` của refresh JWT. |
+| `account_id` | `BIGINT` | Không | FK → accounts.id | Account sở hữu token. |
+| `family_id` | `UUID` | Không | INDEX; không phải FK | Nhóm các refresh token được cấp nối tiếp từ một lần đăng nhập; chỉ nằm trong DB. |
+| `token_hash` | `VARCHAR(64)` | Không | UNIQUE | SHA-256 của refresh JWT; không lưu token gốc. |
+| `expires_at` | `TIMESTAMPTZ` | Không | — | Hạn tuyệt đối từ lần login, giữ nguyên khi rotation. |
+| `used_at` | `TIMESTAMPTZ` | Có | — | Thời điểm token đã được đổi lấy token mới. |
+| `revoked_at` | `TIMESTAMPTZ` | Có | — | Thời điểm bị thu hồi. |
+| `created_at` | `TIMESTAMPTZ` | Không | Backend gán theo `iat` | Thời điểm cấp token. |
 
 **Ràng buộc và cách dùng:**
 
-- `expires_at > created_at`; token hết hạn/đã thu hồi hoặc account bị khóa không được truy cập nghiệp vụ.
-- Bản này chọn phiên opaque kiểm tra phía server. Thời hạn 14 ngày là mặc định thiết kế, chưa phải lựa chọn chủ dự án xác nhận.
-- Account `must_change_password=true` chỉ được đổi mật khẩu/đăng xuất dù phiên còn hạn.
+- CHECK `expires_at > created_at`. Refresh JWT mặc định có hạn tuyệt đối 14 ngày từ lần đăng nhập; rotation không gia hạn mốc này.
+- Refresh phải xác minh JWT rồi tìm theo `(id=jti, account_id=sub)`, so sánh hash và hạn với JWT, kiểm tra trạng thái trong DB. Code hiện tại chỉ chấp nhận CUSTOMER đang ACTIVE, đã xác thực và có `must_change_password=false`.
+- Mỗi refresh dùng một lần. Rotation đánh dấu `used_at`, cấp token mới cùng family/hạn tuyệt đối. Reuse thu hồi toàn bộ family, kể cả token hậu duệ; transaction thu hồi vẫn commit khi trả 401. Lock account trước thao tác để serialize refresh/logout/login giữa các instance.
+- Giữ các token đã dùng/thu hồi tới hạn tuyệt đối để phát hiện reuse. Có thể dọn lịch sử sau hạn; không xóa sớm token tổ tiên khi token hậu duệ còn hiệu lực.
+- Mỗi lần đăng nhập tạo family mới. Đăng nhập lại cùng account với cookie refresh cũ hợp lệ thu hồi family cũ; các trình duyệt khác có family riêng. `family_id` không UNIQUE vì các token trước và sau rotation dùng chung giá trị này.
+- Logout thu hồi family của refresh cookie hiện tại. Khóa account/đặt lại mật khẩu phải thu hồi toàn bộ refresh token của account trong cùng transaction khóa account. Access JWT đã cấp vẫn dùng được tới `exp` (tối đa 15 phút); không có kiểm tra thu hồi trên mỗi request.
 
 ### 04. `provider_applications`
 
@@ -813,7 +823,7 @@ Các FK đầy đủ được nêu tại từng cột. Sơ đồ dưới không 
 erDiagram
     email_identities ||--o| accounts : account_email
     email_identities ||--o{ provider_applications : application_email
-    accounts ||--o{ account_sessions : sessions
+    accounts ||--o{ refresh_tokens : refresh_tokens
     accounts o|--o{ email_challenges : account_challenges
     provider_applications o|--o{ email_challenges : application_challenges
     accounts ||--o| provider_profiles : provider_account
@@ -853,7 +863,7 @@ Các PK/UNIQUE/partial UNIQUE/exclusion kể ở từng bảng là ràng buộc 
 
 | Bảng | Index/truy vấn bổ sung |
 | --- | --- |
-| accounts / sessions | Email UNIQUE; sessions theo token_hash, `(account_id, revoked_at, expires_at)`. |
+| accounts / refresh_tokens | accounts UNIQUE(email); refresh_tokens PK(id), UNIQUE(token_hash), INDEX(family_id) và INDEX(account_id, revoked_at, expires_at). Giá trị id khớp claim jti của refresh JWT. |
 | applications / challenges | Hồ sơ `(status, created_at)`; challenge `(account_id, purpose, created_at)` và `(provider_application_id, purpose, created_at)`. |
 | services / images | `(provider_id, status)`, `(category_id, status, base_price_vnd)`; images theo service/order UNIQUE. Full-text/trigram chỉ thêm khi nhu cầu tìm kiếm thực tế cần. |
 | availability / addresses | Provider + khoảng lịch theo exclusion; addresses `(customer_id, archived_at)`, partial mặc định. |
@@ -871,7 +881,7 @@ Không cần bảng thu nhập/dashboard riêng. Báo cáo thực thu/hoàn/chi 
 
 | Nhóm use case | Bảng chính |
 | --- | --- |
-| UC01–UC04, UC14, UC17, UC27, UC29, UC35, UC42 | email_identities, accounts, account_sessions, email_challenges, admin_audit_logs. |
+| UC01–UC04, UC14, UC17, UC27, UC29, UC35, UC42 | email_identities, accounts, refresh_tokens, email_challenges, admin_audit_logs. |
 | UC16, UC28, UC36 | provider_applications, email_challenges, accounts, provider_profiles, audit. |
 | UC05–UC07, UC18–UC20, UC30, UC37–UC38 | categories, services, service_images, provider_availability, customer_addresses, provider_profiles; reviews để hiển thị đánh giá. |
 | UC08, UC10–UC11, UC21–UC22, UC31, UC40–UC41, UC51 | bookings, booking_status_history; nghĩa vụ hoàn tại payment_transactions nếu có tiền. |
