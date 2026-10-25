@@ -13,6 +13,11 @@ public class BookingMapper {
             return null;
         }
 
+        Long estimatedRefund = null;
+        if (booking.getRefundPercent() != null && booking.getDepositAmountVnd() != null) {
+            estimatedRefund = Math.round(booking.getDepositAmountVnd() * booking.getRefundPercent() / 100.0);
+        }
+
         return BookingDetailResponse.builder()
                 .id(booking.getId())
                 .version(booking.getVersion())
@@ -54,6 +59,14 @@ public class BookingMapper {
                 .addressInstructions(booking.getAddressInstructions())
                 .customerNote(booking.getCustomerNote())
                 .createdAt(booking.getCreatedAt())
+                .terminationKind(booking.getTerminationKind())
+                .terminationActorType(booking.getTerminationActorType())
+                .terminatedByAccountId(booking.getTerminatedByAccount() != null ? booking.getTerminatedByAccount().getId() : null)
+                .terminationReasonCode(booking.getTerminationReasonCode())
+                .terminationReason(booking.getTerminationReason())
+                .terminatedAt(booking.getTerminatedAt())
+                .refundPercent(booking.getRefundPercent())
+                .estimatedRefundAmountVnd(estimatedRefund)
                 .build();
     }
 

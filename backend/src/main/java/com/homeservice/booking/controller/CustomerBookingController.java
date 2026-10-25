@@ -2,6 +2,7 @@ package com.homeservice.booking.controller;
 
 import com.homeservice.account.entity.Account;
 import com.homeservice.account.repository.AccountRepository;
+import com.homeservice.booking.dto.request.CancelBookingRequest;
 import com.homeservice.booking.dto.request.CreateBookingRequest;
 import com.homeservice.booking.dto.response.BookingDetailResponse;
 import com.homeservice.booking.service.BookingService;
@@ -32,6 +33,17 @@ public class CustomerBookingController {
         Long customerId = resolveCustomerId(authentication);
         BookingDetailResponse response = bookingService.createBooking(customerId, request);
         return StandardResponse.success("Đặt lịch thành công", response);
+    }
+
+    @PostMapping("/{bookingId}/cancel")
+    public StandardResponse<BookingDetailResponse> cancelBooking(
+            Authentication authentication,
+            @PathVariable Long bookingId,
+            @Valid @RequestBody CancelBookingRequest request
+    ) {
+        Long customerId = resolveCustomerId(authentication);
+        BookingDetailResponse response = bookingService.cancelBookingByCustomer(customerId, bookingId, request);
+        return StandardResponse.success("Hủy đơn đặt lịch thành công", response);
     }
 
     private Long resolveCustomerId(Authentication authentication) {

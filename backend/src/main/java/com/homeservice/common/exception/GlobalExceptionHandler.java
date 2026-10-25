@@ -23,6 +23,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    @ExceptionHandler(DataConflictException.class)
+    public ResponseEntity<ApiError> handleDataConflictException(DataConflictException exception) {
+        ApiError error = new ApiError("DATA_CONFLICT", exception.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleResourceNotFoundException(ResourceNotFoundException exception) {
         ApiError error = new ApiError("NOT_FOUND", exception.getMessage());

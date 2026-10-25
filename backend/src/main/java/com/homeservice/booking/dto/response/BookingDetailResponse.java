@@ -2,6 +2,9 @@ package com.homeservice.booking.dto.response;
 
 import com.homeservice.booking.enums.BookingStatus;
 import com.homeservice.booking.enums.SettlementStatus;
+import com.homeservice.booking.enums.TerminationKind;
+import com.homeservice.booking.enums.TerminationReason;
+import com.homeservice.common.enums.ActorType;
 import lombok.*;
 
 import java.time.Instant;
@@ -64,4 +67,14 @@ public class BookingDetailResponse {
 
     private String customerNote;
     private Instant createdAt;
+
+    // Termination & Refund info
+    private TerminationKind terminationKind;
+    private ActorType terminationActorType;
+    private Long terminatedByAccountId;
+    private TerminationReason terminationReasonCode;
+    private String terminationReason;
+    private Instant terminatedAt;
+    private Integer refundPercent;
+    private Long estimatedRefundAmountVnd;
 }
