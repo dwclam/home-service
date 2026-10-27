@@ -1,5 +1,7 @@
 # Use case v2 - Nền tảng đặt dịch vụ tại nhà
 
+> **Tài liệu lịch sử:** nội dung bên dưới giữ theo thời điểm soạn bản cũ. Khi triển khai hiện tại, dùng [usecase-final.md](usecase-final.md), [database-design-final.md](database-design-final.md) và [hợp đồng JWT khách hàng](customer-auth.md). Từ 24/10/2026, access và refresh đều là JWT; các mô tả phiên hoặc quyết định xác thực chưa chốt trong bản cũ không phải hợp đồng đang áp dụng.
+
 **Mục đích:** Rà soát actor, chức năng và các quy tắc đã thống nhất. Chưa phải đặc tả API hoặc cơ sở dữ liệu.
 
 Mã UC01-UC34 giữ từ `usecase.md` để dễ đối chiếu. Mã UC35 trở đi là chức năng bổ sung. Mục ghi **Đề xuất** chưa được chốt.
