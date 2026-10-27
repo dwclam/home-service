@@ -1,6 +1,6 @@
 # Nestify — Xác thực khách hàng bằng JWT
 
-**Cập nhật:** 24/10/2026. Tài liệu mô tả backend hiện có và hợp đồng để frontend tích hợp.
+**Cập nhật:** 27/10/2026. Tài liệu mô tả backend hiện có và hợp đồng để frontend tích hợp.
 
 Đã triển khai: đăng ký khách hàng, gửi/gửi lại OTP, xác thực email, đăng nhập, làm mới token, xem tài khoản hiện tại và đăng xuất. Access token và refresh token đều là JWT. DTO API dùng class thông thường với constructor, getter/setter.
 
@@ -72,6 +72,10 @@ sequenceDiagram
 
 `CustomerAuthController.login()` nhận DTO và gọi `CustomerAuthService.login()`. Backend chuẩn hóa email, kiểm tra mật khẩu bằng PasswordEncoder, loại account CUSTOMER, trạng thái ACTIVE, email đã xác thực và `mustChangePassword=false`.
 
+Trước khi gọi service kiểm tra mật khẩu, login áp dụng rate limit mặc định 5 yêu cầu cho mỗi cặp email–IP và 30 yêu cầu cho mỗi IP trong một cửa sổ 1 phút. Mọi yêu cầu login có body hợp lệ và qua CSRF đều được tính, kể cả login thành công hoặc bị từ chối do trạng thái tài khoản. Vượt giới hạn trả `429 / LOGIN_RATE_LIMITED` cùng header `Retry-After` (số giây cần chờ); frontend có thể đọc header này qua CORS. Đổi email không bỏ qua giới hạn tổng theo IP. Rate limit tự hết hạn và không đổi trạng thái account sang `SUSPENDED`.
+
+Bộ đếm nằm trong bộ nhớ từng backend instance, có giới hạn số IP được lưu và được dọn khi hết hạn; restart xóa bộ đếm. Nếu chạy nhiều instance, cần chuyển sang bộ đếm dùng chung hoặc giới hạn tại gateway. IP lấy từ `request.getRemoteAddr()`, không trực tiếp tin header `X-Forwarded-For` do client gửi. Khi triển khai sau reverse proxy, cần cấu hình proxy tin cậy để servlet nhận đúng IP client.
+
 Khi hợp lệ, `RefreshTokenService.issueOnLogin()` gọi `JwtTokenService` để tạo cặp token, lưu bản ghi refresh và cập nhật `lastLoginAt`. Controller đặt cookie refresh và trả `LoginResponse`. Login thành công cũng xóa cookie CSRF cũ; frontend lấy lại CSRF trước POST xác thực tiếp theo.
 
 Nếu cookie refresh cũ thuộc cùng account và hợp lệ, login thu hồi chuỗi cũ trước khi cấp chuỗi mới. Trình duyệt khác có chuỗi riêng. Nếu chuyển sang account khác, cookie bị thay nhưng token account cũ không tự bị thu hồi; frontend gọi logout trước khi đổi account nếu muốn kết thúc đăng nhập cũ.
@@ -109,9 +113,9 @@ Các endpoint hiện tại dùng **`/api/auth`**, chưa dùng `/api/v1/auth`. M�
 | Phương thức | Endpoint | Body JSON | Kết quả |
 | --- | --- | --- | --- |
 | GET | `/api/auth/csrf` | Không. | 200: `{headerName, token}` và cookie CSRF. |
-| POST | `/api/auth/register/customer` | `email`, `password`, `displayName`, `phone` tùy chọn. | 201: tạo khách PENDING_EMAIL, gửi OTP, trả `RegistrationResponse`. |
-| POST | `/api/auth/resend-verification` | `email`. | 200: gửi OTP mới, trả `RegistrationResponse`. |
-| POST | `/api/auth/verify-email` | `email`, `code`. | 200: trả `AccountResponse`; chưa tự cấp JWT. |
+| POST | `/api/auth/register/customer` | `email`, `password`, `displayName`, `phone` tùy chọn. | 201: tạo hoặc cập nhật khách PENDING_EMAIL, gửi OTP và token đăng ký mới. |
+| POST | `/api/auth/resend-verification` | `email`, `registrationToken`. | 200: gửi OTP mới cho đúng lần đăng ký, giữ nguyên token. |
+| POST | `/api/auth/verify-email` | `email`, `code`, `registrationToken`. | 200: chuyển sang ACTIVE, trả `AccountResponse`; chưa tự cấp JWT. |
 | POST | `/api/auth/login` | `email`, `password`. | 200: `LoginResponse` và cookie refresh. |
 | POST | `/api/auth/refresh` | Không cần body. | 200: `LoginResponse` và cookie refresh mới. |
 | GET | `/api/auth/me` | Không. | 200: `AccountResponse` của principal hiện tại. |
@@ -135,12 +139,27 @@ Email được trim/lowercase; tên và điện thoại được trim; điện t
 ```json
 {
   "email": "lam@example.com",
+  "registrationToken": "<token ngẫu nhiên 43 ký tự do backend trả>",
   "expiresAt": "2026-10-24T03:10:00Z",
   "resendAvailableAt": "2026-10-24T03:01:00Z"
 }
 ```
 
-Xác thực dùng `{"email":"lam@example.com","code":"123456"}`. Login dùng `{"email":"lam@example.com","password":"Your-password-123!"}`. Login và refresh trả cùng cấu trúc; JWT dưới đây chỉ là chỗ điền minh họa:
+`registrationToken` là chuỗi ngẫu nhiên 32 byte (Base64URL không padding, 43 ký tự), không phải JWT và không dùng để đăng nhập. Database chỉ lưu SHA-256 trong `email_challenges.registration_token_hash`. Frontend giữ token của đúng form đăng ký trong bộ nhớ; không gửi token qua URL, email hoặc log. Mất token thì đăng ký lại từ đầu.
+
+Xác thực dùng:
+
+```json
+{
+  "email": "lam@example.com",
+  "code": "123456",
+  "registrationToken": "<token nhận từ response đăng ký>"
+}
+```
+
+Gửi lại OTP dùng `{"email":"lam@example.com","registrationToken":"<token hiện tại>"}`. Gửi lại chỉ đổi OTP, giữ nguyên mật khẩu và token; OTP cũ bị vô hiệu. Token hiện tại vẫn có thể dùng để yêu cầu OTP mới sau khi mã hết hạn hoặc hết số lần thử, nếu tài khoản còn pending và đã qua thời gian chờ. Khi verify, OTP và token phải cùng thuộc challenge mới nhất, OTP còn hạn và chưa được dùng/vô hiệu. Token sai/cũ không làm tăng số lần thử của OTP hiện tại.
+
+Login dùng `{"email":"lam@example.com","password":"Your-password-123!"}`. Login và refresh trả cùng cấu trúc; JWT dưới đây chỉ là chỗ điền minh họa:
 
 ```json
 {
@@ -181,11 +200,12 @@ Frontend thực hiện:
 
 CORS cho phép origin cụ thể từ `FRONTEND_ORIGINS`, header `Authorization`, `Content-Type`, `Accept`, `X-XSRF-TOKEN` và credential. `SameSite=Lax` hiện phục vụ FE–BE cùng site, như `localhost:5173` và `localhost:8080`; thống nhất hostname khi phát triển. Cấu hình khi deploy xem [backend-config.md](backend-config.md). Response tài khoản/CSRF dùng `Cache-Control: no-store`.
 
-## 5. Quy tắc đăng ký và OTP giữ nguyên
+## 5. Quy tắc đăng ký và OTP
 
-- Một email giữ đúng một loại tài khoản qua `email_identities`; account liên kết bằng cặp `(email, account_type)`. Đăng ký trùng không thay mật khẩu của account cũ; khách đang chờ tiếp tục bằng gửi lại OTP.
+- Một email giữ đúng một loại tài khoản qua `email_identities`; account liên kết bằng cặp `(email, account_type)`. Chỉ CUSTOMER đang PENDING_EMAIL được đăng ký lại: cập nhật mật khẩu/tên/điện thoại trên cùng account, vô hiệu OTP trước và cấp OTP cùng token mới. ACTIVE, SUSPENDED, account khác loại hoặc identity đã được giữ cho NCC đều trả `409 / EMAIL_ALREADY_USED` và không bị thay đổi.
+- Đăng ký lại pending cũng tuân theo thời gian chờ gửi OTP (mặc định 60 giây). OTP và token trước đó không được dùng để xác thực lần đăng ký mới. Nếu người khác đăng ký sau khi form hiện tại được tạo, ngay cả OTP mới nhất trong hộp thư cũng không thể kích hoạt account từ form mang token cũ; người dùng phải bắt đầu đăng ký lại.
 - OTP sáu chữ số sinh bằng SecureRandom, lưu hash có salt. Mã phải đúng account/email/purpose REGISTER_CUSTOMER, đã gửi, chưa dùng/vô hiệu và còn hạn.
-- Mặc định OTP 10 phút, tối đa 5 lần sai, gửi lại sau ít nhất 60 giây và vô hiệu mã cũ. Verify/resend khóa account trong transaction. Nhập sai vẫn lưu bộ đếm; gửi mail thất bại rollback dữ liệu.
+- Mặc định OTP 10 phút, tối đa 5 lần sai, gửi lại sau ít nhất 60 giây và vô hiệu mã cũ. Đăng ký lại/verify/resend cùng khóa account trong transaction để tránh trộn mật khẩu, OTP và token giữa các request đồng thời. Nhập sai vẫn lưu bộ đếm; gửi mail thất bại rollback cả thông tin account, token và OTP.
 - Không trả OTP qua API hoặc ghi OTP vào log. SMTP gửi đồng bộ trong transaction: nếu mail đã được SMTP nhận nhưng database commit thất bại, mã đó không dùng được; outbox chưa triển khai.
 
 ## 6. Chạy local và chuyển từ session sang JWT
@@ -214,6 +234,8 @@ Chạy từ `backend` bằng `./mvnw spring-boot:run`. Hibernate mặc định `
 
 Người dùng cần login lại sau khi chuyển cơ chế. Cookie session cũ không xác thực được API. Hibernate `update` tạo bảng mới nhưng không tự đổi tên/xóa `account_sessions`; ứng dụng không còn đọc bảng cũ. Không tự drop dữ liệu cũ trên Neon; khi deploy, đối chiếu schema và chuẩn bị migration đã review trước khi dùng profile `prod` (`validate`). Các migration hiện có vẫn là placeholder.
 
+Thay đổi token đăng ký thêm cột nullable `email_challenges.registration_token_hash VARCHAR(64)`. Môi trường `ddl-auto=update` tự thêm khi khởi động. Với schema PostgreSQL có sẵn chạy `validate`, áp dụng [SQL thêm cột](../backend/src/main/resources/db/manual/add_registration_token_hash.sql) trước khi chạy phiên bản mới; script này không tự chạy và không bật Flyway. Challenge cũ không có token sẽ bị từ chối verify/resend: người dùng pending đăng ký lại để nhận OTP và token mới. Không backfill token hoặc bỏ qua kiểm tra token cho dữ liệu cũ.
+
 ## 7. Các file cần đọc
 
 Các đường dẫn dưới đây tính từ `backend/src/main/java/com/homeservice`.
@@ -236,7 +258,7 @@ Các đường dẫn dưới đây tính từ `backend/src/main/java/com/homeser
 | [AuthConfig](../backend/src/main/java/com/homeservice/config/AuthConfig.java) | Clock UTC dùng chung, hỗ trợ giả lập thời gian trong test; nạp cấu hình OTP. |
 | [SecurityErrorHandler](../backend/src/main/java/com/homeservice/security/SecurityErrorHandler.java), [GlobalExceptionHandler](../backend/src/main/java/com/homeservice/common/exception/GlobalExceptionHandler.java) | Lỗi từ filter bảo mật và lỗi từ controller/service đều về dạng JSON chung. |
 
-Request DTO: `RegisterCustomerRequest`, `EmailRequest`, `VerifyEmailRequest`, `LoginRequest`. Response DTO: `RegistrationResponse`, `AccountResponse`, `LoginResponse`, `CsrfResponse`, `ApiError`. Đây là class thường; các record cấu hình và `RefreshTokenService.TokenPair` nội bộ chưa được chuyển trong đợt đổi DTO.
+Request DTO: `RegisterCustomerRequest`, `ResendVerificationRequest` (kế thừa email chuẩn hóa từ `EmailRequest`), `VerifyEmailRequest`, `LoginRequest`. Response DTO: `RegistrationResponse`, `AccountResponse`, `LoginResponse`, `CsrfResponse`, `ApiError`. Đây là class thường; các record cấu hình và `RefreshTokenService.TokenPair` nội bộ chưa được chuyển trong đợt đổi DTO.
 
 ## 8. Lỗi và kiểm thử
 
@@ -245,10 +267,12 @@ Lỗi chung có dạng `{code, message, fieldErrors}`. Mã lỗi quyết định
 | HTTP | Code | Cách xử lý |
 | --- | --- | --- |
 | 400 | VALIDATION_ERROR / PASSWORD_TOO_LONG | Sửa dữ liệu nhập. |
-| 409 | EMAIL_ALREADY_USED | Dùng tài khoản cũ hoặc gửi lại OTP nếu đang chờ xác thực. |
+| 409 | EMAIL_ALREADY_USED | Email thuộc account không được đăng ký lại hoặc identity đã được giữ cho loại tài khoản khác. |
 | 409 | DATA_CONFLICT | Xung đột dữ liệu, gồm đăng ký trùng đồng thời. |
 | 400 | OTP_INVALID | Mã sai, hết hạn, chưa gửi hoặc không đúng mục đích. |
+| 400 | REGISTRATION_INVALID | Token đăng ký sai/cũ hoặc challenge cũ chưa có token. Bắt đầu đăng ký lại, không tự lấy token của lượt khác. |
 | 429 | OTP_ATTEMPTS_EXCEEDED / OTP_RESEND_TOO_SOON | Chờ đủ thời gian rồi yêu cầu mã mới. |
+| 429 | LOGIN_RATE_LIMITED | Chờ theo số giây trong header `Retry-After` trước khi đăng nhập lại. |
 | 400 | VERIFICATION_NOT_AVAILABLE | Không có khách đang chờ xác thực với email này. |
 | 401 | INVALID_CREDENTIALS | Sai thông tin đăng nhập hoặc account không thuộc CUSTOMER. |
 | 403 | EMAIL_NOT_VERIFIED / ACCOUNT_SUSPENDED / PASSWORD_CHANGE_REQUIRED | Tài khoản chưa đủ điều kiện login. |
@@ -257,7 +281,7 @@ Lỗi chung có dạng `{code, message, fieldErrors}`. Mã lỗi quyết định
 | 403 | CSRF_INVALID / ACCESS_DENIED | Kiểm tra CSRF hoặc quyền, không tự refresh token để lặp lại. |
 | 503 | EMAIL_DELIVERY_FAILED | Kiểm tra SMTP và thử lại. |
 
-Chạy `./mvnw test` từ `backend`. Profile test dùng H2 trong bộ nhớ, khóa JWT dành riêng cho test và JavaMailSender giả; không kết nối Neon hoặc gửi email thật. Bộ test bao phủ đăng ký/OTP, validation và JSON của DTO class, lỗi SMTP, CSRF/CORS, quyền, JWT sai chữ ký/claim/hết hạn, phân biệt access/refresh, rotation/reuse, refresh đồng thời và giới hạn logout.
+Chạy `./mvnw test` từ `backend`. Profile test dùng H2 trong bộ nhớ, khóa JWT dành riêng cho test và JavaMailSender giả; không kết nối Neon hoặc gửi email thật. Bộ test bao phủ đăng ký/OTP, ghi đè riêng CUSTOMER pending, token thiếu/sai/cũ/khác account, OTP mới với form cũ, lỗi SMTP rollback, đăng ký lại đồng thời và đua với verify, challenge legacy thiếu token, validation và JSON DTO, CSRF/CORS, quyền, JWT sai chữ ký/claim/hết hạn, phân biệt access/refresh, rotation/reuse, refresh đồng thời và giới hạn logout.
 
 Có thể chạy cùng bộ test trên PostgreSQL **thử nghiệm riêng** bằng system property `spring.datasource.url`, `spring.datasource.username`, `spring.datasource.password`, `spring.datasource.driver-class-name=org.postgresql.Driver`. Profile test dùng `create-drop`; không trỏ vào database có dữ liệu cần giữ. Mockito được nạp bằng Java agent qua Surefire.
 

@@ -35,7 +35,9 @@ SERVER_PORT=8080
 
 Dự án dùng được Neon với URL JDBC PostgreSQL có `sslmode=require`; giữ nguyên thông tin Neon đã cấu hình trong `.env`. Các cấu hình mới có mặc định: `FRONTEND_ORIGINS=http://localhost:5173`, `COOKIE_SECURE=false` cho HTTP local, `SHOW_SQL=false`, `FLYWAY_ENABLED=false`. Khi dùng HTTPS, đặt `COOKIE_SECURE=true`.
 
-Hibernate đang dùng `ddl-auto: validate`. Đã chuẩn bị Flyway nhưng chưa bật/chưa có migration tài khoản; bật sau khi bổ sung migration đầu tiên. Xem [cấu hình backend và hợp đồng CSRF](docs/backend-config.md) trước khi nối frontend.
+Hibernate mặc định dùng `ddl-auto: ${DDL_AUTO:update}` để tự tạo bảng còn thiếu và cập nhật cấu trúc theo entity khi khởi động. Profile `dev` dùng `update`, profile `prod` dùng `validate`. Flyway hiện tắt; chưa cần migration để chạy ở chế độ `update`. Xem [cấu hình backend và hợp đồng CSRF](docs/backend-config.md) trước khi nối frontend.
+
+Backend đã có luồng đăng ký khách, OTP, đăng nhập bằng JWT access/refresh, làm mới token, xem tài khoản và đăng xuất. Cần hai khóa ký độc lập `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` trong `.env` (sinh mỗi khóa bằng `openssl rand -base64 32`). Đăng ký cần SMTP hoạt động; xem [hướng dẫn chạy và hợp đồng API khách hàng](docs/customer-auth.md).
 
 Chạy backend từ thư mục `backend`:
 
@@ -82,4 +84,4 @@ docs/test-cnweb.html             Mẫu giao diện ban đầu
 docs/FE-guideline-lite (1).md    Quy định giao diện FE
 ```
 
-Trang chủ được ghép trong `frontend/src/App.jsx`. Dữ liệu hiển thị mẫu nằm ở `frontend/src/data/home.js`. Backend có `/api/health`, `/api/auth/csrf` và cấu hình bảo mật nền. API đăng nhập, phiên tài khoản và các chức năng nghiệp vụ chưa được triển khai; frontend chưa nối API.
+Trang chủ được ghép trong `frontend/src/App.jsx`. Dữ liệu hiển thị mẫu nằm ở `frontend/src/data/home.js`. Backend có `/api/health`, `/api/auth/csrf` và cấu hình bảo mật nền. Backend đã có xác thực JWT khách hàng; các chức năng nghiệp vụ đang là khung và frontend chưa nối API.
