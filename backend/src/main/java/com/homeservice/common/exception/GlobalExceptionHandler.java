@@ -1,13 +1,16 @@
 package com.homeservice.common.exception;
 
 import com.homeservice.common.dto.ApiError;
-import org.springframework.http.HttpHeaders;
+import com.homeservice.auth.exception.AuthException;
+import com.homeservice.auth.exception.LoginRateLimitException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
@@ -27,6 +30,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ApiError> handleResourceNotFoundException(ResourceNotFoundException exception) {
         ApiError error = new ApiError("NOT_FOUND", exception.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(LoginRateLimitException.class)
+    ResponseEntity<ApiError> handleLoginRateLimit(LoginRateLimitException exception) {
+        return ResponseEntity.status(exception.getStatus())
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.getRetryAfterSeconds()))
+                .body(new ApiError(exception.getCode(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(AuthException.class)
+    ResponseEntity<ApiError> handleAuth(AuthException exception) {
+        return ResponseEntity.status(exception.getStatus()).body(new ApiError(exception.getCode(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ApiError> handleDataConflict(DataIntegrityViolationException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiError("DATA_CONFLICT", "Dữ liệu bị trùng hoặc không thỏa mãn ràng buộc."));
     }
 
     @Override
