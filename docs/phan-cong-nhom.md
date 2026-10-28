@@ -1,6 +1,7 @@
 # Nestify — Phân công công việc nhóm
 
-**Ngày cập nhật:** 22/10/2026.  
+**Ngày cập nhật:** 24/10/2026.
+
 **Nhóm:** Lâm, Thuỷ, Cường, TLam, Minh.  
 **Phạm vi:** phân công triển khai backend và frontend theo phương án đã trao đổi; tài liệu này không phản ánh chức năng đã hoàn thành.
 
@@ -8,9 +9,10 @@ Tài liệu đối chiếu:
 
 - [Use case và đặc tả nghiệp vụ](usecase-final.md).
 - [Thiết kế database final](database-design-final.md).
+- [Hợp đồng JWT khách hàng và tích hợp FE](customer-auth.md), [Quy ước API](api-conventions.md).
 - [Quy định giao diện FE](<FE-guideline-lite (1).md>).
 
-Khi use case cũ khác với quyết định rút gọn trong thiết kế database final phiên bản 1.1, áp dụng bản database 1.1. Hiện có 50 use case triển khai; UC15 và UC26 về thông báo trong ứng dụng đang hoãn. Email OTP, cấp tài khoản và khôi phục mật khẩu vẫn thuộc phạm vi.
+Khi use case cũ khác với quyết định rút gọn trong thiết kế database final phiên bản 1.2, áp dụng bản database 1.2. Hiện có 50 use case triển khai; UC15 và UC26 về thông báo trong ứng dụng đang hoãn. Email OTP, cấp tài khoản và khôi phục mật khẩu vẫn thuộc phạm vi.
 
 ## 1. Tổng quan phân công
 
@@ -35,12 +37,12 @@ TLam tương ứng FE1, Minh tương ứng FE2 trong phương án phân công FE
 | Use case | Chức năng | Phần backend phải bàn giao |
 | --- | --- | --- |
 | UC01 | Đăng ký khách hàng | Kiểm tra/giữ email, tạo tài khoản chờ xác thực và khởi tạo xác thực email. |
-| UC02 | Đăng nhập khách hàng | Xác thực tài khoản khách, kiểm tra trạng thái và cấp phiên. |
-| UC03 | Đăng xuất | Thu hồi phiên hiện tại. |
-| UC04 | Quên/đặt lại mật khẩu | Xác thực yêu cầu, đổi mật khẩu và thu hồi phiên cũ. |
+| UC02 | Đăng nhập khách hàng | Xác thực tài khoản khách, kiểm tra trạng thái và cấp JWT access/refresh; bàn giao API refresh cùng luồng login. |
+| UC03 | Đăng xuất | Thu hồi chuỗi refresh token hiện tại và xóa cookie; access đã cấp hết hiệu lực tại exp. |
+| UC04 | Quên/đặt lại mật khẩu | Xác thực yêu cầu, đổi mật khẩu và thu hồi toàn bộ refresh token của account. |
 | UC16 | Nộp hồ sơ NCC | Tạo hồ sơ chờ xác thực; chưa tạo tài khoản NCC đăng nhập. |
-| UC17 | Đăng nhập NCC | Kiểm tra tài khoản đã duyệt và giới hạn phiên khi chưa đổi mật khẩu lần đầu. |
-| UC27 | Đăng nhập admin | Xác thực đúng vai trò admin. |
+| UC17 | Đăng nhập NCC | Kiểm tra tài khoản đã duyệt, dùng JWT và giới hạn quyền khi chưa đổi mật khẩu lần đầu. |
+| UC27 | Đăng nhập admin | Xác thực tài khoản và cấp JWT đúng vai trò admin. |
 | UC28 | Duyệt/từ chối NCC | Xử lý duyệt đúng một lần, tạo account/profile nguyên tử, ghi lịch sử và gửi email kết quả. |
 | UC35 | Xác thực email khách | Kiểm tra OTP, kích hoạt đúng tài khoản. |
 | UC36 | Xác thực email hồ sơ NCC | Kiểm tra OTP gắn với đúng lần nộp hồ sơ và chuyển sang chờ duyệt. |
@@ -55,7 +57,11 @@ TLam tương ứng FE1, Minh tương ứng FE2 trong phương án phân công FE
 | UC49 | Xử lý kết quả cổng | Xác minh thông báo, kiểm tra số tiền/mã giao dịch, xử lý lặp và tiền đến muộn. |
 | UC50 | Thực hiện/theo dõi hoàn tiền | Ghi nhận nghĩa vụ hoàn, gửi yêu cầu, theo dõi kết quả và đối soát trước khi thử lại. |
 
-**Phần dùng chung Lâm phụ trách:** cấu hình bảo mật, lấy tài khoản đang đăng nhập, vai trò/quyền, quản lý phiên, OTP, email và cơ chế khóa tài khoản. Cung cấp chức năng ghi audit dùng chung để các phần quản trị gọi trong cùng transaction nghiệp vụ khi cần.
+**Phần dùng chung Lâm phụ trách:** cấu hình bảo mật, lấy tài khoản đang đăng nhập, vai trò/quyền, JWT access/refresh, rotation/thu hồi refresh, OTP, email và cơ chế khóa tài khoản. Cung cấp chức năng ghi audit dùng chung để các phần quản trị gọi trong cùng transaction nghiệp vụ khi cần.
+
+**Bàn giao xác thực cho FE:** TLam dùng access JWT trong bộ nhớ và Bearer header; refresh JWT nằm trong cookie HttpOnly. Login/refresh/logout dùng CSRF. Frontend khôi phục đăng nhập qua refresh sau reload, điều phối refresh giữa các tab và xóa token local khi logout. Không tự đổi tiền tố `/api/auth` thành `/api/v1/auth`.
+
+**Trạng thái và giới hạn:** backend khách hàng đã có đăng ký/OTP/login/refresh/me/logout; NCC/admin và reset/khóa account tiếp tục theo kế hoạch. Cường phụ trách API quản lý account cần phối hợp với Lâm để thu hồi toàn bộ refresh token khi khóa; access JWT đã cấp vẫn có thể dùng tối đa tới exp. Không nghiệm thu tính năng khóa dựa trên giả định session bị vô hiệu ngay.
 
 **Ranh giới thanh toán:** kế hoạch demo ưu tiên cổng VNPay sandbox; khả năng sử dụng từng API cần kiểm tra theo tài khoản tích hợp. Thu tiền và hoàn tiền qua cổng là các luồng riêng với chi trả NCC. Theo phương án hiện tại, admin duyệt và chuyển khoản ngân hàng cho NCC rồi ghi nhận kết quả; chưa mặc định có API tự động chi hộ. Giao dịch mô phỏng khi demo phải được nhận diện rõ.
 
@@ -130,7 +136,7 @@ Cường chủ động triển khai controller, DTO, validation, service, reposi
 | Thành phần | Người phụ trách chính |
 | --- | --- |
 | Router tổng, auth store, bảo vệ route theo vai trò | TLam |
-| API client, xử lý hết phiên | TLam |
+| API client, xử lý access JWT hết hạn và điều phối refresh | TLam |
 | Component và logic chat dùng chung | TLam |
 | Dashboard layout, sidebar theo vai trò | Minh |
 | Bảng dữ liệu, phân trang, badge trạng thái dùng chung | Minh |
@@ -142,7 +148,7 @@ Mỗi người bàn giao đủ giao diện, validation, gọi API, trạng thái
 
 | Điểm giao nhau | Chủ trì | Cách phối hợp |
 | --- | --- | --- |
-| Account và phiên | Lâm | Cường dùng nghiệp vụ cập nhật hồ sơ/khóa/mở khóa đã thống nhất. Cơ chế phiên bảo đảm tài khoản bị khóa không tiếp tục thao tác trái quyền. |
+| Account và JWT | Lâm | Cường phối hợp nghiệp vụ khóa/mở khóa: khóa account chặn login/refresh, thu hồi toàn bộ refresh token trong transaction khóa account. Access JWT cũ vẫn có thể dùng tới exp; service nghiệp vụ tự kiểm tra các điều kiện riêng khi cần. |
 | Hồ sơ NCC | Lâm/Cường | Lâm tạo profile khi duyệt và quản lý trường ngân hàng; Cường quản lý trường công khai. Thống nhất entity/migration và cập nhật đúng nhóm trường để tránh ghi đè. |
 | Dịch vụ → đơn | Cường/Thuỷ | Catalog cung cấp thông tin và điều kiện được đặt. Thuỷ kiểm tra lại tại thời điểm tạo/nhận đơn và lưu snapshot; sửa dịch vụ không đổi đơn cũ. |
 | Địa chỉ → đơn | Cường/Thuỷ | Xác minh địa chỉ thuộc khách, chụp dữ liệu vào đơn; sửa/lưu trữ địa chỉ không sửa lịch sử đơn. |
@@ -196,14 +202,14 @@ Tích hợp FE–BE từ tuần 1 và demo bằng dữ liệu chung mỗi tuần
 
 - Có API, DTO/validation, kiểm tra vai trò và chủ sở hữu, xử lý lỗi, tài liệu request/response và migration cần thiết.
 - Có hướng dẫn kiểm tra cùng dữ liệu mẫu; kiểm tra tự động phù hợp cho các quy tắc nghiệp vụ có rủi ro.
-- Lâm kiểm tra đăng ký/duyệt lặp, OTP, thu hồi phiên, callback lặp/muộn, sai số tiền, giao dịch UNKNOWN, tính hoàn/chia tiền và chứng từ chi trả.
+- Lâm kiểm tra đăng ký/duyệt lặp, OTP, JWT/rotation/thu hồi refresh và thời hạn access, callback lặp/muộn, sai số tiền, giao dịch UNKNOWN, tính hoàn/chia tiền và chứng từ chi trả.
 - Thuỷ kiểm tra nhận đơn đồng thời, sửa lịch khi có đơn, khoảng [bắt đầu, kết thúc), mốc hủy 30 phút, deadline khi job chưa chạy và quyền chat/hỗ trợ.
 - Cường kiểm tra truy cập dữ liệu khác chủ, ẩn/lưu trữ dữ liệu, địa chỉ mặc định, đánh giá trùng và đối chiếu số liệu báo cáo.
 
 ### Frontend
 
 - Gọi được API thật cho phần đã tích hợp, có trạng thái tải/lỗi/rỗng và thông báo kết quả rõ ràng.
-- Kiểm tra route/quyền, hết phiên, responsive và giữ dữ liệu nhất quán sau thao tác.
+- Kiểm tra route/quyền, access token hết hạn, refresh/reload/logout, responsive và giữ dữ liệu nhất quán sau thao tác.
 - Dùng enum và quy tắc hiển thị đã thống nhất với BE; phân biệt đang xử lý, thành công, thất bại và chưa rõ kết quả.
 
 ### Review
