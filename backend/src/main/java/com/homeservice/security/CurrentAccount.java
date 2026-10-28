@@ -1,6 +1,6 @@
 package com.homeservice.security;
 
-public class CurrentAccount {
+public class CurrentAccount implements java.security.Principal {
     private Long id;
     private String email;
     private String accountType;
@@ -24,6 +24,11 @@ public class CurrentAccount {
 
     public String getEmail() {
         return email;
+    }
+
+    @Override
+    public String getName() {
+        return id == null ? email : id.toString();
     }
 
     public void setEmail(String email) {

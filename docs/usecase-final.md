@@ -1,6 +1,6 @@
 # Nestify — Use case và đặc tả nghiệp vụ final
 
-**Phiên bản:** 1.0 — 21/10/2026.
+**Phiên bản:** 1.1 — 24/10/2026 (cập nhật xác thực JWT theo lựa chọn của trưởng nhóm).
 
 **Tài liệu đi kèm:** [Thiết kế database final](database-design-final.md).
 
@@ -36,7 +36,7 @@ Các dòng dưới đây là lựa chọn thiết kế bổ sung cho những đi
 | MD01 | Đặt trước ít nhất 60 phút. NCC có tối đa 30 phút phản hồi; sau khi chấp nhận, giữ lịch tối đa 15 phút cho khách cọc. Deadline được lưu theo từng đơn. |
 | MD02 | Khách thanh toán qua cổng được Nestify tích hợp, có thể chọn VNPay hoặc MoMo nếu đã cấu hình kênh đó. Phương thức ngân hàng bên trong cổng phụ thuộc tích hợp thực tế. Chuyển khoản thủ công vào tài khoản Nestify chưa nằm trong luồng mặc định. |
 | MD03 | Admin duyệt và thực hiện chuyển tiền vào tài khoản ngân hàng đã xác minh của NCC, sau khi đủ điều kiện đối soát. Chưa có chuyển tiền tự động định kỳ. |
-| MD04 | OTP có hiệu lực 10 phút, tối đa 5 lần nhập sai, gửi lại sau ít nhất 60 giây; gửi lại vô hiệu mã trước của cùng mục đích/đối tượng. Phiên đăng nhập có thời hạn tối đa 14 ngày và có thể thu hồi. |
+| MD04 | OTP có hiệu lực 10 phút, tối đa 5 lần nhập sai, gửi lại sau ít nhất 60 giây; gửi lại vô hiệu mã trước của cùng mục đích/đối tượng. Access JWT mặc định tối đa 15 phút; refresh JWT tối đa 14 ngày, rotation một lần và có thể thu hồi. Access JWT đã cấp hết hiệu lực tại exp, kể cả sau logout/khóa/reset mật khẩu. |
 | MD05 | Khách chỉ tự hủy trước giờ hẹn và trước khi bắt đầu thực hiện. Đúng/sau giờ hẹn chuyển sang hỗ trợ. NCC hủy khi đang làm phải qua admin, vẫn hoàn đủ cọc theo C08; không có chức năng hủy thông thường sau `COMPLETED`. |
 | MD06 | Một đánh giá cho mỗi đơn `COMPLETED`, không sửa/xóa bởi khách ở bản đầu. Admin có thể ẩn kèm lý do. Có sổ địa chỉ, xem lịch rảnh và gửi yêu cầu hỗ trợ (các UC37–UC39 từng được ghi là đề xuất). |
 | MD07 | Không đổi email/đổi loại tài khoản ở bản đầu. Email đăng ký bỏ dở được tiếp tục bằng luồng gửi lại xác thực; hồ sơ NCC bị từ chối được nộp lại cùng email nhưng không chuyển thành khách hàng. |
@@ -49,7 +49,7 @@ Các dòng dưới đây là lựa chọn thiết kế bổ sung cho những đi
 | Actor | Quyền và giới hạn |
 | --- | --- |
 | Khách truy cập | Xem trang giới thiệu; đăng ký khách, nộp hồ sơ NCC, xác thực email, đăng nhập, đặt lại mật khẩu. Không truy cập danh sách/chi tiết dịch vụ. |
-| Người nộp hồ sơ NCC | Xác thực hồ sơ và nhận email kết quả. Chưa có phiên đăng nhập/quyền NCC trước khi được duyệt. |
+| Người nộp hồ sơ NCC | Xác thực hồ sơ và nhận email kết quả. Chưa được cấp JWT/quyền NCC trước khi được duyệt. |
 | Khách hàng | Xem dịch vụ, đặt lịch, trả tiền cho Nestify, hủy theo chính sách, đánh giá, chat và hỗ trợ. Chỉ truy cập đơn/địa chỉ/thanh toán của mình. |
 | NCC | Quản lý dịch vụ, lịch, đơn được giao, tài khoản nhận tiền; xem thu nhập, chat và đánh giá liên quan. Không dùng tài khoản NCC để đặt đơn như khách. |
 | Admin | Duyệt NCC, quản lý tài khoản/danh mục/đơn, xử lý khiếu nại và nghiệp vụ tiền. Can thiệp quan trọng phải ghi lịch sử; không sửa chứng từ tiền đã thành công. |
@@ -67,13 +67,13 @@ Giữ mã UC01–UC42 từ tài liệu cũ; UC43–UC52 bổ sung cho dòng ti�
 | Mã | Use case | Actor | Kết quả |
 | --- | --- | --- | --- |
 | UC01 | Đăng ký khách hàng | Khách truy cập | Giữ email và tạo account chờ xác thực. |
-| UC02 | Đăng nhập khách hàng | Khách truy cập | Cấp phiên cho account khách hợp lệ. |
-| UC03 | Đăng xuất | Khách/NCC/admin | Thu hồi phiên hiện tại. |
-| UC04 | Quên/đặt lại mật khẩu | Người có account | Xác minh email, đổi mật khẩu và thu hồi các phiên cũ. |
+| UC02 | Đăng nhập khách hàng | Khách truy cập | Cấp JWT access và refresh cho account khách hợp lệ. |
+| UC03 | Đăng xuất | Khách/NCC/admin | Thu hồi chuỗi refresh token hiện tại; frontend xóa access token. |
+| UC04 | Quên/đặt lại mật khẩu | Người có account | Xác minh email, đổi mật khẩu và thu hồi toàn bộ refresh token cũ. |
 | UC14 | Quản lý hồ sơ cá nhân | Khách | Sửa tên, điện thoại; không đổi email/loại tài khoản. |
 | UC16 | Nộp hồ sơ NCC | Khách truy cập | Tạo hồ sơ chờ xác thực, chưa tạo account NCC. |
-| UC17 | Đăng nhập NCC | NCC đã duyệt | Cấp phiên có giới hạn nếu chưa đổi mật khẩu lần đầu. |
-| UC27 | Đăng nhập admin | Admin | Cấp phiên vận hành đúng quyền. |
+| UC17 | Đăng nhập NCC | NCC đã duyệt | Cấp quyền giới hạn nếu chưa đổi mật khẩu lần đầu; cơ chế JWT chi tiết triển khai cùng luồng NCC. |
+| UC27 | Đăng nhập admin | Admin | Cấp JWT mang đúng quyền vận hành. |
 | UC28 | Duyệt/từ chối hồ sơ NCC | Admin | Tạo account/profile đúng một lần hoặc ghi lý do từ chối. |
 | UC29 | Quản lý người dùng | Admin | Xem/khoá/mở khoá tài khoản, ghi nhật ký. |
 | UC35 | Xác thực email khách | Khách truy cập | Kích hoạt account sau OTP hợp lệ. |
@@ -141,8 +141,23 @@ Giữ mã UC01–UC42 từ tài liệu cũ; UC43–UC52 bổ sung cho dòng ti�
 1. Khách nhập email, mật khẩu, tên và thông tin liên hệ. Hệ thống chuẩn hóa email, kiểm tra quyền sở hữu email và tạo account `PENDING_EMAIL`.
 2. Gửi OTP gắn với **account, email và mục đích đăng ký**. Nhập đúng mã còn hạn thì chuyển account thành `ACTIVE` và đánh dấu email đã xác thực.
 3. Mã sai/hết hạn/đã dùng không kích hoạt tài khoản. Gửi lại thay thế mã trước; đăng ký bỏ dở tiếp tục đúng account, không tạo account thứ hai.
-4. Đăng nhập chỉ cấp quyền nghiệp vụ cho account đang hoạt động. Account bị khóa không được thao tác; admin khóa account phải thu hồi phiên.
-5. Đặt lại mật khẩu dùng mã riêng cho account đã tồn tại; thành công thu hồi các phiên cũ. Không tạo account mới bằng luồng quên mật khẩu; hồ sơ NCC chưa duyệt chưa có mật khẩu đăng nhập.
+4. Đăng nhập chỉ cấp quyền nghiệp vụ cho account đang hoạt động. Admin khóa account phải thu hồi toàn bộ refresh token và chặn login/refresh. Access JWT đã cấp có thể tiếp tục dùng tới exp (tối đa 15 phút); đây là độ trễ của thiết kế xác thực JWT không tra thu hồi mỗi request.
+5. Đặt lại mật khẩu dùng mã riêng cho account đã tồn tại; thành công thu hồi toàn bộ refresh token cũ. Không tạo account mới bằng luồng quên mật khẩu; hồ sơ NCC chưa duyệt chưa có mật khẩu đăng nhập.
+
+#### Hợp đồng xác thực JWT — UC02, UC03 và làm mới token
+
+Cả access token và refresh token đều là JWT ký bằng HS256, dùng khóa/audience/loại token riêng. Không có claim mã phiên `sid`; không dùng HttpSession. Dữ liệu refresh vẫn lưu trong database để quản lý đổi token và thu hồi.
+
+| Thao tác | Hành vi |
+| --- | --- |
+| Login | Kiểm tra tài khoản/mật khẩu, cấp access JWT trong JSON và refresh JWT trong cookie HttpOnly. Access mặc định 15 phút, refresh tối đa 14 ngày từ lần login. |
+| Gọi API | Gửi access JWT bằng Bearer header; server kiểm tra chữ ký/claim, role và quyền sở hữu tài nguyên trong nghiệp vụ. |
+| Refresh | Cookie refresh và CSRF hợp lệ; kiểm tra account và bản ghi token, đánh dấu token cũ đã dùng, cấp cặp mới. Không gia hạn mốc hết hạn tuyệt đối của chuỗi refresh. |
+| Dùng lại refresh token | Thu hồi cả chuỗi token từ lần login đó và yêu cầu đăng nhập lại. Frontend cần điều phối refresh để tránh request đồng thời dùng một token. |
+| Logout | Thu hồi chuỗi refresh token hiện tại, xóa cookie; frontend xóa access token trong bộ nhớ. Access đã cấp vẫn có thể dùng đến exp. |
+| Khóa/reset mật khẩu | Khi triển khai, thu hồi tất cả refresh token của account và chặn cấp mới theo trạng thái; access cũ có độ trễ hết hạn tối đa 15 phút. |
+
+**Tình trạng:** đã triển khai backend khách hàng tại `/api/auth/login`, `/refresh`, `/me`, `/logout` cùng đăng ký/OTP. Frontend cần nối API. Login NCC/admin, giới hạn đổi mật khẩu lần đầu, reset và API khóa account chưa hoàn thành. Các rule role trong SecurityConfig không thay thế việc triển khai các luồng này. Xem [hợp đồng API và luồng JWT](customer-auth.md).
 
 ### 4.2. Nộp và duyệt NCC — UC16, UC28, UC36, UC42
 
@@ -151,7 +166,7 @@ Giữ mã UC01–UC42 từ tài liệu cũ; UC43–UC52 bổ sung cho dòng ti�
 3. Nếu từ chối, lưu người duyệt, thời điểm và lý do, gửi email. Cho phép nộp hồ sơ mới cùng email loại NCC sau khi hồ sơ trước đã bị từ chối.
 4. Nếu duyệt, chuyển hồ sơ thành `APPROVED`, tạo account `PROVIDER` và profile trong cùng giao dịch dữ liệu. Gửi username/email và mật khẩu tạm; chỉ lưu hash mật khẩu.
 5. Duyệt lặp hoặc thử gửi lại email không tạo thêm account/profile. Nếu gửi thông tin đăng nhập thất bại, admin có thể cấp lại mật khẩu tạm mới và gửi lại; không lưu mật khẩu rõ trong lịch sử.
-6. Phiên đăng nhập đầu chỉ cho đổi mật khẩu/đăng xuất. Đổi thành công mới dùng được các chức năng NCC.
+6. Lần đăng nhập đầu chỉ được cấp quyền đổi mật khẩu/đăng xuất; sau đổi thành công mới cấp JWT có quyền nghiệp vụ NCC. Cơ chế giới hạn này được triển khai cùng luồng NCC, chưa có trong API login khách hàng hiện tại.
 
 ### 4.3. Dịch vụ và lịch — UC05–UC07, UC18–UC20, UC30, UC37–UC38
 

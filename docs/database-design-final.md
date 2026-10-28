@@ -224,6 +224,7 @@ Mỗi mã xác thực có mục đích, đối tượng, hạn sử dụng và t
 | `account_id` | `BIGINT` | Có | FK → accounts.id | Đối tượng account cho đăng ký khách/reset mật khẩu. |
 | `provider_application_id` | `BIGINT` | Có | FK → provider_applications.id | Đúng lần nộp hồ sơ NCC cần xác thực. |
 | `code_hash` | `TEXT` | Không | — | Hash mã OTP. |
+| `registration_token_hash` | `VARCHAR(64)` | Có | — | SHA-256 của token gắn OTP với lần đăng ký CUSTOMER đã chọn mật khẩu; các purpose khác/legacy có thể null. |
 | `expires_at` | `TIMESTAMPTZ` | Không | — | Hạn sử dụng mã. |
 | `sent_at` | `TIMESTAMPTZ` | Có | — | Thời điểm hệ thống gửi mã. |
 | `consumed_at` | `TIMESTAMPTZ` | Có | — | Thời điểm dùng thành công, không dùng lại. |
@@ -237,6 +238,7 @@ Mỗi mã xác thực có mục đích, đối tượng, hạn sử dụng và t
 - VERIFY_PROVIDER_APPLICATION: chỉ `provider_application_id` có giá trị. Hai purpose còn lại: chỉ `account_id` có giá trị; account/email/loại phải phù hợp.
 - Mã chỉ dùng khi đã gửi, chưa tiêu thụ/vô hiệu và còn hạn. Kiểm tra/tiêu thụ mã trong transaction.
 - Hạn 10 phút, tối đa 5 lần sai, gửi lại sau 60 giây là mặc định đề xuất. Gửi lại vô hiệu mã cũ của đúng đối tượng/purpose.
+- REGISTER_CUSTOMER yêu cầu token của đúng lần đăng ký khi verify/resend. Chỉ CUSTOMER PENDING_EMAIL được ghi đè thông tin khi đăng ký lại, đồng thời thay token và OTP trong transaction khóa account. Resend giữ token của cùng lần đăng ký, chỉ thay OTP. Token sai không làm tăng `attempt_count`; challenge legacy thiếu token phải được thay bằng một lần đăng ký mới.
 
 ### 06. `provider_profiles`
 

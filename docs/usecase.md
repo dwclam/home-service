@@ -1,5 +1,7 @@
 # SƠ ĐỒ USE CASE — Nền tảng đặt dịch vụ tại nhà
 
+> **Tài liệu lịch sử:** nội dung bên dưới giữ theo thời điểm soạn bản cũ. Khi triển khai hiện tại, dùng [usecase-final.md](usecase-final.md), [database-design-final.md](database-design-final.md) và [hợp đồng JWT khách hàng](customer-auth.md). Từ 24/10/2026, access và refresh đều là JWT; các mô tả phiên hoặc quyết định xác thực chưa chốt trong bản cũ không phải hợp đồng đang áp dụng.
+
 **Version:** 1.0
 
 

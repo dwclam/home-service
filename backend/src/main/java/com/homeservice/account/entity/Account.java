@@ -11,7 +11,12 @@ import lombok.Setter;
 import java.time.Instant;
 
 @Entity
-@Table(name = "accounts")
+@Table(name = "accounts", check = {
+        @CheckConstraint(name = "ck_accounts_active_verified",
+                constraint = "status <> 'ACTIVE' OR email_verified_at IS NOT NULL"),
+        @CheckConstraint(name = "ck_accounts_suspended_details",
+                constraint = "status <> 'SUSPENDED' OR (suspended_at IS NOT NULL AND suspension_reason IS NOT NULL)")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -21,15 +26,18 @@ public class Account {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "email", length = 254, nullable = false, unique = true)
+    @Column(name = "email", length = 254, nullable = false, unique = true, updatable = false)
     private String email;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "email", referencedColumnName = "email", insertable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumns(value = {
+            @JoinColumn(name = "email", referencedColumnName = "email", insertable = false, updatable = false),
+            @JoinColumn(name = "account_type", referencedColumnName = "account_type", insertable = false, updatable = false)
+    }, foreignKey = @ForeignKey(name = "fk_accounts_email_identity"))
     private EmailIdentity emailIdentity;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "account_type", nullable = false)
+    @Column(name = "account_type", nullable = false, updatable = false)
     private AccountType accountType;
 
     @Column(name = "password_hash", nullable = false, columnDefinition = "TEXT")

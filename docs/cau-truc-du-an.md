@@ -1,6 +1,7 @@
 # Nestify — Cấu trúc thư mục và trách nhiệm từng phần
 
-**Ngày cập nhật:** 22/10/2026.  
+**Ngày cập nhật:** 24/10/2026.
+
 **Công nghệ:** Java 21, Spring Boot 4, PostgreSQL; React, Vite, Tailwind CSS và Ant Design.  
 **Tài liệu liên quan:** [Phân công nhóm](phan-cong-nhom.md), [Kế hoạch 5 tuần](ke-hoach-trien-khai-5-tuan.md), [Use case](usecase-final.md), [Database final](database-design-final.md).
 
@@ -22,6 +23,9 @@ home-service/
 │   ├── phan-cong-nhom.md
 │   ├── ke-hoach-trien-khai-5-tuan.md
 │   ├── cau-truc-du-an.md
+│   ├── customer-auth.md                    # Luồng JWT và hợp đồng frontend
+│   ├── backend-config.md                   # Cấu hình bảo mật, JWT, SMTP và môi trường
+│   ├── api-conventions.md                  # Đường dẫn, JSON, quyền và xử lý lỗi
 │   ├── FE-guideline-lite (1).md
 │   └── test-cnweb.html                     # Mẫu giao diện ban đầu
 ├── backend/
@@ -34,10 +38,23 @@ home-service/
 │       ├── main/
 │       │   ├── java/com/homeservice/
 │       │   │   ├── BackendApplication.java # Điểm khởi động Spring Boot
-│       │   │   └── auth/TestController.java # Hiện chỉ có GET /api/health
-│       │   └── resources/application.yaml  # Kết nối DB, JPA và cổng HTTP
+│       │   │   ├── config/                 # SecurityConfig, JwtConfig, CorsConfig, AuthConfig, properties
+│       │   │   ├── security/               # Principal, lỗi bảo mật và cookie refresh
+│       │   │   ├── auth/
+│       │   │   │   ├── controller/         # CustomerAuthController, CsrfController
+│       │   │   │   ├── dto/                # Request/response class, validation và JSON
+│       │   │   │   ├── entity/             # EmailIdentity, EmailChallenge, RefreshToken
+│       │   │   │   ├── repository/         # Truy vấn danh tính, OTP và refresh token
+│       │   │   │   └── service/            # CustomerAuthService, JwtTokenService, RefreshTokenService, TokenService
+│       │   │   ├── account/                # Account, địa chỉ và truy vấn/khóa account
+│       │   │   ├── common/                 # DTO/lỗi chung
+│       │   │   ├── integration/mail/       # EmailService, SmtpEmailService
+│       │   │   └── system/HealthController.java # GET /api/health
+│       │   └── resources/                 # application*.yaml, migration placeholder và mail templates
 │       └── test/java/com/homeservice/
-│           └── BackendApplicationTests.java # Kiểm tra khởi tạo Spring context
+│           ├── BackendApplicationTests.java
+│           ├── config/SecurityConfigTests.java
+│           └── auth/CustomerAuthIntegrationTests.java
 └── frontend/
     ├── package.json                       # Dependency và lệnh dev/build/lint
     ├── vite.config.js                     # Cấu hình Vite
@@ -59,7 +76,7 @@ home-service/
         └── assets/                        # Ảnh/SVG được import trong mã nguồn
 ```
 
-Backend đã bổ sung cấu hình bảo mật nền theo [hướng dẫn cấu hình backend](backend-config.md): `config/SecurityConfig`, `config/CorsConfig`, handler lỗi trong `security/common` và `auth/controller/CsrfController`. Health check đã chuyển từ `auth/TestController` sang `system/HealthController`, giữ `/api/health`. Cây ban đầu phía trên là mốc trước đợt cấu hình này. Chưa có API đăng nhập/phiên nghiệp vụ, frontend chưa nối các luồng nghiệp vụ với backend.
+Backend đã có đăng ký/OTP/login/refresh/me/logout cho khách hàng bằng JWT access + refresh; xem [hợp đồng xác thực](customer-auth.md) và [cấu hình backend](backend-config.md). Access JWT đi qua Bearer header; refresh JWT trong cookie HttpOnly, quản lý rotation ở bảng `refresh_tokens`. Không còn `AccountSession` hoặc bộ lọc session cũ. Frontend chưa nối hoàn chỉnh các luồng này; NCC/admin/reset/khóa account triển khai tiếp. Cây trên chỉ liệt kê phần xác thực và các phần nền liên quan, các module nghiệp vụ khác được rút gọn.
 
 ## 2. Cách tổ chức tổng thể đề xuất
 
@@ -91,11 +108,15 @@ backend/
     │   │   ├── BackendApplication.java     # Điểm khởi động, giữ ở package gốc
     │   │   ├── config/
     │   │   │   ├── SecurityConfig.java     # Khai báo bảo mật HTTP, CSRF và PasswordEncoder
-    │   │   │   ├── CorsConfig.java         # Cấu hình truy cập từ frontend nếu cần
+    │   │   │   ├── CorsConfig.java         # Origin, header Authorization và credential
+    │   │   │   ├── JwtConfig.java          # Encoder/decoder, khóa HS256 và kiểm tra claim
+    │   │   │   ├── AuthConfig.java         # Clock UTC và cấu hình OTP
+    │   │   │   ├── properties/            # AppSecurityProperties, AuthProperties, JwtProperties
     │   │   │   └── SchedulingConfig.java   # Kích hoạt/cấu hình tác vụ định kỳ
     │   │   ├── security/
     │   │   │   ├── SecurityErrorHandler.java # Lỗi xác thực/phân quyền/CSRF dạng JSON
-    │   │   │   └── CurrentAccount.java     # Cách dùng chung để lấy người đang đăng nhập
+    │   │   │   ├── RefreshTokenCookieService.java # Cookie chứa refresh JWT
+    │   │   │   └── CurrentAccount.java     # Principal của request từ access JWT
     │   │   ├── common/
     │   │   │   ├── exception/
     │   │   │   │   ├── GlobalExceptionHandler.java # Đổi lỗi Java thành lỗi HTTP thống nhất
@@ -104,7 +125,7 @@ backend/
     │   │   │   └── dto/
     │   │   │       ├── ApiError.java        # Cấu trúc code/message/lỗi từng trường
     │   │   │       └── PageResponse.java    # Kết quả phân trang thống nhất
-    │   │   ├── auth/                       # Đăng nhập, OTP, phiên, khôi phục mật khẩu
+    │   │   ├── auth/                       # Đăng nhập, JWT access/refresh, OTP; khôi phục triển khai sau
     │   │   ├── account/                    # Account, hồ sơ khách và địa chỉ
     │   │   ├── provider/                   # Hồ sơ đăng ký/hoạt động của NCC
     │   │   │   └── availability/           # Lịch mở nhận việc/khóa lịch của NCC
@@ -134,7 +155,7 @@ backend/
     └── test/
         ├── java/com/homeservice/
         │   ├── BackendApplicationTests.java
-        │   ├── auth/                      # Kiểm tra OTP, phiên và giới hạn tài khoản
+        │   ├── auth/                      # Kiểm tra OTP, JWT, rotation/reuse và giới hạn tài khoản
         │   ├── booking/                   # Kiểm tra lịch, trạng thái và deadline
         │   ├── payment/                   # Kiểm tra callback, số tiền và tính lặp
         │   └── catalog/                   # Kiểm tra quyền, điều kiện hiển thị quan trọng
@@ -143,7 +164,7 @@ backend/
 
 Giữ các package bên dưới `com.homeservice` để nằm trong phạm vi quét của `BackendApplication`. `security` xác thực và xác định quyền chung; `auth` triển khai nghiệp vụ đăng ký/đăng nhập/OTP. Quyền sở hữu từng đơn/dịch vụ vẫn phải kiểm tra trong nghiệp vụ liên quan.
 
-Các file cấu hình profile phát triển/demo, migration nghiệp vụ, mail template và lớp tích hợp ở cây trên là đề xuất. Hiện dự án dùng `ddl-auto: validate`, đã thêm Flyway nhưng giữ tắt đến khi có migration đầu tiên. Profile `test` dùng H2 trong bộ nhớ để kiểm tra cấu hình mà không truy cập Neon. Khi viết migration đầu tiên, review SQL rồi bật Flyway; Hibernate tiếp tục chỉ kiểm tra mapping bảng/cột, không thay việc kiểm tra đủ constraint nghiệp vụ.
+Các vị trí chưa có code trong cây đề xuất không đồng nghĩa đã được triển khai. Cấu hình hiện tại dùng `ddl-auto: update` mặc định và ở profile dev; profile prod dùng `validate`. Flyway đang tắt, các migration hiện có là placeholder. Profile test dùng H2 `create-drop`, không truy cập Neon. Khi dùng Flyway để deploy, cần đối chiếu schema thực tế, thiết lập baseline nếu cần, review SQL rồi dùng Hibernate `validate`. Việc đổi entity phiên thành refresh token không tự xóa bảng `account_sessions` cũ.
 
 ### 3.1. Các tầng bên trong một module
 
@@ -161,6 +182,10 @@ Các file cấu hình profile phát triển/demo, migration nghiệp vụ, mail 
 | `job/` | Kích hoạt tác vụ định kỳ, gọi lại nghiệp vụ service. | `BookingExpirationJob.java` |
 
 Module nhỏ có thể chỉ cần vài file. Viết service dạng class trực tiếp là đủ khi chỉ có một cách triển khai. Chỉ thêm interface, mapper hoặc các thư mục phụ khi có nhu cầu cụ thể. `common` dành cho thành phần dùng chung rõ ràng; quy tắc đặt lịch/tính tiền vẫn ở module sở hữu.
+
+DTO API dùng class thường với constructor, getter/setter và annotation validation. Chuẩn hóa email/tên/điện thoại ở setter của request DTO; không tự trim mật khẩu. Record cấu hình và `RefreshTokenService.TokenPair` là kiểu nội bộ, không phải DTO JSON được trả ra API.
+
+Đọc luồng JWT theo thứ tự: `CustomerAuthController.login()` → `CustomerAuthService.login()` → `RefreshTokenService.issueOnLogin()` → `JwtTokenService`; request API tiếp theo được kiểm tra trong filter chain của `SecurityConfig` bằng decoder của `JwtConfig`. `RefreshTokenService` truy vấn DB để đổi/thu hồi refresh, còn xác thực access JWT không tra bảng token. Chi tiết từng file và diagram ở [customer-auth.md](customer-auth.md).
 
 ### 3.2. Ví dụ chi tiết module booking và cách chia file
 
@@ -205,7 +230,7 @@ booking/
 
 | Package | Entity/dữ liệu chính | Người phụ trách |
 | --- | --- | --- |
-| `auth` | EmailIdentity, EmailChallenge, AccountSession. | Lâm |
+| `auth` | EmailIdentity, EmailChallenge, RefreshToken. | Lâm |
 | `account` | Account, CustomerAddress; hồ sơ và quản lý tài khoản. | Lâm chủ trì Account/cơ chế truy cập; Cường làm hồ sơ, địa chỉ và API quản lý theo phân công. |
 | `provider` | ProviderApplication, ProviderProfile. | Lâm chủ trì entity, nộp/duyệt và ngân hàng; Cường sửa/xem trường công khai. |
 | `provider.availability` | ProviderAvailability. | Thuỷ |
@@ -281,7 +306,7 @@ frontend/
     │   │   ├── api.js                     # Hàm gọi API xác thực
     │   │   ├── queries.js                 # Hook/query/mutation và cập nhật cache
     │   │   ├── schemas.js                 # Validation form theo hợp đồng API
-    │   │   └── authStore.js               # Thông tin tài khoản/phiên hiển thị của FE
+    │   │   └── authStore.js               # Account và access JWT trong bộ nhớ của FE
     │   ├── catalog/
     │   │   ├── api.js                     # Tra cứu/quản lý danh mục, dịch vụ
     │   │   ├── queries.js
@@ -298,7 +323,7 @@ frontend/
     │   ├── ui/                            # Loading, EmptyState, ConfirmDialog, bảng dùng chung
     │   └── home/                          # Hero và các section của trang chủ
     ├── lib/
-    │   ├── http.js                        # Axios instance, base URL, cách gửi phiên/xử lý lỗi
+    │   ├── http.js                        # Base URL, Bearer header, cookie/CSRF, điều phối refresh/lỗi
     │   └── queryClient.js                 # Cấu hình cache/request dùng chung
     ├── constants/
     │   ├── roles.js                       # Vai trò và nhãn hiển thị
@@ -373,16 +398,18 @@ Với thanh toán, FE yêu cầu BE tạo lượt thanh toán rồi điều hư�
 
 ## 6. Tài liệu API và dữ liệu mẫu
 
-Đề xuất bổ sung khi nhóm chốt hợp đồng API; các file sau **chưa tồn tại** tại lúc viết tài liệu này:
+Tài liệu JWT và quy ước API đã có; OpenAPI và kịch bản demo bên dưới là đề xuất, chưa có file:
 
 ```text
 docs/
-├── api-conventions.md                     # Base URL, JSON, lỗi, phân trang, phiên, thời gian/tiền
+├── customer-auth.md                       # Đã có: luồng JWT, cookie/CSRF, hợp đồng FE và file backend
+├── backend-config.md                      # Đã có: dependency, secret/TTL, Security/CORS và deploy
+├── api-conventions.md                     # Đã có: đường dẫn thực tế, JSON, lỗi, Bearer/refresh
 ├── openapi.yaml                           # Endpoint, quyền, request/response và ví dụ đã thống nhất
 └── demo-scenarios.md                       # Dữ liệu, vai trò, các bước và kết quả demo
 ```
 
-Chọn một nơi làm nguồn mô tả endpoint chính thức; nếu dùng OpenAPI thì cập nhật endpoint ở đó. `api-conventions.md` ghi quy tắc chung. Dữ liệu FE trong `mocks/` phải khớp ví dụ/hợp đồng đã chốt. Lâm, Thuỷ, Cường cập nhật phần API sở hữu; TLam/Minh kiểm tra dữ liệu đủ cho màn hình.
+Chọn một nơi làm nguồn mô tả endpoint chính thức; nếu dùng OpenAPI thì cập nhật endpoint ở đó. `api-conventions.md` ghi quy tắc chung; `customer-auth.md` là hợp đồng xác thực hiện tại để frontend tích hợp. Dữ liệu FE trong `mocks/` phải khớp ví dụ/hợp đồng đã chốt. Lâm, Thuỷ, Cường cập nhật phần API sở hữu; TLam/Minh kiểm tra dữ liệu đủ cho màn hình.
 
 ## 7. Thứ tự dựng cấu trúc trong 5 tuần
 

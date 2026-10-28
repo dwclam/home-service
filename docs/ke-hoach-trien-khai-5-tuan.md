@@ -1,9 +1,10 @@
 # Nestify — Kế hoạch triển khai 5 tuần
 
-**Ngày cập nhật:** 22/10/2026.  
+**Ngày cập nhật:** 24/10/2026.
+
 **Nhóm:** Lâm, Thuỷ, Cường, TLam, Minh.  
 **Quỹ thời gian Lâm xác nhận:** 8–12 giờ/người/tuần.  
-**Tài liệu đối chiếu:** [Phân công nhóm](phan-cong-nhom.md), [Use case](usecase-final.md), [Database final](database-design-final.md).
+**Tài liệu đối chiếu:** [Phân công nhóm](phan-cong-nhom.md), [Use case](usecase-final.md), [Database final](database-design-final.md), [JWT khách hàng](customer-auth.md).
 
 ## 1. Quỹ thời gian và mục tiêu
 
@@ -47,7 +48,7 @@ Thu tiền sai/đến muộn vẫn phải được lưu và nhận diện khoả
 
 | Nhóm | Use case | Phụ trách và điều kiện |
 | --- | --- | --- |
-| Khôi phục/quản lý tài khoản | UC04, UC29 | Lâm/Cường. Cường dùng cơ chế khóa và phiên của Lâm. |
+| Khôi phục/quản lý tài khoản | UC04, UC29 | Lâm/Cường. Cường phối hợp cơ chế khóa account và thu hồi toàn bộ refresh token với Lâm; access JWT cũ hết hiệu lực tại exp. |
 | Hủy và hoàn tiền | UC11, UC41, UC45, UC46, UC50 | Thuỷ/Lâm. Làm trọn điều kiện hủy, nghĩa vụ hoàn, chứng từ, kết quả và màn hình liên quan. |
 | Hỗ trợ/khiếu nại | UC33, UC39 | Thuỷ; TLam/Minh làm FE. Phải có kiểm tra quyền và thông tin cần để giữ chi trả. |
 | Ngân hàng, đối soát và chi trả | UC44, UC47, UC48 | Lâm; Minh làm FE. Phụ thuộc nghĩa vụ hoàn và điều kiện khiếu nại đã được xử lý đầy đủ. |
@@ -87,13 +88,15 @@ Dữ liệu seed NCC/admin chỉ phục vụ phát triển; vẫn nghiệm thu l
 
 | Thành viên | Bàn giao |
 | --- | --- |
-| Lâm | Cơ chế phiên/vai trò, email/OTP; đăng ký/xác thực/đăng nhập/đăng xuất. Các vai trò dùng chung cơ chế xác thực. Kiểm tra kết nối sandbox sớm. |
+| Lâm | JWT access/refresh và vai trò, email/OTP; đăng ký/xác thực/login/refresh/logout, rotation và phát hiện reuse. Các vai trò dùng cùng nền JWT; login NCC/admin triển khai theo điều kiện riêng. Kiểm tra kết nối sandbox sớm. |
 | Thuỷ | Entity/trạng thái/lịch sử đơn, hợp đồng payment; quản lý lịch và tính khoảng phù hợp trên dữ liệu mẫu. Review API đầu của Cường. |
 | Cường | Danh mục và cập nhật hồ sơ NCC trên dữ liệu seed. Chốt mẫu controller/service/repository/DTO/validation để tái sử dụng. |
-| TLam | Router/auth store/API client; nối đăng ký, OTP, đăng nhập, đăng xuất. Dựng các form tài khoản/NCC tiếp theo từ component chung. |
+| TLam | Router/auth store/API client; nối đăng ký, OTP, login, refresh, logout. Giữ access JWT trong bộ nhớ, gửi Bearer header, cookie/CSRF cho refresh và điều phối refresh giữa các tab. Dựng các form tài khoản/NCC tiếp theo từ component chung. |
 | Minh | Dashboard layout/sidebar/bảng/badge; form hồ sơ/dịch vụ/lịch theo hợp đồng, nối API đã sẵn sàng. |
 
-**Mốc demo:** khách đăng ký → xác thực → đăng nhập → đăng xuất qua FE–BE; có tài khoản phát triển NCC/admin. Khung dữ liệu đơn và hợp đồng API đã được chia sẻ.
+**Mốc demo:** khách đăng ký → xác thực → login → gọi API Bearer → refresh → logout qua FE–BE; có tài khoản phát triển NCC/admin. Khung dữ liệu đơn và hợp đồng API đã được chia sẻ.
+
+Cập nhật xác thực ngày 24/10: backend khách hàng đã có các API JWT nêu trên; phần FE và các luồng NCC/admin/reset/khóa vẫn cần hoàn thiện theo kế hoạch. Danh sách bàn giao không đồng nghĩa đã nghiệm thu toàn bộ. Mặc định access 15 phút, refresh 14 ngày tuyệt đối; không có session opaque hoặc claim sid trong thiết kế hiện tại.
 
 ### Tuần 2 — Dịch vụ và đơn chờ cọc
 
@@ -168,13 +171,13 @@ P0 có Lâm 13 UC, Thuỷ 6 UC, Cường 8 UC. Lâm vẫn là người dễ bị
 
 | Nhóm | Kết quả cần kiểm chứng | Chủ trì |
 | --- | --- | --- |
-| Tài khoản | OTP sai/hết hạn bị từ chối, duyệt NCC lặp không tạo trùng, đăng xuất thu hồi phiên, NCC chưa đổi mật khẩu bị giới hạn. | Lâm |
+| Tài khoản | OTP sai/hết hạn bị từ chối; JWT sai chữ ký/claim/hết hạn bị chặn; refresh chỉ dùng một lần, reuse thu hồi chuỗi; logout thu hồi refresh và frontend xóa access, access cũ hết hiệu lực tại exp. Duyệt NCC lặp và giới hạn đổi mật khẩu được kiểm tra khi có luồng NCC. | Lâm |
 | Quyền dữ liệu | Khách/NCC không đọc/sửa đơn hoặc hồ sơ khác chủ; API hồ sơ công khai không lộ ngân hàng/hồ sơ xét duyệt. | Cường và BE sở hữu chức năng |
 | Lịch | Nhận hai đơn cùng khung chỉ một đơn giữ chỗ; khoảng kết thúc 10:00 không chặn khoảng bắt đầu 10:00; không sửa lịch làm mất chỗ. | Thuỷ |
 | Deadline | Endpoint kiểm tra hạn dù job chưa chạy; tiền muộn không hồi sinh đơn và được ghi nhận để xử lý tiếp. | Thuỷ/Lâm |
 | Tiền | Callback lặp không cộng tiền hai lần; xác minh chữ ký/số tiền/tham chiếu; không xác nhận thu tiền từ redirect; trạng thái chưa rõ không bị coi là thất bại để thu lại ngay. | Lâm |
 | Snapshot | Sửa dịch vụ không đổi giá/thời lượng/địa chỉ đã chụp trên đơn cũ. | Thuỷ/Cường |
-| P1 nếu có | Hủy/hoàn đúng tỷ lệ và chứng từ; chi trả kiểm tra khiếu nại/ngân hàng và kết quả thực tế; API khóa tài khoản có hiệu lực với phiên. | Lâm/Thuỷ/Cường theo phần đã làm |
+| P1 nếu có | Hủy/hoàn đúng tỷ lệ và chứng từ; chi trả kiểm tra khiếu nại/ngân hàng và kết quả thực tế; API khóa account chặn login/refresh và thu hồi toàn bộ refresh token; kiểm tra độ trễ hết hạn access JWT cũ, không kỳ vọng thu hồi access ngay. | Lâm/Thuỷ/Cường theo phần đã làm |
 | Demo | Khởi tạo database mới, chạy theo README, dùng các vai trò trên cùng dữ liệu và diễn tập cả luồng bình thường lẫn lỗi. | Cả nhóm |
 
 ## 8. Khi tiến độ lệch kế hoạch

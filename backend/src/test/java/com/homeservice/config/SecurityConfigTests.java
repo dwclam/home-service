@@ -1,6 +1,9 @@
 package com.homeservice.config;
 
 import jakarta.servlet.http.Cookie;
+import com.homeservice.auth.service.JwtTokenService;
+import com.homeservice.account.entity.Account;
+import com.homeservice.account.enums.AccountType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -42,6 +45,9 @@ class SecurityConfigTests {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    JwtTokenService jwtTokens;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -121,7 +127,7 @@ class SecurityConfigTests {
         mvc.perform(options("/api/auth/login")
                         .header(HttpHeaders.ORIGIN, "http://localhost:5173")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type,x-xsrf-token"))
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "content-type,x-xsrf-token,authorization"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"))
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
@@ -159,10 +165,11 @@ class SecurityConfigTests {
     }
 
     @Test
-    void loginIsAllowedThroughSecurityButNotImplementedYet() throws Exception {
-        mvc.perform(withCsrfCookie(post("/api/auth/login")))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    void loginIsPublicButValidatesItsRequestBody() throws Exception {
+        mvc.perform(withCsrfCookie(post("/api/auth/login"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -218,6 +225,19 @@ class SecurityConfigTests {
     }
 
     @Test
+    void bearerAuthenticatesBusinessRequestWithoutCsrfOrStoredAccount() throws Exception {
+        Account account = new Account();
+        account.setId(9000000L);
+        account.setAccountType(AccountType.CUSTOMER);
+        String access = jwtTokens.issueAccess(account).getTokenValue();
+        MvcResult result = mvc.perform(post("/api/probe")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + access)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Lâm\"}"))
+                .andExpect(status().isOk()).andExpect(cookie().doesNotExist("JSESSIONID")).andReturn();
+        assertThat(result.getRequest().getSession(false)).isNull();
+    }
+
+    @Test
     void passwordsAreSaltedAndCheckedAgainstTheirHash() {
         String hash = passwordEncoder.encode("Test-only-password-123!");
         assertThat(hash).isNotEqualTo("Test-only-password-123!");
@@ -253,6 +273,19 @@ class SecurityConfigTests {
         }
     }
 
-    record ProbeRequest(@NotBlank String name) {
+    static class ProbeRequest {
+        @NotBlank
+        private String name;
+
+        public ProbeRequest() {
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
     }
 }

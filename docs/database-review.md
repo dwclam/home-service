@@ -1,5 +1,7 @@
 # Rà soát thiết kế database — Nestify
 
+> **Tài liệu lịch sử:** nội dung bên dưới giữ theo thời điểm soạn bản cũ. Khi triển khai hiện tại, dùng [usecase-final.md](usecase-final.md), [database-design-final.md](database-design-final.md) và [hợp đồng JWT khách hàng](customer-auth.md). Từ 24/10/2026, access và refresh đều là JWT; các mô tả phiên hoặc quyết định xác thực chưa chốt trong bản cũ không phải hợp đồng đang áp dụng.
+
 **Ngày rà soát:** 13/10/2026.  
 **Đối tượng:** [database-design.md](database-design-v1.md). Đây là nhận xét về bản thiết kế, chưa phải kết quả kiểm thử một database đã triển khai.
 

@@ -39,6 +39,11 @@ public class EmailChallenge {
     @Column(name = "code_hash", nullable = false, columnDefinition = "TEXT")
     private String codeHash;
 
+    // Binds the OTP to the registration that selected the account's current password.
+    // Nullable for legacy challenges and other challenge purposes.
+    @Column(name = "registration_token_hash", length = 64, updatable = false)
+    private String registrationTokenHash;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
