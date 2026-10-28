@@ -157,8 +157,12 @@ public class BookingService {
             address = customerAddressRepository.findById(request.getAddressId())
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy địa chỉ được chọn"));
 
-            if (!address.getCustomer().getId().equals(customerId)) {
+                        if (!address.getCustomer().getId().equals(customerId)) {
                 throw new BusinessException("Địa chỉ được chọn không thuộc quyền sở hữu của khách hàng");
+            }
+
+            if (address.getArchivedAt() != null) {
+                throw new BusinessException("Địa chỉ này đã bị lưu trữ, vui lòng chọn địa chỉ khác");
             }
 
             if (recipientName == null || recipientName.isBlank()) recipientName = address.getRecipientName();

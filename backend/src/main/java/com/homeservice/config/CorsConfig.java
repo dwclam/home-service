@@ -18,7 +18,8 @@ public class CorsConfig {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(properties.allowedOrigins());
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cors.setAllowedHeaders(List.of("Content-Type", "Accept", "X-XSRF-TOKEN"));
+        cors.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization", "X-XSRF-TOKEN"));
+        cors.setExposedHeaders(List.of("Retry-After"));
         cors.setAllowCredentials(true);
         cors.setMaxAge(3600L);
         cors.validateAllowCredentials();

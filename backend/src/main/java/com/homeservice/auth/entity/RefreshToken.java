@@ -10,26 +10,22 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(
-        name = "refresh_tokens",
-        indexes = {
-                @Index(name = "idx_refresh_tokens_family_id", columnList = "family_id"),
-                @Index(name = "idx_refresh_tokens_account_lookup", columnList = "account_id, revoked_at, expires_at")
-        }
-)
+@Table(name = "refresh_tokens", indexes = {
+        @Index(name = "ix_refresh_tokens_family", columnList = "family_id"),
+        @Index(name = "ix_refresh_tokens_account", columnList = "account_id,revoked_at,expires_at")
+}, check = @CheckConstraint(name = "ck_refresh_tokens_expiry", constraint = "expires_at > created_at"))
 @Getter
 @Setter
 @NoArgsConstructor
 public class RefreshToken {
-
     @Id
-    @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_id", nullable = false)
     private Account account;
 
+    // Links rotation history in the database only; not a session identifier in JWTs.
     @Column(name = "family_id", nullable = false, updatable = false)
     private UUID familyId;
 
@@ -47,11 +43,4 @@ public class RefreshToken {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
-
-    @PrePersist
-    public void prePersist() {
-        if (this.createdAt == null) {
-            this.createdAt = Instant.now();
-        }
-    }
 }
