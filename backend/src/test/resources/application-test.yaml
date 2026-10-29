@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:nestify-config-test;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate.hbm2ddl.halt_on_error: true
+    show-sql: false
+
+app:
+  jwt:
+    issuer: nestify-test
+    access-secret: dGVzdC1vbmx5LWFjY2Vzcy1rZXktbmV2ZXItdXNlLWluLXByb2R1Y3Rpb24=
+    refresh-secret: dGVzdC1vbmx5LXJlZnJlc2gta2V5LW5ldmVyLXVzZS1pbi1wcm9kdWN0aW9u
+    access-ttl: 15m
+    refresh-ttl: 14d
+  security:
+    allowed-origins: http://localhost:5173
+    secure-cookies: false

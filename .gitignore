@@ -5,7 +5,9 @@
 /.codex/
 /.agents/
 *.iml
-
+/docs/note.md
+/docs/test/ten-file.html
+/docs/backend-config.md
 # Local environment files
 /.env
 /.env.*
