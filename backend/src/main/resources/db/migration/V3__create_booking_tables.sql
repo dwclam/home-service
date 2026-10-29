@@ -1,0 +1,2 @@
+-- V3: Create Booking & Settlement Tables
+-- bookings, booking_status_history

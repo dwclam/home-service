@@ -1,0 +1,2 @@
+-- V2: Create Catalog & Availability Tables
+-- categories, services, service_images, provider_availability, customer_addresses
