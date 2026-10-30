@@ -1,5 +1,6 @@
-import { Home, Menu, X } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { useState } from 'react'
+import { BrandLogo } from './ui/BrandLogo'
 
 const nav = [
   ['Đặt dịch vụ', '#featured'], ['Danh mục', '#categories'],
@@ -7,10 +8,7 @@ const nav = [
 ]
 
 function Brand() {
-  return <a href="#top" className="flex items-center gap-2" aria-label="Nestify - về đầu trang">
-    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-500"><Home className="h-5 w-5 text-white" /></span>
-    <span className="font-logo text-[24px] font-bold text-primary-600">Nestify</span>
-  </a>
+  return <BrandLogo to="#top" size="md" />
 }
 
 export function Header() {
