@@ -43,4 +43,43 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("endsAt") Instant endsAt,
             @Param("now") Instant now
     );
+
+    @Query(value = "SELECT b.* FROM bookings b " +
+                   "WHERE b.provider_id = :providerId " +
+                   "AND (" +
+                   "    b.status IN ('CONFIRMED', 'IN_PROGRESS') " +
+                   "    OR (b.status = 'PENDING_DEPOSIT' AND b.deposit_due_at > :now)" +
+                   ") " +
+                   "AND b.starts_at < :endsAt AND b.ends_at > :startsAt " +
+                   "LIMIT 1", nativeQuery = true)
+    Optional<Booking> findFirstOverlappingExclusiveBooking(
+            @Param("providerId") Long providerId,
+            @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt,
+            @Param("now") Instant now
+    );
+
+    @Query(value = "SELECT b.* FROM bookings b " +
+                   "WHERE b.provider_id = :providerId " +
+                   "AND (" +
+                   "    b.status IN ('CONFIRMED', 'IN_PROGRESS') " +
+                   "    OR (b.status = 'PENDING_DEPOSIT' AND b.deposit_due_at > :now)" +
+                   ") " +
+                   "AND b.starts_at < :slotEndsAt AND b.ends_at > :slotStartsAt " +
+                   "AND NOT EXISTS (" +
+                   "    SELECT 1 FROM provider_availability pa " +
+                   "    WHERE pa.provider_id = :providerId " +
+                   "    AND pa.id != :excludedSlotId " +
+                   "    AND pa.state = 'AVAILABLE' " +
+                   "    AND pa.starts_at <= b.starts_at " +
+                   "    AND pa.ends_at >= b.ends_at" +
+                   ") " +
+                   "LIMIT 1", nativeQuery = true)
+    Optional<Booking> findOrphanedBookingIfSlotRemoved(
+            @Param("providerId") Long providerId,
+            @Param("slotStartsAt") Instant slotStartsAt,
+            @Param("slotEndsAt") Instant slotEndsAt,
+            @Param("excludedSlotId") Long excludedSlotId,
+            @Param("now") Instant now
+    );
 }

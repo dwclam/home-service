@@ -1,6 +1,7 @@
 package com.homeservice.provider.repository;
 
 import com.homeservice.provider.entity.ProviderAvailability;
+import com.homeservice.provider.enums.AvailabilityState;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,11 +9,55 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ProviderAvailabilityRepository extends JpaRepository<ProviderAvailability, Long> {
 
     List<ProviderAvailability> findByProviderAccountId(Long providerId);
+
+    List<ProviderAvailability> findByProviderAccountIdOrderByStartsAtAsc(Long providerId);
+
+    Optional<ProviderAvailability> findByIdAndProviderAccountId(Long id, Long providerId);
+
+    @Query("SELECT pa FROM ProviderAvailability pa " +
+           "WHERE pa.provider.accountId = :providerId " +
+           "AND pa.startsAt < :to " +
+           "AND pa.endsAt > :from " +
+           "ORDER BY pa.startsAt ASC")
+    List<ProviderAvailability> findSlotsInRange(
+            @Param("providerId") Long providerId,
+            @Param("from") Instant from,
+            @Param("to") Instant to
+    );
+
+    @Query("SELECT pa FROM ProviderAvailability pa " +
+           "WHERE pa.provider.accountId = :providerId " +
+           "AND pa.state = :state " +
+           "AND pa.startsAt <= :endsAt " +
+           "AND pa.endsAt >= :startsAt " +
+           "ORDER BY pa.startsAt ASC")
+    List<ProviderAvailability> findOverlappingOrAbuttingSlots(
+            @Param("providerId") Long providerId,
+            @Param("state") AvailabilityState state,
+            @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt
+    );
+
+    @Query("SELECT pa FROM ProviderAvailability pa " +
+           "WHERE pa.provider.accountId = :providerId " +
+           "AND pa.id != :excludedSlotId " +
+           "AND pa.state = :state " +
+           "AND pa.startsAt <= :endsAt " +
+           "AND pa.endsAt >= :startsAt " +
+           "ORDER BY pa.startsAt ASC")
+    List<ProviderAvailability> findOverlappingOrAbuttingSlotsExcluding(
+            @Param("providerId") Long providerId,
+            @Param("excludedSlotId") Long excludedSlotId,
+            @Param("state") AvailabilityState state,
+            @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt
+    );
 
     @Query(value = "SELECT COUNT(*) > 0 FROM provider_availability " +
                    "WHERE provider_id = :providerId " +

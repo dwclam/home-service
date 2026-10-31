@@ -61,7 +61,7 @@ app:
     issuer: ${JWT_ISSUER:nestify}
     access-secret: ${JWT_ACCESS_SECRET}
     refresh-secret: ${JWT_REFRESH_SECRET}
-    access-ttl: ${JWT_ACCESS_TTL:15m}
+    access-ttl: ${JWT_ACCESS_TTL:24h}
     refresh-ttl: ${JWT_REFRESH_TTL:14d}
   mail:
     from: ${MAIL_FROM:no-reply@nestify.local}
