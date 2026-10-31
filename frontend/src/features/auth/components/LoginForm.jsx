@@ -9,6 +9,7 @@ import { loginSchema } from '../schemas'
 import { login } from '../api'
 import { useAuthStore } from '../authStore'
 import { clearCsrfToken } from '../../../lib/http'
+import { ROLE_DEFAULT_ROUTES, ROLES } from '../../../constants/roles'
 import { Button } from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { FormField } from '../../../components/ui/FormField'
@@ -72,8 +73,11 @@ export const LoginForm = () => {
 
       toast.success('Đăng nhập thành công!')
 
-      // Điều hướng về trang được yêu cầu trước đó hoặc trang chủ
-      const redirectPath = location.state?.from?.pathname || '/'
+      // Điều hướng về trang được yêu cầu trước đó hoặc trang mặc định theo vai trò
+      const defaultTarget =
+        ROLE_DEFAULT_ROUTES[data.account?.accountType || data.account?.role] ||
+        '/'
+      const redirectPath = location.state?.from?.pathname || defaultTarget
       navigate(redirectPath, { replace: true })
     } catch (error) {
       const errorData = error.response?.data
@@ -190,6 +194,84 @@ export const LoginForm = () => {
           Đăng ký ngay
         </Link>
       </p>
+
+      {import.meta.env.DEV && (
+        <div className="pt-4 mt-4 border-t border-neutral-200 space-y-2">
+          <p className="text-xs font-medium text-neutral-500 text-center">
+            Tài khoản phát triển (Dev Seed — Khách / NCC / Admin):
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAuth({
+                  account: {
+                    id: 1001,
+                    email: 'customer.seed@nestify.vn',
+                    displayName: 'Nguyễn Văn Khách',
+                    accountType: ROLES.CUSTOMER,
+                    status: 'ACTIVE',
+                    mustChangePassword: false,
+                  },
+                  accessToken: 'dev-seed-customer-token',
+                })
+                toast.success('Đã vào phiên Khách hàng (Seed) để kiểm thử UC08/UC11.')
+                navigate('/customer/bookings', { replace: true })
+              }}
+            >
+              Khách (UC08/11)
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAuth({
+                  account: {
+                    id: 2001,
+                    email: 'provider.seed@nestify.vn',
+                    displayName: 'Điện Lạnh Bách Khoa 247',
+                    accountType: ROLES.PROVIDER,
+                    status: 'ACTIVE',
+                    mustChangePassword: false,
+                  },
+                  accessToken: 'dev-seed-provider-token',
+                })
+                toast.success('Đã vào phiên phát triển Nhà cung cấp (Seed).')
+                navigate('/provider/profile', { replace: true })
+              }}
+            >
+              Khu vực NCC
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setAuth({
+                  account: {
+                    id: 9001,
+                    email: 'admin.seed@nestify.vn',
+                    displayName: 'Admin Vận Hành (Seed)',
+                    accountType: ROLES.ADMIN,
+                    status: 'ACTIVE',
+                    mustChangePassword: false,
+                  },
+                  accessToken: 'dev-seed-admin-token',
+                })
+                toast.success('Đã vào phiên phát triển Admin (Seed).')
+                navigate('/admin', { replace: true })
+              }}
+            >
+              Khu vực Admin
+            </Button>
+          </div>
+        </div>
+      )}
     </form>
   )
 }

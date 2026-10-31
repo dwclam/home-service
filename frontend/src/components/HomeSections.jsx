@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { ArrowRight, CalendarCheck, CircleCheck, Droplets, GraduationCap, Hammer, PawPrint, Search, Sparkles, Star, Zap } from 'lucide-react'
 import { categories, completedTasks, featuredServices, providers, steps } from '../data/home'
 
@@ -45,7 +46,7 @@ function FeaturedServiceCard({ service }) {
     <div className="relative h-48 overflow-hidden bg-neutral-100"><img src={service.image} alt={service.category} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" /><span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-medium text-primary-700 backdrop-blur">{service.category}</span></div>
     <div className="p-5"><h3 className="mb-2 line-clamp-2 min-h-[3.25rem] text-[17px] font-semibold text-ink">{service.title}</h3>
       <div className="mb-4 flex flex-wrap items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">{service.initials}</span><span className="text-sm text-neutral-600">{service.provider}</span><span className="text-neutral-300">•</span><span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-accent-500 text-accent-500" /><span className="text-sm font-medium text-neutral-700">{service.rating}</span><span className="text-xs text-neutral-500">({service.reviews})</span></span></div>
-      <div className="flex items-center justify-between border-t border-neutral-200 pt-4"><div><p className="text-xs text-neutral-500">Từ</p><p className="text-[17px] font-semibold text-primary-600">{service.price}</p></div><a href="#how-it-works" className="inline-flex h-9 items-center rounded-md bg-primary-500 px-4 text-sm font-medium text-white hover:bg-primary-600">Đặt lịch</a></div>
+      <div className="flex items-center justify-between border-t border-neutral-200 pt-4"><div><p className="text-xs text-neutral-500">Từ</p><p className="text-[17px] font-semibold text-primary-600">{service.price}</p></div><Link to="/customer/bookings/new" className="inline-flex h-9 items-center rounded-md bg-primary-500 px-4 text-sm font-medium text-white hover:bg-primary-600">Đặt lịch</Link></div>
     </div>
   </article>
 }

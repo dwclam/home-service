@@ -159,6 +159,46 @@ function Header() {
                     </div>
 
                     <div className="py-1">
+                      {(!account?.accountType ||
+                        account?.accountType === 'CUSTOMER') && (
+                        <>
+                          <Link
+                            to="/customer/bookings/new"
+                            onClick={() => setUserDropdownOpen(false)}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                          >
+                            <span>Đặt lịch dịch vụ mới (UC08)</span>
+                          </Link>
+                          <Link
+                            to="/customer/bookings"
+                            onClick={() => setUserDropdownOpen(false)}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                          >
+                            <span>Đơn đặt dịch vụ của tôi (UC11)</span>
+                          </Link>
+                        </>
+                      )}
+
+                      {account?.accountType === 'PROVIDER' && (
+                        <Link
+                          to="/provider/profile"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                        >
+                          <span>Khu vực Nhà cung cấp</span>
+                        </Link>
+                      )}
+
+                      {account?.accountType === 'ADMIN' && (
+                        <Link
+                          to="/admin"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                        >
+                          <span>Quản trị vận hành</span>
+                        </Link>
+                      )}
+
                       <button
                         type="button"
                         onClick={handleLogout}

@@ -1,9 +1,10 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '../features/auth/authStore'
+import { ROLE_DEFAULT_ROUTES } from '../constants/roles'
 
 export const PublicRoute = ({ children }) => {
-  const { isAuthenticated, isInitialized } = useAuthStore()
+  const { isAuthenticated, isInitialized, account } = useAuthStore()
 
   // Chờ bootstrap kiểm tra refresh cookie hoàn tất
   if (!isInitialized) {
@@ -15,9 +16,11 @@ export const PublicRoute = ({ children }) => {
     )
   }
 
-  // Đã đăng nhập thì không cho vào lại các trang Login, Register, Verify OTP
+  // Đã đăng nhập thì điều hướng về trang mặc định theo vai trò
   if (isAuthenticated) {
-    return <Navigate to="/" replace />
+    const defaultTarget =
+      ROLE_DEFAULT_ROUTES[account?.accountType || account?.role] || '/'
+    return <Navigate to={defaultTarget} replace />
   }
 
   return children || <Outlet />
