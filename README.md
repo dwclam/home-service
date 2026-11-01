@@ -22,7 +22,7 @@ Backend có Maven Wrapper (`backend/mvnw`), nên không cần cài Maven riêng.
 
 ### 1. Cấu hình backend
 
-Sao chép `backend/.env.example` thành `backend/.env`, sau đó điền các giá trị:
+Sao chép `backend/.env` thành `backend/.env`, sau đó điền các giá trị:
 
 ```properties
 DB_URL=jdbc:postgresql://localhost:5432/home_service
