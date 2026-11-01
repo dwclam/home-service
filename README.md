@@ -22,7 +22,7 @@ Backend có Maven Wrapper (`backend/mvnw`), nên không cần cài Maven riêng.
 
 ### 1. Cấu hình backend
 
-Sao chép `backend/.env.example` thành `backend/.env`, sau đó điền các giá trị:
+Sao chép `backend/.env` thành `backend/.env`, sau đó điền các giá trị:
 
 ```properties
 DB_URL=jdbc:postgresql://localhost:5432/home_service
@@ -38,6 +38,8 @@ Dự án dùng được Neon với URL JDBC PostgreSQL có `sslmode=require`; gi
 Hibernate mặc định dùng `ddl-auto: ${DDL_AUTO:update}` để tự tạo bảng còn thiếu và cập nhật cấu trúc theo entity khi khởi động. Profile `dev` dùng `update`, profile `prod` dùng `validate`. Flyway hiện tắt; chưa cần migration để chạy ở chế độ `update`. Xem [cấu hình backend và hợp đồng CSRF](docs/backend-config.md) trước khi nối frontend.
 
 Backend đã có luồng đăng ký khách, OTP, đăng nhập bằng JWT access/refresh, làm mới token, xem tài khoản và đăng xuất. Cần hai khóa ký độc lập `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` trong `.env` (sinh mỗi khóa bằng `openssl rand -base64 32`). Đăng ký cần SMTP hoạt động; xem [hướng dẫn chạy và hợp đồng API khách hàng](docs/customer-auth.md).
+
+Backend cũng đã có [đăng ký làm NCC](docs/provider-registration.md): nộp hồ sơ kèm link tài liệu Drive, xác thực/gửi lại OTP và chuyển sang `PENDING_REVIEW`. Phần admin duyệt và tạo tài khoản NCC triển khai sau.
 
 Chạy backend từ thư mục `backend`:
 

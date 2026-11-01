@@ -14,6 +14,9 @@ spring:
     show-sql: false
 
 app:
+  auth:
+    pending-cleanup:
+      enabled: false
   jwt:
     issuer: nestify-test
     access-secret: dGVzdC1vbmx5LWFjY2Vzcy1rZXktbmV2ZXItdXNlLWluLXByb2R1Y3Rpb24=
