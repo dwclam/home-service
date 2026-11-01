@@ -19,3 +19,7 @@
 .DS_Store
 Thumbs.db
 *.log
+
+# Local scripts & schemas
+start.sh
+/docs/schema-v1.sql

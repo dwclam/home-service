@@ -59,6 +59,18 @@ Các POST xác thực công khai kiểm tra CSRF kể cả khi có Authorization
 
 Dữ liệu phân trang dùng `PageResponse<T>`. Login và refresh dùng cùng `LoginResponse`:
 
+## 3. Cấu trúc Response
+- **Response thành công chuẩn**: Mọi API trả về dữ liệu bọc trong `StandardResponse<T>`:
+  ```json
+  {
+    "success": true,
+    "message": "Đặt lịch thành công",
+    "data": { ... },
+    "timestamp": "2026-10-24T07:20:00Z"
+  }
+  ```
+- **Dữ liệu phân trang**: Được bọc trong `data` dưới dạng `PageResponse<T>`.
+- **Xử lý lỗi tập trung**: Trả về mã lỗi và thông báo chi tiết qua `GlobalExceptionHandler` (sử dụng `ApiError`).
 ```text
 account       → AccountResponse, không có password hash
 accessToken   → JWT để gọi API
