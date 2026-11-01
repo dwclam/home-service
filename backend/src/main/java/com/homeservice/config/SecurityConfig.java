@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,6 +25,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.time.Duration;
 import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
@@ -90,10 +92,15 @@ public class SecurityConfig {
         CookieCsrfTokenRepository repository = new CookieCsrfTokenRepository();
         repository.setCookiePath("/");
         // React reads the masked token from /api/auth/csrf, not from document.cookie.
-        repository.setCookieCustomizer(cookie -> cookie
-                .httpOnly(true)
-                .secure(properties.secureCookies())
-                .sameSite("Lax"));
+        repository.setCookieCustomizer(cookie -> {
+            cookie.httpOnly(true)
+                    .secure(properties.secureCookies())
+                    .sameSite("Lax");
+            ResponseCookie built = cookie.build();
+            if (!built.getValue().isEmpty() && !built.getMaxAge().isZero()) {
+                cookie.maxAge(Duration.ofDays(1));
+            }
+        });
         return repository;
     }
 }

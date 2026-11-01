@@ -20,6 +20,24 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiError> handleBusinessException(BusinessException exception) {
+        ApiError error = new ApiError("BUSINESS_ERROR", exception.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(DataConflictException.class)
+    public ResponseEntity<ApiError> handleDataConflictException(DataConflictException exception) {
+        ApiError error = new ApiError("DATA_CONFLICT", exception.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiError> handleResourceNotFoundException(ResourceNotFoundException exception) {
+        ApiError error = new ApiError("NOT_FOUND", exception.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
     @ExceptionHandler(LoginRateLimitException.class)
     ResponseEntity<ApiError> handleLoginRateLimit(LoginRateLimitException exception) {
         return ResponseEntity.status(exception.getStatus())
@@ -55,6 +73,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception exception, Object body, HttpHeaders headers,
             HttpStatusCode status, WebRequest request
     ) {
+        if (body instanceof ApiError) {
+            return super.handleExceptionInternal(exception, body, headers, status, request);
+        }
         ApiError error = switch (status.value()) {
             case 400 -> new ApiError("BAD_REQUEST", "Yêu cầu không hợp lệ.");
             case 404 -> new ApiError("NOT_FOUND", "Không tìm thấy tài nguyên.");
