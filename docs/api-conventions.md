@@ -1,6 +1,6 @@
 # API Conventions — Nestify
 
-**Cập nhật:** 28/10/2026. Quy ước API dùng chung, đồng bộ với xác thực JWT hiện tại. Request/response chi tiết cho tài khoản nằm ở [customer-auth.md](customer-auth.md), hồ sơ NCC ở [provider-registration.md](provider-registration.md); cấu hình nằm ở [backend-config.md](backend-config.md).
+**Cập nhật:** 27/10/2026. Quy ước API dùng chung, đồng bộ với xác thực JWT hiện tại. Request/response chi tiết cho tài khoản nằm ở [customer-auth.md](customer-auth.md); cấu hình nằm ở [backend-config.md](backend-config.md).
 
 ## 1. Định dạng chung
 
@@ -14,7 +14,6 @@
 | Phạm vi | Đường dẫn | Trạng thái |
 | --- | --- | --- |
 | Xác thực khách | `/api/auth/...` | Đã triển khai; dùng chính xác tiền tố này. |
-| Đăng ký NCC | `/api/provider-applications`, `/verify-email`, `/resend-verification` dưới tiền tố này | Đã triển khai nộp hồ sơ/OTP đến PENDING_REVIEW; không có ID trong URL. |
 | Health | `/api/health` | Đã triển khai. |
 | Nghiệp vụ khách/NCC/admin | `/api/v1/customer/...`, `/api/v1/provider/...`, `/api/v1/admin/...` | Tiền tố dùng cho khung nghiệp vụ; từng endpoint phải được triển khai riêng. |
 | Nội dung công khai | `/api/v1/public/...` | Quy ước cho chức năng triển khai sau; chưa tự động được mở trong SecurityConfig. |
@@ -36,7 +35,7 @@ Authorization: Bearer <access JWT>
 - `POST /api/auth/refresh` dùng cookie refresh và CSRF, trả access JWT mới trong JSON, đồng thời thay cookie refresh. Mỗi refresh token chỉ được dùng một lần; frontend điều phối để tránh refresh đồng thời, kể cả giữa các tab.
 - `POST /api/auth/logout` thu hồi chuỗi refresh và xóa cookie; frontend xóa access token trong bộ nhớ. Access token đã cấp vẫn có thể dùng tới `exp`; không hứa chặn ngay mọi request sau logout/khóa account.
 - Quyền URL kiểm tra vai trò; quyền sở hữu tài nguyên phải kiểm tra trong service nghiệp vụ dựa trên principal. Account ID/role do client gửi không quyết định người đang đăng nhập.
-- Mới có login/refresh cho CUSTOMER. Đăng ký NCC đã có đến bước PENDING_REVIEW; duyệt hồ sơ, login NCC/admin và reset/khóa account được bổ sung sau, không coi là đã xong chỉ vì SecurityConfig có rule role.
+- Mới có login/refresh cho CUSTOMER. Các API NCC/admin và reset/khóa account được bổ sung theo kế hoạch, không coi là đã xong chỉ vì SecurityConfig có rule role.
 
 - Đăng ký trả `registrationToken` ngẫu nhiên gắn với lần nhập thông tin/mật khẩu. Verify gửi `email`, `code`, `registrationToken`; resend gửi `email`, `registrationToken`. Đây không phải access/refresh JWT. Chỉ lưu hash trong DB; frontend giữ token theo đúng form. Đăng ký lại CUSTOMER đang PENDING_EMAIL cập nhật thông tin và thay OTP/token sau thời gian chờ gửi mã. Token cũ không được dùng với OTP mới. ACTIVE, SUSPENDED và các loại account khác vẫn bị từ chối đăng ký lại.
 
@@ -46,7 +45,6 @@ Authorization: Bearer <access JWT>
 | --- | --- | --- |
 | `GET /api/auth/csrf` | Không cần. | Trả cookie CSRF và `{headerName, token}`. |
 | POST đăng ký/OTP/login dưới `/api/auth` | Không cần. | Gửi cookie CSRF và header lấy từ JSON. Login thành công đặt cookie refresh. |
-| Ba POST nộp hồ sơ/OTP tại `/api/provider-applications` | Không cần. | Gửi cookie CSRF và header lấy từ JSON; không cấp JWT hoặc cookie refresh. |
 | `POST /api/auth/refresh` | Không cần. | Cookie refresh và CSRF bắt buộc để làm mới thành công. |
 | `POST /api/auth/logout` | Không cần. | CSRF hợp lệ; nếu có refresh hợp lệ thì thu hồi chuỗi. |
 | `GET /api/auth/me` và API nghiệp vụ được bảo vệ | Gửi Bearer access JWT. | Không dùng refresh cookie làm danh tính; Bearer request không cần mã CSRF. |
@@ -78,7 +76,7 @@ tokenType     → "Bearer"
 expiresAt     → hạn access token theo ISO-8601
 ```
 
-Refresh JWT chỉ đi qua `Set-Cookie`; không có trường `refreshToken` trong JSON. Verify-email khách và `/me` trả trực tiếp `AccountResponse`. Verify-email NCC trả email và trạng thái PENDING_REVIEW. Logout trả 204, không có body. Response tài khoản/hồ sơ NCC/CSRF có `Cache-Control: no-store`.
+Refresh JWT chỉ đi qua `Set-Cookie`; không có trường `refreshToken` trong JSON. Verify-email và `/me` trả trực tiếp `AccountResponse`. Logout trả 204, không có body. Response tài khoản/CSRF có `Cache-Control: no-store`.
 
 Lỗi trả `ApiError`; ví dụ:
 
@@ -103,9 +101,7 @@ Lỗi trả `ApiError`; ví dụ:
 | 403 / CSRF_INVALID | Lấy lại CSRF, kiểm tra cookie/origin; không xử lý như access token hết hạn. |
 | 403 / ACCESS_DENIED hoặc lỗi trạng thái account | Hiển thị giới hạn quyền/trạng thái; không tự lặp request. |
 | 409 / EMAIL_ALREADY_USED hoặc DATA_CONFLICT | Xử lý dữ liệu trùng/xung đột theo chức năng. |
-| 409 / APPLICATION_ALREADY_EXISTS | Hồ sơ NCC đang chờ duyệt hoặc đã duyệt; không nộp lại để ghi đè. |
-| 400 / VERIFICATION_NOT_AVAILABLE | Không có lượt khách pending còn hạn để xác thực/gửi lại; đăng ký mới nếu lượt đã hết hạn. |
-| 400 / REGISTRATION_INVALID | Token/lượt đăng ký không còn hợp lệ, bao gồm hồ sơ NCC hết hạn; bắt đầu đăng ký lại để lấy OTP/token mới. |
+| 400 / REGISTRATION_INVALID | Lượt đăng ký không còn hợp lệ; bắt đầu đăng ký lại để lấy OTP/token mới. |
 | 429 / OTP_RESEND_TOO_SOON hoặc OTP_ATTEMPTS_EXCEEDED | Chờ đủ thời gian trước khi xin mã tiếp. |
 | 429 / LOGIN_RATE_LIMITED | Chờ số giây trong header `Retry-After` rồi thử đăng nhập lại. Không tự refresh token để lặp lại login. |
 | 503 / EMAIL_DELIVERY_FAILED | Kiểm tra SMTP/thử lại theo luồng gửi mã. |

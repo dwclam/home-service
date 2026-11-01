@@ -157,7 +157,7 @@ Xác thực dùng:
 }
 ```
 
-Gửi lại OTP dùng `{"email":"lam@example.com","registrationToken":"<token hiện tại>"}`. Gửi lại chỉ đổi OTP, giữ nguyên mật khẩu và token; OTP cũ bị vô hiệu. Token hiện tại vẫn có thể dùng để yêu cầu OTP mới sau khi mã hết hạn hoặc hết số lần thử, nếu tài khoản còn pending, lượt đăng ký còn hạn và đã qua thời gian chờ. Khi verify, OTP và token phải cùng thuộc challenge mới nhất, OTP còn hạn và chưa được dùng/vô hiệu. Token sai/cũ không làm tăng số lần thử của OTP hiện tại.
+Gửi lại OTP dùng `{"email":"lam@example.com","registrationToken":"<token hiện tại>"}`. Gửi lại chỉ đổi OTP, giữ nguyên mật khẩu và token; OTP cũ bị vô hiệu. Token hiện tại vẫn có thể dùng để yêu cầu OTP mới sau khi mã hết hạn hoặc hết số lần thử, nếu tài khoản còn pending và đã qua thời gian chờ. Khi verify, OTP và token phải cùng thuộc challenge mới nhất, OTP còn hạn và chưa được dùng/vô hiệu. Token sai/cũ không làm tăng số lần thử của OTP hiện tại.
 
 Login dùng `{"email":"lam@example.com","password":"Your-password-123!"}`. Login và refresh trả cùng cấu trúc; JWT dưới đây chỉ là chỗ điền minh họa:
 
@@ -202,12 +202,10 @@ CORS cho phép origin cụ thể từ `FRONTEND_ORIGINS`, header `Authorization`
 
 ## 5. Quy tắc đăng ký và OTP
 
-Lượt CUSTOMER `PENDING_EMAIL` có deadline `created_at + app.auth.pending-registration-ttl` (mặc định 24 giờ liên tục); tại deadline đã hết hạn. Verify/resend hết hạn trả `400 VERIFICATION_NOT_AVAILABLE`, kể cả challenge cũ còn hạn OTP. Đăng ký lại hoặc gửi lại trong hạn không đổi mốc tạo; OTP mới có hạn không vượt deadline. Đăng ký sau hạn dọn lượt cũ và tạo account/token/OTP mới trong cùng giao dịch, kể cả khi job chưa chạy. Pending NCC hết hạn cũng được dọn khi đăng ký khách nếu không còn lịch sử hay tham chiếu cần giữ; lịch sử NCC REJECTED vẫn giữ identity PROVIDER. SMTP lỗi rollback cả dọn và tạo lượt thay thế; lượt cũ vẫn hết hạn.
-
-- Một email giữ đúng một loại tài khoản qua `email_identities`; account liên kết bằng cặp `(email, account_type)`. Chỉ CUSTOMER đang PENDING_EMAIL còn hạn được đăng ký lại: cập nhật mật khẩu/tên/điện thoại trên cùng account, vô hiệu OTP trước và cấp OTP cùng token mới. ACTIVE, SUSPENDED, account khác loại hoặc identity còn được giữ cho NCC đều trả `409 / EMAIL_ALREADY_USED` và không bị thay đổi.
+- Một email giữ đúng một loại tài khoản qua `email_identities`; account liên kết bằng cặp `(email, account_type)`. Chỉ CUSTOMER đang PENDING_EMAIL được đăng ký lại: cập nhật mật khẩu/tên/điện thoại trên cùng account, vô hiệu OTP trước và cấp OTP cùng token mới. ACTIVE, SUSPENDED, account khác loại hoặc identity đã được giữ cho NCC đều trả `409 / EMAIL_ALREADY_USED` và không bị thay đổi.
 - Đăng ký lại pending cũng tuân theo thời gian chờ gửi OTP (mặc định 60 giây). OTP và token trước đó không được dùng để xác thực lần đăng ký mới. Nếu người khác đăng ký sau khi form hiện tại được tạo, ngay cả OTP mới nhất trong hộp thư cũng không thể kích hoạt account từ form mang token cũ; người dùng phải bắt đầu đăng ký lại.
 - OTP sáu chữ số sinh bằng SecureRandom, lưu hash có salt. Mã phải đúng account/email/purpose REGISTER_CUSTOMER, đã gửi, chưa dùng/vô hiệu và còn hạn.
-- Mặc định OTP 10 phút, tối đa 5 lần sai, gửi lại sau ít nhất 60 giây và vô hiệu mã cũ. Đăng ký lại/verify/resend khóa identity rồi account trong transaction để tránh trộn mật khẩu, OTP và token giữa các request đồng thời. Nhập sai vẫn lưu bộ đếm; gửi mail thất bại rollback cả thông tin account, token và OTP.
+- Mặc định OTP 10 phút, tối đa 5 lần sai, gửi lại sau ít nhất 60 giây và vô hiệu mã cũ. Đăng ký lại/verify/resend cùng khóa account trong transaction để tránh trộn mật khẩu, OTP và token giữa các request đồng thời. Nhập sai vẫn lưu bộ đếm; gửi mail thất bại rollback cả thông tin account, token và OTP.
 - Không trả OTP qua API hoặc ghi OTP vào log. SMTP gửi đồng bộ trong transaction: nếu mail đã được SMTP nhận nhưng database commit thất bại, mã đó không dùng được; outbox chưa triển khai.
 
 ## 6. Chạy local và chuyển từ session sang JWT

@@ -131,7 +131,7 @@ Giữ quyền sử dụng email chung giữa account và hồ sơ NCC. Nhờ đ�
 
 - Không có cột `id` riêng; `email` là PK.
 - Có `UNIQUE(email, account_type)` để account tham chiếu ghép đúng loại. PK email vẫn bảo đảm mỗi email chỉ có một loại.
-- Không đổi email/loại account đang tồn tại. Pending trong hạn tiếp tục cùng loại; sau khi dọn pending hết hạn, identity chỉ được xóa nếu không còn account, hồ sơ hoặc challenge tham chiếu. Khi đó email có thể dùng đăng ký mới bất kỳ loại nào. Hồ sơ NCC REJECTED và identity PROVIDER được giữ để nộp lại cùng loại.
+- Bản đầu không đổi email/đổi loại tài khoản; đăng ký bỏ dở tiếp tục đúng email và loại. Hồ sơ NCC bị từ chối được nộp lại cùng loại PROVIDER.
 
 ### 02. `accounts`
 
@@ -157,7 +157,7 @@ Danh tính đăng nhập chung của khách, NCC đã duyệt và admin; lưu qu
 **Ràng buộc và cách dùng:**
 
 - FK ghép `(email, account_type)` → `email_identities(email, account_type)`; không chỉ kiểm tra email tồn tại.
-- Khách mới là PENDING_EMAIL; NCC chỉ tạo sau duyệt và nhận email đã xác thực từ hồ sơ; admin cấp nội bộ. CUSTOMER PENDING_EMAIL hết hạn sau TTL tính từ created_at; trạng thái ACTIVE/SUSPENDED và account khác loại không bị dọn.
+- Khách mới là PENDING_EMAIL; NCC chỉ tạo sau duyệt và nhận email đã xác thực từ hồ sơ; admin cấp nội bộ.
 - ACTIVE bắt buộc đã xác thực email. SUSPENDED bắt buộc có thời điểm/lý do khóa. Khóa/đặt lại mật khẩu thu hồi toàn bộ refresh token, không xóa lịch sử đơn hay nghĩa vụ tiền.
 
 ### 03. `refresh_tokens`
@@ -197,7 +197,7 @@ Hồ sơ xét duyệt được giữ độc lập với account/profile; nộp l
 | `business_name` | `VARCHAR(200)` | Không | — | Tên NCC/cơ sở được khai báo. |
 | `city` | `VARCHAR(150)` | Không | — | Khu vực hoạt động chính. |
 | `description` | `TEXT` | Không | — | Mô tả năng lực và dịch vụ. |
-| `document_url` | `TEXT` | Không | — | Link HTTPS Google Drive/Google Docs chứa tài liệu hoặc thư mục xét duyệt; backend chỉ lưu link. |
+| `document_url` | `TEXT` | Không | — | URL/object key tài liệu xét duyệt. |
 | `status` | `provider_application_status_enum` | Không | DEFAULT 'PENDING_EMAIL' | Trạng thái xét duyệt. |
 | `email_verified_at` | `TIMESTAMPTZ` | Có | — | Mốc xác thực email của lần nộp này. |
 | `decided_by_admin_id` | `BIGINT` | Có | FK → accounts.id | Admin đưa ra quyết định. |
@@ -210,7 +210,6 @@ Hồ sơ xét duyệt được giữ độc lập với account/profile; nộp l
 
 - Partial UNIQUE(email) cho PENDING_EMAIL/PENDING_REVIEW/APPROVED; REJECTED được giữ và cho phép nộp lại.
 - PENDING_REVIEW/APPROVED/REJECTED phải có `email_verified_at`. APPROVED/REJECTED có admin và thời điểm quyết định; REJECTED có lý do.
-- PENDING_EMAIL hết hạn sau TTL tính từ created_at; PENDING_REVIEW/APPROVED/REJECTED không thuộc diện dọn. REJECTED và challenge của hồ sơ đó được giữ.
 - Duyệt hồ sơ, tạo account/profile và audit cùng transaction; duyệt lặp không tạo account thứ hai.
 
 ### 05. `email_challenges`
@@ -225,7 +224,7 @@ Mỗi mã xác thực có mục đích, đối tượng, hạn sử dụng và t
 | `account_id` | `BIGINT` | Có | FK → accounts.id | Đối tượng account cho đăng ký khách/reset mật khẩu. |
 | `provider_application_id` | `BIGINT` | Có | FK → provider_applications.id | Đúng lần nộp hồ sơ NCC cần xác thực. |
 | `code_hash` | `TEXT` | Không | — | Hash mã OTP. |
-| `registration_token_hash` | `VARCHAR(64)` | Có | — | SHA-256 của token gắn OTP với lần đăng ký CUSTOMER hoặc lần nộp hồ sơ NCC hiện tại; purpose khác/legacy có thể null. |
+| `registration_token_hash` | `VARCHAR(64)` | Có | — | SHA-256 của token gắn OTP với lần đăng ký CUSTOMER đã chọn mật khẩu; các purpose khác/legacy có thể null. |
 | `expires_at` | `TIMESTAMPTZ` | Không | — | Hạn sử dụng mã. |
 | `sent_at` | `TIMESTAMPTZ` | Có | — | Thời điểm hệ thống gửi mã. |
 | `consumed_at` | `TIMESTAMPTZ` | Có | — | Thời điểm dùng thành công, không dùng lại. |
@@ -239,9 +238,7 @@ Mỗi mã xác thực có mục đích, đối tượng, hạn sử dụng và t
 - VERIFY_PROVIDER_APPLICATION: chỉ `provider_application_id` có giá trị. Hai purpose còn lại: chỉ `account_id` có giá trị; account/email/loại phải phù hợp.
 - Mã chỉ dùng khi đã gửi, chưa tiêu thụ/vô hiệu và còn hạn. Kiểm tra/tiêu thụ mã trong transaction.
 - Hạn 10 phút, tối đa 5 lần sai, gửi lại sau 60 giây là mặc định đề xuất. Gửi lại vô hiệu mã cũ của đúng đối tượng/purpose.
-- OTP mới có expires_at là thời điểm sớm hơn giữa sent_at + OTP TTL và deadline của lượt đăng ký. Dọn theo thứ tự khóa identity → account → hồ sơ theo ID, xóa challenge theo ID đối tượng rồi xóa pending; chỉ xóa identity sau khi kiểm tra không còn tham chiếu. FK phụ thuộc ngoài dự kiến khiến giao dịch dọn rollback, không cascade nghiệp vụ. Entity hiện liên kết FK account–identity và challenge–đối tượng; các FK được mô tả cho provider/email identity là thiết kế cần đối chiếu schema thực tế, không mặc định đã có trong migration placeholder.
-- REGISTER_CUSTOMER yêu cầu token của đúng lần đăng ký khi verify/resend. Chỉ CUSTOMER PENDING_EMAIL được ghi đè thông tin khi đăng ký lại, đồng thời thay token và OTP trong transaction khóa identity rồi account. Resend giữ token của cùng lần đăng ký, chỉ thay OTP. Token sai không làm tăng `attempt_count`; challenge legacy thiếu token phải được thay bằng một lần đăng ký mới.
-- VERIFY_PROVIDER_APPLICATION cũng yêu cầu token hiện tại khi verify/resend. Nộp lại PENDING_EMAIL cập nhật cùng hồ sơ và thay OTP/token; REJECTED tạo hồ sơ mới, PENDING_REVIEW/APPROVED không được nộp lại. Khóa email identity trước mọi thao tác NCC; resend giữ token nhưng thay OTP. Chi tiết API ở [provider-registration.md](provider-registration.md).
+- REGISTER_CUSTOMER yêu cầu token của đúng lần đăng ký khi verify/resend. Chỉ CUSTOMER PENDING_EMAIL được ghi đè thông tin khi đăng ký lại, đồng thời thay token và OTP trong transaction khóa account. Resend giữ token của cùng lần đăng ký, chỉ thay OTP. Token sai không làm tăng `attempt_count`; challenge legacy thiếu token phải được thay bằng một lần đăng ký mới.
 
 ### 06. `provider_profiles`
 

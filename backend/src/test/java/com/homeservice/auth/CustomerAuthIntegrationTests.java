@@ -74,8 +74,6 @@ class CustomerAuthIntegrationTests {
     @Autowired TokenService tokens;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTokenService jwtTokens;
-    @Autowired com.homeservice.auth.service.PendingRegistrationCleanup cleanup;
-    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Autowired @Qualifier("accessJwtEncoder") JwtEncoder accessEncoder;
     @Autowired @Qualifier("accessJwtDecoder") JwtDecoder accessDecoder;
     @MockitoBean JavaMailSender mail;
@@ -177,7 +175,6 @@ class CustomerAuthIntegrationTests {
         assertThat(newCode).isNotEqualTo(oldCode);
         Account pending = accounts.findByEmail(EMAIL).orElseThrow();
         assertThat(pending.getId()).isEqualTo(original.getId());
-        assertThat(pending.getCreatedAt()).isEqualTo(original.getCreatedAt());
         assertThat(pending.getStatus()).isEqualTo(AccountStatus.PENDING_EMAIL);
         assertThat(pending.getDisplayName()).isEqualTo("Owner");
         assertThat(pending.getPhone()).isEqualTo("0907654321");
@@ -654,124 +651,6 @@ class CustomerAuthIntegrationTests {
         }
         assertStatus(browser.getPath("/api/v1/admin/protected"), 403);
         assertStatus(browser.getPath("/api/v1/provider/protected"), 403);
-    }
-
-    @Test
-    void deadlineCapsOtpAndRejectsExpiredRequestsThenCreatesNewRegistration() throws Exception {
-        Browser old = new Browser();
-        register(old);
-        Account original = accounts.findByEmail(EMAIL).orElseThrow();
-        Instant created = original.getCreatedAt();
-        now = created.plusSeconds(24 * 3600 - 30);
-        assertStatus(old.postJson("/resend-verification", old.resendPayload()), 200);
-        String code = sentCode();
-        assertThat(latestChallenge().getExpiresAt()).isEqualTo(created.plusSeconds(24 * 3600));
-        assertThat(accounts.findByEmail(EMAIL).orElseThrow().getCreatedAt()).isEqualTo(created);
-        now = created.plusSeconds(24 * 3600);
-        // Legacy challenges may claim validity beyond the registration deadline.
-        jdbc.update("update email_challenges set expires_at = ? where id = ?", java.sql.Timestamp.from(now.plusSeconds(600)), latestChallenge().getId());
-        long count = challenges.count();
-        assertError(old.postJson("/verify-email", old.verification(code)), 400, "VERIFICATION_NOT_AVAILABLE");
-        assertError(old.postJson("/resend-verification", old.resendPayload()), 400, "VERIFICATION_NOT_AVAILABLE");
-        assertThat(challenges.count()).isEqualTo(count);
-        verify(mail, times(2)).send(any(SimpleMailMessage.class));
-        now = now.plusSeconds(1);
-        assertError(old.postJson("/verify-email", old.verification(code)), 400, "VERIFICATION_NOT_AVAILABLE");
-        assertError(old.postJson("/resend-verification", old.resendPayload()), 400, "VERIFICATION_NOT_AVAILABLE");
-        verify(mail, times(2)).send(any(SimpleMailMessage.class));
-        doThrow(new MailSendException("test-only failure")).when(mail).send(any(SimpleMailMessage.class));
-        assertError(new Browser().postJson("/register/customer", registration(EMAIL)), 503, "EMAIL_DELIVERY_FAILED");
-        assertThat(accounts.findByEmail(EMAIL).orElseThrow().getId()).isEqualTo(original.getId());
-        assertError(old.postJson("/verify-email", old.verification(code)), 400, "VERIFICATION_NOT_AVAILABLE");
-        reset(mail);
-        Browser replacement = new Browser();
-        register(replacement);
-        assertThat(accounts.findByEmail(EMAIL).orElseThrow().getId()).isNotEqualTo(original.getId());
-        assertThat(accounts.findByEmail(EMAIL).orElseThrow().getCreatedAt()).isEqualTo(now);
-        assertThat(replacement.registrationToken).isNotEqualTo(old.registrationToken);
-        assertError(old.postJson("/verify-email", old.verification(sentCode())), 400, "REGISTRATION_INVALID");
-    }
-
-    @Test
-    void otpJustBeforeDeadlineCanActivateCustomer() throws Exception {
-        Browser browser = new Browser();
-        register(browser);
-        Instant created = accounts.findByEmail(EMAIL).orElseThrow().getCreatedAt();
-        now = created.plusSeconds(24 * 3600 - 60);
-        assertStatus(browser.postJson("/resend-verification", browser.resendPayload()), 200);
-        String code = sentCode();
-        now = created.plusSeconds(24 * 3600 - 1);
-        assertStatus(browser.postJson("/verify-email", browser.verification(code)), 200);
-    }
-
-    @Test
-    void cleanupWaitsForVerifiedCustomerAndPreservesCommittedAccount() throws Exception {
-        Browser browser = new Browser();
-        register(browser);
-        String code = sentCode();
-        var verified = new java.util.concurrent.CountDownLatch(1);
-        var release = new java.util.concurrent.CountDownLatch(1);
-        try (var pool = Executors.newFixedThreadPool(2)) {
-            var activation = pool.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactionManager).execute(status -> {
-                try {
-                    assertStatus(browser.postJson("/verify-email", browser.verification(code)), 200);
-                    verified.countDown();
-                    if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("release timeout");
-                    return null;
-                } catch (Exception ex) { throw new RuntimeException(ex); }
-            }));
-            assertThat(verified.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
-            now = now.plusSeconds(86400);
-            var cleaning = pool.submit(() -> cleanup.cleanupInNewTransaction(EMAIL));
-            try { org.assertj.core.api.Assertions.assertThatThrownBy(() -> cleaning.get(200, java.util.concurrent.TimeUnit.MILLISECONDS))
-                    .isInstanceOf(java.util.concurrent.TimeoutException.class); }
-            finally { release.countDown(); }
-            activation.get(5, java.util.concurrent.TimeUnit.SECONDS);
-            assertThat(cleaning.get(5, java.util.concurrent.TimeUnit.SECONDS)).isZero();
-        }
-        assertThat(accounts.findByEmail(EMAIL).orElseThrow().getStatus()).isEqualTo(AccountStatus.ACTIVE);
-    }
-
-    @Test
-    void cleanupSerializesWithCompetingExpiredCustomerRegistrations() throws Exception {
-        Browser old = new Browser();
-        register(old);
-        Long oldId = accounts.findByEmail(EMAIL).orElseThrow().getId();
-        String oldCode = sentCode();
-        now = now.plusSeconds(86400);
-        var locked = new java.util.concurrent.CountDownLatch(1);
-        var release = new java.util.concurrent.CountDownLatch(1);
-        try (var pool = Executors.newFixedThreadPool(6)) {
-            var firstCleanup = pool.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactionManager).execute(tx -> {
-                identities.findByEmailForUpdate(EMAIL).orElseThrow();
-                locked.countDown();
-                try { if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("release timeout"); }
-                catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new RuntimeException(ex); }
-                return cleanup.cleanupLocked(EMAIL);
-            }));
-            assertThat(locked.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
-            var first = pool.submit(() -> new Browser().postJson("/register/customer", registration(EMAIL)).getResponse().getStatus());
-            var second = pool.submit(() -> new Browser().postJson("/register/customer", registration(EMAIL)).getResponse().getStatus());
-            var otherCleanup = pool.submit(() -> cleanup.cleanupInNewTransaction(EMAIL));
-            Browser verifier = new Browser(); verifier.registrationToken = old.registrationToken;
-            Browser resender = new Browser(); resender.registrationToken = old.registrationToken;
-            var verifyOld = pool.submit(() -> verifier.postJson("/verify-email", verifier.verification(oldCode)).getResponse().getStatus());
-            var resendOld = pool.submit(() -> resender.postJson("/resend-verification", resender.resendPayload()).getResponse().getStatus());
-            try { org.assertj.core.api.Assertions.assertThatThrownBy(() -> first.get(200, java.util.concurrent.TimeUnit.MILLISECONDS))
-                    .isInstanceOf(java.util.concurrent.TimeoutException.class); }
-            finally { release.countDown(); }
-            assertThat(firstCleanup.get(5, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(1);
-            var statuses = List.of(first.get(5, java.util.concurrent.TimeUnit.SECONDS), second.get(5, java.util.concurrent.TimeUnit.SECONDS));
-            otherCleanup.get(5, java.util.concurrent.TimeUnit.SECONDS);
-            assertThat(verifyOld.get(5, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(400);
-            assertThat(resendOld.get(5, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(400);
-            assertThat(statuses).contains(201).allMatch(value -> value == 201 || value == 409 || value == 429);
-            assertThat(statuses.stream().filter(value -> value == 201).count()).isEqualTo(1);
-        }
-        assertThat(accounts.findByEmail(EMAIL).orElseThrow().getId()).isNotEqualTo(oldId);
-        assertThat(identities.count()).isEqualTo(1);
-        assertThat(accounts.count()).isEqualTo(1);
-        assertThat(challenges.count()).isEqualTo(1);
     }
 
     private Browser loggedInBrowser() throws Exception {
