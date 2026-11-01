@@ -16,7 +16,6 @@ import com.homeservice.auth.repository.EmailChallengeRepository;
 import com.homeservice.auth.repository.EmailIdentityRepository;
 import com.homeservice.config.properties.AuthProperties;
 import com.homeservice.integration.mail.EmailService;
-import com.homeservice.provider.repository.ProviderApplicationRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,16 +37,12 @@ public class CustomerAuthService {
     private final TokenService tokens;
     private final AuthProperties properties;
     private final Clock clock;
-    private final PendingRegistrationCleanup cleanup;
-    private final PendingRegistrationPolicy pendingPolicy;
-    private final ProviderApplicationRepository applications;
     private final String dummyPasswordHash;
 
     public CustomerAuthService(AccountRepository accounts, EmailIdentityRepository identities,
                                EmailChallengeRepository challenges, RefreshTokenService refreshTokens,
                                PasswordEncoder passwords, EmailService email, TokenService tokens,
-                               AuthProperties properties, Clock clock, PendingRegistrationCleanup cleanup,
-                               PendingRegistrationPolicy pendingPolicy, ProviderApplicationRepository applications) {
+                               AuthProperties properties, Clock clock) {
         this.accounts = accounts;
         this.identities = identities;
         this.challenges = challenges;
@@ -57,20 +52,13 @@ public class CustomerAuthService {
         this.tokens = tokens;
         this.properties = properties;
         this.clock = clock;
-        this.cleanup = cleanup;
-        this.pendingPolicy = pendingPolicy;
-        this.applications = applications;
         this.dummyPasswordHash = passwords.encode(tokens.generateRandomValue());
     }
 
     @Transactional
     public RegistrationResponse register(RegisterCustomerRequest request) {
         validatePasswordLength(request.getPassword());
-        cleanup.cleanupLocked(request.getEmail());
-        EmailIdentity identity = cleanup.reserve(request.getEmail(), AccountType.CUSTOMER);
-        if (identity.getAccountType() != AccountType.CUSTOMER || applications.existsByEmail(request.getEmail())) {
-            throw emailAlreadyUsed();
-        }
+        // The same account lock serializes re-registration, resend and verification.
         Account account = accounts.findByEmailForUpdate(request.getEmail()).orElse(null);
         EmailChallenge previous = null;
         if (account != null) {
@@ -81,8 +69,11 @@ public class CustomerAuthService {
             previous = latestChallenge(account);
             requireResendInterval(previous);
         } else {
+            // A provider application may reserve an identity before an account exists.
+            if (identities.existsById(request.getEmail())) throw emailAlreadyUsed();
+            EmailIdentity identity = identities.saveAndFlush(
+                    new EmailIdentity(request.getEmail(), AccountType.CUSTOMER));
             account = new Account();
-            account.setCreatedAt(clock.instant());
             account.setEmail(identity.getEmail());
             account.setAccountType(AccountType.CUSTOMER);
             account.setEmailIdentity(identity);
@@ -172,10 +163,8 @@ public class CustomerAuthService {
     }
 
     private Account pendingCustomer(String emailAddress) {
-        EmailIdentity identity = identities.findByEmailForUpdate(emailAddress).orElseThrow(this::notPending);
         Account account = accounts.findByEmailForUpdate(emailAddress).orElseThrow(this::notPending);
-        if (identity.getAccountType() != AccountType.CUSTOMER || account.getAccountType() != AccountType.CUSTOMER
-                || account.getStatus() != AccountStatus.PENDING_EMAIL || pendingPolicy.expired(account.getCreatedAt())) {
+        if (account.getAccountType() != AccountType.CUSTOMER || account.getStatus() != AccountStatus.PENDING_EMAIL) {
             throw notPending();
         }
         return account;
@@ -234,7 +223,7 @@ public class CustomerAuthService {
             previous.setInvalidatedAt(sentAt);
         }
         challenge.setSentAt(sentAt);
-        challenge.setExpiresAt(pendingPolicy.otpExpiry(sentAt, account.getCreatedAt()));
+        challenge.setExpiresAt(sentAt.plus(properties.otpTtl()));
         challenges.save(challenge);
         return new RegistrationResponse(account.getEmail(), registrationToken, challenge.getExpiresAt(),
                 sentAt.plus(properties.otpResendInterval()));
