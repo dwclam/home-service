@@ -40,6 +40,14 @@ public class Category {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    public Boolean isActive() {
+        return Boolean.TRUE.equals(this.isActive);
+    }
+
+    public void setActive(Boolean active) {
+        this.isActive = active;
+    }
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
