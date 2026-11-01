@@ -39,7 +39,7 @@ Các dòng dưới đây là lựa chọn thiết kế bổ sung cho những đi
 | MD04 | OTP có hiệu lực 10 phút, tối đa 5 lần nhập sai, gửi lại sau ít nhất 60 giây; gửi lại vô hiệu mã trước của cùng mục đích/đối tượng. Access JWT mặc định tối đa 15 phút; refresh JWT tối đa 14 ngày, rotation một lần và có thể thu hồi. Access JWT đã cấp hết hiệu lực tại exp, kể cả sau logout/khóa/reset mật khẩu. |
 | MD05 | Khách chỉ tự hủy trước giờ hẹn và trước khi bắt đầu thực hiện. Đúng/sau giờ hẹn chuyển sang hỗ trợ. NCC hủy khi đang làm phải qua admin, vẫn hoàn đủ cọc theo C08; không có chức năng hủy thông thường sau `COMPLETED`. |
 | MD06 | Một đánh giá cho mỗi đơn `COMPLETED`, không sửa/xóa bởi khách ở bản đầu. Admin có thể ẩn kèm lý do. Có sổ địa chỉ, xem lịch rảnh và gửi yêu cầu hỗ trợ (các UC37–UC39 từng được ghi là đề xuất). |
-| MD07 | Không đổi email/đổi loại tài khoản ở bản đầu. Email đăng ký bỏ dở được tiếp tục bằng luồng gửi lại xác thực; hồ sơ NCC bị từ chối được nộp lại cùng email nhưng không chuyển thành khách hàng. |
+| MD07 | Không đổi email/đổi loại tài khoản ở bản đầu. Lượt pending còn hạn được tiếp tục cùng loại; sau khi hết hạn và dữ liệu giữ chỗ đã được dọn, email không còn tham chiếu có thể dùng cho đăng ký mới với loại khách hoặc NCC. Hồ sơ NCC bị từ chối và identity PROVIDER được giữ, cho phép nộp lại NCC nhưng không đăng ký khách. |
 | MD08 | Phí cổng/ngân hàng do Nestify chịu trong phần của mình; không trừ thêm vào 80% của NCC. Phí thực tế là chi phí riêng, chưa biết phí thì không coi là 0. |
 | MD09 | Khách cần trả 70% trong 24 giờ sau khi hoàn tất dịch vụ. Quá hạn: ghi nhận còn phải thu, thông báo/admin xử lý và chặn đặt đơn mới; không tự coi đã thu, không tự hủy dịch vụ đã hoàn thành và chưa chi trả NCC. |
 | MD10 | Khi có khiếu nại chưa xử lý gắn với đơn, tạm giữ khoản chi trả NCC chưa thực hiện. Bản đầu chỉ tự động hoàn theo hủy/từ chối/hết hạn và hoàn khoản thu ngoài nghĩa vụ; bồi thường/hoàn sau hoàn tất hoặc sau chi trả cần quy trình mở rộng riêng. |
@@ -140,7 +140,7 @@ Giữ mã UC01–UC42 từ tài liệu cũ; UC43–UC52 bổ sung cho dòng ti�
 
 1. Khách nhập email, mật khẩu, tên và thông tin liên hệ. Hệ thống chuẩn hóa email, kiểm tra quyền sở hữu email và tạo account `PENDING_EMAIL`.
 2. Gửi OTP gắn với **account, email và mục đích đăng ký**. Nhập đúng mã còn hạn thì chuyển account thành `ACTIVE` và đánh dấu email đã xác thực.
-3. Mã sai/hết hạn/đã dùng không kích hoạt tài khoản. Gửi lại thay thế mã trước; đăng ký bỏ dở tiếp tục đúng account, không tạo account thứ hai.
+3. Mã sai/hết hạn/đã dùng không kích hoạt tài khoản. Lượt pending có hạn mặc định 24 giờ từ created_at; đúng deadline đã hết hạn, verify/resend bị từ chối. Trong hạn, đăng ký lại giữ account và deadline; sau hạn đăng ký tạo lượt mới sau khi dọn dữ liệu đủ điều kiện.
 4. Đăng nhập chỉ cấp quyền nghiệp vụ cho account đang hoạt động. Admin khóa account phải thu hồi toàn bộ refresh token và chặn login/refresh. Access JWT đã cấp có thể tiếp tục dùng tới exp (tối đa 15 phút); đây là độ trễ của thiết kế xác thực JWT không tra thu hồi mỗi request.
 5. Đặt lại mật khẩu dùng mã riêng cho account đã tồn tại; thành công thu hồi toàn bộ refresh token cũ. Không tạo account mới bằng luồng quên mật khẩu; hồ sơ NCC chưa duyệt chưa có mật khẩu đăng nhập.
 
@@ -161,8 +161,10 @@ Cả access token và refresh token đều là JWT ký bằng HS256, dùng khóa
 
 ### 4.2. Nộp và duyệt NCC — UC16, UC28, UC36, UC42
 
+**Tình trạng:** backend đã triển khai nộp/nộp lại hồ sơ, xác thực và gửi lại OTP tại `/api/provider-applications`, kết thúc ở `PENDING_REVIEW`. Chưa triển khai admin duyệt/từ chối, tạo account/profile và đăng nhập NCC. Xem [hợp đồng đăng ký NCC](provider-registration.md).
+
 1. Người nộp cung cấp email, tên liên hệ, điện thoại, tên cơ sở/cá nhân, mô tả, khu vực và tài liệu xét duyệt.
-2. OTP gắn với **đúng lần nộp hồ sơ**. Xác thực xong, hồ sơ vào `PENDING_REVIEW`; admin chưa được duyệt hồ sơ chưa xác thực.
+2. OTP gắn với **đúng lần nộp hồ sơ**. Hồ sơ `PENDING_EMAIL` có hạn mặc định 24 giờ từ `created_at`; nộp lại trong hạn giữ deadline, sau hạn tạo hồ sơ mới. Verify/resend tại hoặc sau deadline bị từ chối. Xác thực xong, hồ sơ vào `PENDING_REVIEW` và không còn thuộc diện dọn pending; admin chưa được duyệt hồ sơ chưa xác thực.
 3. Nếu từ chối, lưu người duyệt, thời điểm và lý do, gửi email. Cho phép nộp hồ sơ mới cùng email loại NCC sau khi hồ sơ trước đã bị từ chối.
 4. Nếu duyệt, chuyển hồ sơ thành `APPROVED`, tạo account `PROVIDER` và profile trong cùng giao dịch dữ liệu. Gửi username/email và mật khẩu tạm; chỉ lưu hash mật khẩu.
 5. Duyệt lặp hoặc thử gửi lại email không tạo thêm account/profile. Nếu gửi thông tin đăng nhập thất bại, admin có thể cấp lại mật khẩu tạm mới và gửi lại; không lưu mật khẩu rõ trong lịch sử.

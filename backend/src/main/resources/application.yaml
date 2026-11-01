@@ -50,6 +50,11 @@ server:
 
 app:
   auth:
+    pending-registration-ttl: ${AUTH_PENDING_REGISTRATION_TTL:24h}
+    pending-cleanup:
+      enabled: ${AUTH_PENDING_CLEANUP_ENABLED:true}
+      interval: ${AUTH_PENDING_CLEANUP_INTERVAL:1h}
+      batch-size: ${AUTH_PENDING_CLEANUP_BATCH_SIZE:100}
     otp-ttl: ${AUTH_OTP_TTL:10m}
     otp-resend-interval: ${AUTH_OTP_RESEND_INTERVAL:60s}
     otp-max-attempts: ${AUTH_OTP_MAX_ATTEMPTS:5}

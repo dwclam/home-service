@@ -44,7 +44,10 @@ public class SecurityConfig {
         var cookieEndpoints = new OrRequestMatcher(paths.matcher("/api/auth/csrf"),
                 paths.matcher("/api/auth/login"), paths.matcher("/api/auth/refresh"),
                 paths.matcher("/api/auth/logout"), paths.matcher("/api/auth/register/customer"),
-                paths.matcher("/api/auth/verify-email"), paths.matcher("/api/auth/resend-verification"));
+                paths.matcher("/api/auth/verify-email"), paths.matcher("/api/auth/resend-verification"),
+                paths.matcher("/api/provider-applications"),
+                paths.matcher("/api/provider-applications/verify-email"),
+                paths.matcher("/api/provider-applications/resend-verification"));
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
@@ -72,6 +75,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register/customer",
                                 "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/logout", "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/provider-applications",
+                                "/api/provider-applications/verify-email",
+                                "/api/provider-applications/resend-verification").permitAll()
                         .requestMatchers("/api/auth/me").hasRole("CUSTOMER")
                         .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/provider/**", "/api/v1/provider/**").hasRole("PROVIDER")
