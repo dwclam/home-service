@@ -79,3 +79,4 @@ app:
       system-refund-percent: 100
       lead-time-minutes: 60
       request-expire-minutes: 30
+      deposit-due-minutes: 15

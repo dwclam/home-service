@@ -87,6 +87,12 @@ public class BookingPolicyProperties {
     private int requestExpireMinutes = 30;
 
     /**
+     * Thời gian giữ chỗ chờ khách thanh toán cọc sau khi NCC chấp nhận đơn (MD01 / UC21, mặc định: 15 phút).
+     */
+    @Positive
+    private int depositDueMinutes = 15;
+
+    /**
      * Tính toán số tiền cọc (làm tròn theo quy tắc ROUND_HALF_UP).
      */
     public long calculateDepositAmountVnd(long totalAmountVnd) {
@@ -108,5 +114,15 @@ public class BookingPolicyProperties {
         Instant expireAtTimeout = now.plus(Duration.ofMinutes(requestExpireMinutes));
         Instant expireCutoff = startsAt.minus(Duration.ofMinutes(requestExpireMinutes));
         return expireAtTimeout.isBefore(expireCutoff) ? expireAtTimeout : expireCutoff;
+    }
+
+    /**
+     * Tính toán thời điểm hết hạn giữ cọc sau khi NCC chấp nhận đơn:
+     * deposit_due_at = min(now + depositDueMinutes, startsAt - depositDueMinutes) (MD01 / UC21).
+     */
+    public Instant calculateDepositDueAt(Instant now, Instant startsAt) {
+        Instant dueTimeout = now.plus(Duration.ofMinutes(depositDueMinutes));
+        Instant dueCutoff = startsAt.minus(Duration.ofMinutes(depositDueMinutes));
+        return dueTimeout.isBefore(dueCutoff) ? dueTimeout : dueCutoff;
     }
 }
