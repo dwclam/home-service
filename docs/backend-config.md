@@ -1,6 +1,6 @@
 # Nestify — Cấu hình backend và bảo mật JWT
 
-**Cập nhật:** 27/10/2026. Backend hiện có đăng ký/OTP và xác thực khách hàng bằng JWT access + refresh. Chi tiết luồng, request/response và cách frontend tích hợp nằm trong [customer-auth.md](customer-auth.md). Các chức năng NCC/admin, reset mật khẩu và khóa tài khoản vẫn triển khai sau.
+**Cập nhật:** 28/10/2026. Backend hiện có đăng ký/OTP và xác thực khách hàng bằng JWT access + refresh, cùng [nộp hồ sơ và xác thực email NCC](provider-registration.md) đến `PENDING_REVIEW`. Chi tiết xác thực khách nằm trong [customer-auth.md](customer-auth.md). Duyệt hồ sơ, đăng nhập NCC/admin, reset mật khẩu và khóa tài khoản vẫn triển khai sau.
 
 ## 1. Tổ chức mã nguồn
 
@@ -16,6 +16,7 @@ Nestify đặt cấu hình bean trong `config`, xử lý xác thực/quyền chu
 | `auth/controller/CustomerAuthController.java` | Đăng ký, OTP, login, refresh, `/me`, logout; đặt/xóa cookie và trả DTO. |
 | `auth/controller/CsrfController.java` | Trả token CSRF đã che trong JSON, đặt cookie CSRF. |
 | `auth/service/CustomerAuthService.java` | Đăng ký/đăng ký lại CUSTOMER pending; ràng buộc OTP với token đăng ký; kiểm tra điều kiện login. |
+| `provider/controller/ProviderApplicationController.java`, `provider/service/ProviderApplicationService.java` | Nộp/nộp lại hồ sơ NCC, xác thực/gửi lại OTP gắn với token; khóa email identity trong transaction. |
 | `auth/service/JwtTokenService.java` | Tạo/ký JWT và xác minh refresh JWT; không truy vấn database. |
 | `auth/service/RefreshTokenService.java` | Rotation, chống reuse và thu hồi refresh token trong transaction. |
 | `auth/entity/RefreshToken.java`, `auth/repository/RefreshTokenRepository.java` | Mapping `refresh_tokens`, tìm token, thu hồi chuỗi token. |
@@ -62,6 +63,10 @@ Các biến được ánh xạ trong [application.yaml](../backend/src/main/reso
 | `SHOW_SQL` | `false` | Log SQL; profile dev bật, prod tắt. |
 | `DDL_AUTO` | `update` | Profile dev cố định `update`, prod cố định `validate`. |
 | `FLYWAY_ENABLED` | `false` | Chỉ bật khi có migration thực tế đã review. |
+| `AUTH_PENDING_REGISTRATION_TTL` | `24h` | Duration dương; thời hạn tính từ created_at của account/hồ sơ pending. |
+| `AUTH_PENDING_CLEANUP_ENABLED` | `true` | Đặt `false` để tắt job; API vẫn chặn lượt hết hạn. |
+| `AUTH_PENDING_CLEANUP_INTERVAL` | `1h` | Duration dương giữa các lần chạy job. |
+| `AUTH_PENDING_CLEANUP_BATCH_SIZE` | `100` | Số email tối đa mỗi lô, số nguyên dương. |
 | `AUTH_OTP_TTL` | `10m` | Từ 1 giây đến 10 phút. |
 | `AUTH_OTP_RESEND_INTERVAL` | `60s` | Ít nhất 60 giây. |
 | `AUTH_OTP_MAX_ATTEMPTS` | `5` | Từ 1 đến 5 lần nhập sai. |
@@ -92,6 +97,8 @@ Có quy tắc role không có nghĩa đã có API login NCC/admin hoặc đủ e
 Đã tắt form login, HTTP Basic, logout mặc định, request cache và tài khoản `user` tự sinh. `SessionCreationPolicy.STATELESS` ngăn lưu xác thực vào HttpSession. Request Bearer không tra bảng phiên hoặc refresh token. Login/refresh/logout có truy cập database; dữ liệu quản lý refresh token vẫn có trạng thái phía server.
 
 Logout thu hồi refresh token, không vô hiệu ngay access JWT đã cấp. Access hết hiệu lực tại `exp` (tối đa 15 phút). API khóa/reset mật khẩu khi triển khai phải thu hồi toàn bộ refresh token và chặn cấp mới; access cũ vẫn có độ trễ hết hạn. Không mô tả các chức năng khóa/reset là đã hoàn thành.
+
+TTL được suy ra từ cấu hình hiện hành, không lưu deadline riêng: thay TTL ảnh hưởng cả pending đã tồn tại. Khi triển khai, pending cũ quá 24 giờ mặc định lập tức bị API từ chối và job có thể xóa. Job xử lý từng email trong transaction riêng và khóa ở DB; nhiều instance có thể cùng chạy. Lỗi FK rollback riêng email đó và được ghi log để kiểm tra. Tắt job bằng `AUTH_PENDING_CLEANUP_ENABLED=false` không tắt kiểm tra deadline trong API.
 
 PasswordEncoder mặc định dùng BCrypt qua DelegatingPasswordEncoder. Mật khẩu và OTP được hash có salt; refresh JWT và token đăng ký lưu hash SHA-256 trong database. Token đăng ký ngẫu nhiên chỉ trả trong response đăng ký/gửi lại cho đúng lượt, không gửi trong email; verify/resend bắt buộc có token hiện tại. Không trả các hash hoặc khóa ký qua API.
 

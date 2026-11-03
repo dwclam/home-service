@@ -39,6 +39,8 @@ Hibernate mặc định dùng `ddl-auto: ${DDL_AUTO:update}` để tự tạo b�
 
 Backend đã có luồng đăng ký khách, OTP, đăng nhập bằng JWT access/refresh, làm mới token, xem tài khoản và đăng xuất. Cần hai khóa ký độc lập `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` trong `.env` (sinh mỗi khóa bằng `openssl rand -base64 32`). Đăng ký cần SMTP hoạt động; xem [hướng dẫn chạy và hợp đồng API khách hàng](docs/customer-auth.md).
 
+Backend cũng đã có [đăng ký làm NCC](docs/provider-registration.md): nộp hồ sơ kèm link tài liệu Drive, xác thực/gửi lại OTP và chuyển sang `PENDING_REVIEW`. Phần admin duyệt và tạo tài khoản NCC triển khai sau.
+
 Chạy backend từ thư mục `backend`:
 
 ```bash
