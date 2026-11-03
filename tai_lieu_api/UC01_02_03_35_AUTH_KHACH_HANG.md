@@ -10,7 +10,7 @@
 
 - Base URL local: `http://localhost:8080`. Khi deploy, dùng địa chỉ backend của môi trường đó.
 - Dữ liệu JSON; thời gian ISO-8601 UTC. Các giá trị `<...>` trong ví dụ phải thay bằng dữ liệu API trả về.
-- Đã có đăng ký, OTP, login, refresh, `/me`, logout cho khách. Chưa có quên mật khẩu, login NCC/admin hoặc đổi mật khẩu lần đầu.
+- Đã có đăng ký, OTP, login, refresh, `/me`, logout cho khách. Chưa có quên mật khẩu, login NCC hoặc đổi mật khẩu lần đầu. Login admin có endpoint riêng; xem [UC27](UC27_DANG_NHAP_ADMIN.md).
 
 ## 2. Xác Thực & Phân Quyền
 
@@ -19,7 +19,7 @@
 | `GET /api/auth/csrf` | Công khai; FE gửi kèm cookie. |
 | Các `POST /api/auth/...` trong tài liệu | Cookie CSRF + header `X-XSRF-TOKEN`; không cần Bearer. |
 | `POST /api/auth/refresh`, `/logout` | Gửi thêm cookie `NESTIFY_REFRESH` do backend cấp khi login. |
-| `GET /api/auth/me` | `Authorization: Bearer <accessToken>`, vai trò CUSTOMER. |
+| `GET /api/auth/me` | `Authorization: Bearer <accessToken>`, vai trò CUSTOMER hoặc ADMIN (tài liệu này mô tả luồng CUSTOMER). |
 
 FE dùng `credentials: 'include'` với fetch hoặc `withCredentials: true` với Axios để trình duyệt nhận/gửi cookie. Body JSON cần `Content-Type: application/json`.
 

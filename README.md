@@ -41,6 +41,8 @@ Backend đã có luồng đăng ký khách, OTP, đăng nhập bằng JWT access
 
 Backend cũng đã có [đăng ký làm NCC](docs/provider-registration.md): nộp hồ sơ kèm link tài liệu Drive, xác thực/gửi lại OTP và chuyển sang `PENDING_REVIEW`. Phần admin duyệt và tạo tài khoản NCC triển khai sau.
 
+Cấp admin nội bộ bằng lệnh chạy riêng `./backend/create-admin.sh`, đọc `ADMIN_EMAIL`/`ADMIN_PASS` từ `backend/.env`; xem [hướng dẫn ADM-01](docs/admin-provisioning.md). Lệnh không tự chạy khi backend khởi động. Đăng nhập admin dùng `POST /api/auth/login/admin`; refresh, `/me` và logout dùng chung với khách. Xem [hướng dẫn UC27](tai_lieu_api/UC27_DANG_NHAP_ADMIN.md); kiểm thử riêng ADM-02 đang được hoãn theo yêu cầu.
+
 Chạy backend từ thư mục `backend`:
 
 ```bash

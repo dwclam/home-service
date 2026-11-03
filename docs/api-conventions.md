@@ -13,7 +13,7 @@
 
 | Phạm vi | Đường dẫn | Trạng thái |
 | --- | --- | --- |
-| Xác thực khách | `/api/auth/...` | Đã triển khai; dùng chính xác tiền tố này. |
+| Xác thực khách/admin | `/api/auth/...` | Login khách `/login`, admin `/login/admin`; refresh/me/logout dùng chung. Test riêng ADM-02 đang hoãn. |
 | Đăng ký NCC | `/api/provider-applications`, `/verify-email`, `/resend-verification` dưới tiền tố này | Đã triển khai nộp hồ sơ/OTP đến PENDING_REVIEW; không có ID trong URL. |
 | Health | `/api/health` | Đã triển khai. |
 | Nghiệp vụ khách/NCC/admin | `/api/v1/customer/...`, `/api/v1/provider/...`, `/api/v1/admin/...` | Tiền tố dùng cho khung nghiệp vụ; từng endpoint phải được triển khai riêng. |
@@ -36,7 +36,7 @@ Authorization: Bearer <access JWT>
 - `POST /api/auth/refresh` dùng cookie refresh và CSRF, trả access JWT mới trong JSON, đồng thời thay cookie refresh. Mỗi refresh token chỉ được dùng một lần; frontend điều phối để tránh refresh đồng thời, kể cả giữa các tab.
 - `POST /api/auth/logout` thu hồi chuỗi refresh và xóa cookie; frontend xóa access token trong bộ nhớ. Access token đã cấp vẫn có thể dùng tới `exp`; không hứa chặn ngay mọi request sau logout/khóa account.
 - Quyền URL kiểm tra vai trò; quyền sở hữu tài nguyên phải kiểm tra trong service nghiệp vụ dựa trên principal. Account ID/role do client gửi không quyết định người đang đăng nhập.
-- Mới có login/refresh cho CUSTOMER. Đăng ký NCC đã có đến bước PENDING_REVIEW; duyệt hồ sơ, login NCC/admin và reset/khóa account được bổ sung sau, không coi là đã xong chỉ vì SecurityConfig có rule role.
+- Login khách dùng `/api/auth/login`, admin dùng `/api/auth/login/admin`; refresh, `/me`, logout dùng chung CUSTOMER/ADMIN. Kiểm thử riêng ADM-02 đang hoãn; xem [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md). Đăng ký NCC đã có đến PENDING_REVIEW; duyệt hồ sơ, login NCC và reset/khóa account chưa triển khai.
 
 - Đăng ký trả `registrationToken` ngẫu nhiên gắn với lần nhập thông tin/mật khẩu. Verify gửi `email`, `code`, `registrationToken`; resend gửi `email`, `registrationToken`. Đây không phải access/refresh JWT. Chỉ lưu hash trong DB; frontend giữ token theo đúng form. Đăng ký lại CUSTOMER đang PENDING_EMAIL cập nhật thông tin và thay OTP/token sau thời gian chờ gửi mã. Token cũ không được dùng với OTP mới. ACTIVE, SUSPENDED và các loại account khác vẫn bị từ chối đăng ký lại.
 

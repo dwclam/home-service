@@ -9,7 +9,7 @@
 /docs/test/ten-file.html
 /docs/backend-config.md
 /docs/PLAN.md
-/docs/provider-registration.md
+
 # Local environment files
 /.env
 /.env.*
