@@ -144,11 +144,22 @@ public class CustomerAuthService {
 
     @Transactional
     public RefreshTokenService.TokenPair login(String emailAddress, String password, String previousToken) {
+        return authenticate(emailAddress, password, previousToken, AccountType.CUSTOMER);
+    }
+
+    @Transactional
+    public RefreshTokenService.TokenPair loginAdmin(String emailAddress, String password, String previousToken) {
+        return authenticate(emailAddress, password, previousToken, AccountType.ADMIN);
+    }
+
+    // The endpoint chooses the expected role; clients never supply it in the login body.
+    private RefreshTokenService.TokenPair authenticate(String emailAddress, String password, String previousToken,
+                                                       AccountType expectedType) {
         validatePasswordLength(password);
         Account account = accounts.findByEmailForUpdate(emailAddress).orElse(null);
         boolean matches = passwords.matches(password,
                 account == null ? dummyPasswordHash : account.getPasswordHash());
-        if (account == null || !matches || account.getAccountType() != AccountType.CUSTOMER) {
+        if (account == null || !matches || account.getAccountType() != expectedType) {
             throw new AuthException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Email hoặc mật khẩu không đúng.");
         }
         if (account.getStatus() == AccountStatus.SUSPENDED) {

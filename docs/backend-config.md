@@ -1,6 +1,6 @@
 # Nestify — Cấu hình backend và bảo mật JWT
 
-**Cập nhật:** 28/10/2026. Backend hiện có đăng ký/OTP và xác thực khách hàng bằng JWT access + refresh, cùng [nộp hồ sơ và xác thực email NCC](provider-registration.md) đến `PENDING_REVIEW`. Chi tiết xác thực khách nằm trong [customer-auth.md](customer-auth.md). Duyệt hồ sơ, đăng nhập NCC/admin, reset mật khẩu và khóa tài khoản vẫn triển khai sau.
+**Cập nhật:** 28/10/2026. Backend hiện có đăng ký/OTP và xác thực khách hàng bằng JWT access + refresh, cùng [nộp hồ sơ và xác thực email NCC](provider-registration.md) đến `PENDING_REVIEW`. Chi tiết xác thực khách nằm trong [customer-auth.md](customer-auth.md). Đã bổ sung login ADMIN tại `/api/auth/login/admin`, dùng chung refresh/me/logout; test riêng ADM-02 đang hoãn. Duyệt hồ sơ, đăng nhập NCC, reset mật khẩu và khóa tài khoản vẫn triển khai sau.
 
 ## 1. Tổ chức mã nguồn
 
@@ -85,14 +85,14 @@ Sinh mỗi khóa JWT riêng bằng `openssl rand -base64 32`. Khóa được c�
 | Request | Quyền |
 | --- | --- |
 | `GET /api/health`, `GET /api/auth/csrf` | Công khai. |
-| `POST /api/auth/login`, `/register/customer`, `/verify-email`, `/resend-verification`, `/refresh`, `/logout` dưới `/api/auth` | Công khai về access token nhưng vẫn kiểm tra CSRF; refresh/logout xử lý cookie refresh. |
-| `GET /api/auth/me` | Access JWT có `ROLE_CUSTOMER`. |
+| `POST /api/auth/login`, `/login/admin`, `/register/customer`, `/verify-email`, `/resend-verification`, `/refresh`, `/logout` dưới `/api/auth` | Công khai về access token nhưng vẫn kiểm tra CSRF; refresh/logout xử lý cookie refresh. |
+| `GET /api/auth/me` | Access JWT có `ROLE_CUSTOMER` hoặc `ROLE_ADMIN`. |
 | `/api/admin/**`, `/api/v1/admin/**` | `ROLE_ADMIN`. |
 | `/api/provider/**`, `/api/v1/provider/**` | `ROLE_PROVIDER`. |
 | `/api/customer/**`, `/api/v1/customer/**` | `ROLE_CUSTOMER`. |
 | Các request khác | Cần xác thực. |
 
-Có quy tắc role không có nghĩa đã có API login NCC/admin hoặc đủ endpoint nghiệp vụ. Hiện login/refresh chỉ cấp token cho CUSTOMER hợp lệ. Access JWT được kiểm tra HS256, chữ ký, issuer, audience, `token_use`, `sub`, `jti`, `iat`, `exp` và role hợp lệ. Role từ account lúc cấp token được chuyển thành `ROLE_...`; frontend không tự cấp quyền. Service nghiệp vụ vẫn phải kiểm tra quyền sở hữu tài nguyên.
+Login khách và admin có endpoint riêng, refresh/me/logout dùng chung CUSTOMER/ADMIN hợp lệ; login NCC và các endpoint nghiệp vụ quản trị còn phải triển khai riêng. Access JWT được kiểm tra HS256, chữ ký, issuer, audience, `token_use`, `sub`, `jti`, `iat`, `exp` và role hợp lệ. Role từ account lúc cấp token được chuyển thành `ROLE_...`; frontend không tự cấp quyền. Service nghiệp vụ vẫn phải kiểm tra quyền sở hữu tài nguyên.
 
 Đã tắt form login, HTTP Basic, logout mặc định, request cache và tài khoản `user` tự sinh. `SessionCreationPolicy.STATELESS` ngăn lưu xác thực vào HttpSession. Request Bearer không tra bảng phiên hoặc refresh token. Login/refresh/logout có truy cập database; dữ liệu quản lý refresh token vẫn có trạng thái phía server.
 

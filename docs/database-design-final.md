@@ -43,7 +43,7 @@ Khách không tự hủy đúng/sau giờ hẹn; chuyển hỗ trợ. NCC không
 
 ### 1.3. Phạm vi xác thực hiện đã triển khai
 
-Backend đã có JWT cho khách hàng: đăng ký/OTP, login, refresh, `/me` và logout dưới `/api/auth`. Login/refresh NCC/admin, đổi/reset mật khẩu và API khóa account là phạm vi triển khai tiếp; yêu cầu thu hồi khi khóa/reset bên dưới là thiết kế cho các luồng đó.
+Backend đã có JWT cho khách hàng: đăng ký/OTP, login, refresh, `/me` và logout dưới `/api/auth`. Đã bổ sung login ADMIN và refresh/me/logout dùng chung CUSTOMER/ADMIN, nhưng hoãn test riêng ADM-02. Login/refresh NCC, đổi/reset mật khẩu và API khóa account là phạm vi triển khai tiếp; yêu cầu thu hồi khi khóa/reset bên dưới là thiết kế cho các luồng đó.
 
 Access JWT mặc định 15 phút, xác thực chữ ký/claim mà không tra bảng phiên. Refresh JWT mặc định tối đa 14 ngày từ lần login, có trạng thái trong `refresh_tokens` để rotation một lần và phát hiện reuse. Không có claim `sid`; `family_id` chỉ liên kết lịch sử refresh trong database. Hợp đồng cụ thể và giới hạn logout ở [customer-auth.md](customer-auth.md).
 
@@ -178,7 +178,7 @@ Mỗi dòng theo dõi một refresh JWT đã cấp; một account có thể có 
 **Ràng buộc và cách dùng:**
 
 - CHECK `expires_at > created_at`. Refresh JWT mặc định có hạn tuyệt đối 14 ngày từ lần đăng nhập; rotation không gia hạn mốc này.
-- Refresh phải xác minh JWT rồi tìm theo `(id=jti, account_id=sub)`, so sánh hash và hạn với JWT, kiểm tra trạng thái trong DB. Code hiện tại chỉ chấp nhận CUSTOMER đang ACTIVE, đã xác thực và có `must_change_password=false`.
+- Refresh phải xác minh JWT rồi tìm theo `(id=jti, account_id=sub)`, so sánh hash và hạn với JWT, kiểm tra trạng thái trong DB. Code hiện tại chấp nhận CUSTOMER hoặc ADMIN đang ACTIVE, đã xác thực và có `must_change_password=false`.
 - Mỗi refresh dùng một lần. Rotation đánh dấu `used_at`, cấp token mới cùng family/hạn tuyệt đối. Reuse thu hồi toàn bộ family, kể cả token hậu duệ; transaction thu hồi vẫn commit khi trả 401. Lock account trước thao tác để serialize refresh/logout/login giữa các instance.
 - Giữ các token đã dùng/thu hồi tới hạn tuyệt đối để phát hiện reuse. Có thể dọn lịch sử sau hạn; không xóa sớm token tổ tiên khi token hậu duệ còn hiệu lực.
 - Mỗi lần đăng nhập tạo family mới. Đăng nhập lại cùng account với cookie refresh cũ hợp lệ thu hồi family cũ; các trình duyệt khác có family riêng. `family_id` không UNIQUE vì các token trước và sau rotation dùng chung giá trị này.

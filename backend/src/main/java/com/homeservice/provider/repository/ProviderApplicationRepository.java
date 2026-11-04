@@ -1,17 +1,19 @@
 package com.homeservice.provider.repository;
 
 import com.homeservice.provider.entity.ProviderApplication;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.Optional;
-import java.util.List;
-import java.time.Instant;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
 public interface ProviderApplicationRepository extends JpaRepository<ProviderApplication, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from ProviderApplication p where p.email = :email order by p.id")

@@ -9,11 +9,11 @@
 /docs/test/ten-file.html
 /docs/backend-config.md
 /docs/PLAN.md
+
 # Local environment files
 /.env
 /.env.*
 !/.env.example
-
 
 # OS and logs
 .DS_Store

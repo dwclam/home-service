@@ -1,6 +1,7 @@
 package com.homeservice.booking.repository;
 
 import com.homeservice.booking.entity.Booking;
+import com.homeservice.booking.enums.BookingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -61,6 +62,23 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query(value = "SELECT b.* FROM bookings b " +
                    "WHERE b.provider_id = :providerId " +
+                   "AND b.id != :excludedBookingId " +
+                   "AND (" +
+                   "    b.status IN ('CONFIRMED', 'IN_PROGRESS') " +
+                   "    OR (b.status = 'PENDING_DEPOSIT' AND b.deposit_due_at > :now)" +
+                   ") " +
+                   "AND b.starts_at < :endsAt AND b.ends_at > :startsAt " +
+                   "LIMIT 1", nativeQuery = true)
+    Optional<Booking> findFirstOverlappingExclusiveBookingExcluding(
+            @Param("providerId") Long providerId,
+            @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt,
+            @Param("excludedBookingId") Long excludedBookingId,
+            @Param("now") Instant now
+    );
+
+    @Query(value = "SELECT b.* FROM bookings b " +
+                   "WHERE b.provider_id = :providerId " +
                    "AND (" +
                    "    b.status IN ('CONFIRMED', 'IN_PROGRESS') " +
                    "    OR (b.status = 'PENDING_DEPOSIT' AND b.deposit_due_at > :now)" +
@@ -81,5 +99,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("slotEndsAt") Instant slotEndsAt,
             @Param("excludedSlotId") Long excludedSlotId,
             @Param("now") Instant now
+    );
+
+    @Query("SELECT b FROM Booking b WHERE b.provider.accountId = :providerId AND b.status = :status AND b.id != :excludedBookingId")
+    Optional<Booking> findFirstByProviderIdAndStatusExcluding(
+            @Param("providerId") Long providerId,
+            @Param("status") BookingStatus status,
+            @Param("excludedBookingId") Long excludedBookingId
     );
 }

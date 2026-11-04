@@ -64,6 +64,19 @@ public class CustomerAuthController {
                                HttpServletRequest request, HttpServletResponse response) {
         loginRateLimiter.check(body.getEmail(), request.getRemoteAddr());
         RefreshTokenService.TokenPair result = auth.login(body.getEmail(), body.getPassword(), cookies.read(request));
+        return finishLogin(request, response, result);
+    }
+
+    @PostMapping("/login/admin")
+    public LoginResponse loginAdmin(@Valid @RequestBody LoginRequest body,
+                                    HttpServletRequest request, HttpServletResponse response) {
+        loginRateLimiter.check(body.getEmail(), request.getRemoteAddr());
+        RefreshTokenService.TokenPair result = auth.loginAdmin(body.getEmail(), body.getPassword(), cookies.read(request));
+        return finishLogin(request, response, result);
+    }
+
+    private LoginResponse finishLogin(HttpServletRequest request, HttpServletResponse response,
+                                      RefreshTokenService.TokenPair result) {
         writeRefreshCookie(response, result);
         csrf.saveToken(null, request, response);
         return result.response();

@@ -15,8 +15,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
@@ -44,7 +42,7 @@ public class SecurityConfig {
         // Public cookie-based endpoints must still enforce CSRF, even with an Authorization header.
         var paths = PathPatternRequestMatcher.withDefaults();
         var cookieEndpoints = new OrRequestMatcher(paths.matcher("/api/auth/csrf"),
-                paths.matcher("/api/auth/login"), paths.matcher("/api/auth/refresh"),
+                paths.matcher("/api/auth/login"), paths.matcher("/api/auth/login/admin"), paths.matcher("/api/auth/refresh"),
                 paths.matcher("/api/auth/logout"), paths.matcher("/api/auth/register/customer"),
                 paths.matcher("/api/auth/verify-email"), paths.matcher("/api/auth/resend-verification"),
                 paths.matcher("/api/provider-applications"),
@@ -75,22 +73,17 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register/customer",
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/login/admin", "/api/auth/register/customer",
                                 "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/logout", "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/provider-applications",
                                 "/api/provider-applications/verify-email",
                                 "/api/provider-applications/resend-verification").permitAll()
-                        .requestMatchers("/api/auth/me").hasRole("CUSTOMER")
+                        .requestMatchers("/api/auth/me").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/provider/**", "/api/v1/provider/**").hasRole("PROVIDER")
                         .requestMatchers("/api/customer/**", "/api/v1/customer/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated());
         return http.build();
-    }
-
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
     @Bean

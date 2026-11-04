@@ -157,7 +157,7 @@ Cả access token và refresh token đều là JWT ký bằng HS256, dùng khóa
 | Logout | Thu hồi chuỗi refresh token hiện tại, xóa cookie; frontend xóa access token trong bộ nhớ. Access đã cấp vẫn có thể dùng đến exp. |
 | Khóa/reset mật khẩu | Khi triển khai, thu hồi tất cả refresh token của account và chặn cấp mới theo trạng thái; access cũ có độ trễ hết hạn tối đa 15 phút. |
 
-**Tình trạng:** đã triển khai backend khách hàng tại `/api/auth/login`, `/refresh`, `/me`, `/logout` cùng đăng ký/OTP. Frontend cần nối API. Login NCC/admin, giới hạn đổi mật khẩu lần đầu, reset và API khóa account chưa hoàn thành. Các rule role trong SecurityConfig không thay thế việc triển khai các luồng này. Xem [hợp đồng API và luồng JWT](customer-auth.md).
+**Tình trạng:** đã triển khai backend khách hàng tại `/api/auth/login`, `/refresh`, `/me`, `/logout` cùng đăng ký/OTP. Frontend cần nối API. Đã bổ sung login admin tại `/api/auth/login/admin` và refresh/me/logout dùng chung; kiểm thử riêng ADM-02 đang hoãn. Login NCC, giới hạn đổi mật khẩu lần đầu, reset và API khóa account chưa hoàn thành. Các rule role trong SecurityConfig không thay thế việc triển khai các luồng này. Xem [hợp đồng API và luồng JWT](customer-auth.md).
 
 ### 4.2. Nộp và duyệt NCC — UC16, UC28, UC36, UC42
 
