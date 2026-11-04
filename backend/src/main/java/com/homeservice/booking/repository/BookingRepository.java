@@ -1,6 +1,7 @@
 package com.homeservice.booking.repository;
 
 import com.homeservice.booking.entity.Booking;
+import com.homeservice.booking.enums.BookingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -98,5 +99,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("slotEndsAt") Instant slotEndsAt,
             @Param("excludedSlotId") Long excludedSlotId,
             @Param("now") Instant now
+    );
+
+    @Query("SELECT b FROM Booking b WHERE b.provider.accountId = :providerId AND b.status = :status AND b.id != :excludedBookingId")
+    Optional<Booking> findFirstByProviderIdAndStatusExcluding(
+            @Param("providerId") Long providerId,
+            @Param("status") BookingStatus status,
+            @Param("excludedBookingId") Long excludedBookingId
     );
 }

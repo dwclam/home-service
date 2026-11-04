@@ -3,7 +3,9 @@ package com.homeservice.booking.controller;
 import com.homeservice.account.entity.Account;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.booking.dto.request.AcceptBookingRequest;
+import com.homeservice.booking.dto.request.CompleteServiceRequest;
 import com.homeservice.booking.dto.request.RejectBookingRequest;
+import com.homeservice.booking.dto.request.StartServiceRequest;
 import com.homeservice.booking.dto.response.BookingDetailResponse;
 import com.homeservice.booking.service.BookingService;
 import com.homeservice.common.dto.StandardResponse;
@@ -47,6 +49,32 @@ public class ProviderBookingController {
                 providerAccountId, bookingId, request
         );
         return StandardResponse.success("Nhà cung cấp đã từ chối đơn đặt lịch thành công", response);
+    }
+
+    @PostMapping("/{bookingId}/start")
+    public StandardResponse<BookingDetailResponse> startService(
+            Authentication authentication,
+            @PathVariable Long bookingId,
+            @Valid @RequestBody(required = false) StartServiceRequest request
+    ) {
+        Long providerAccountId = resolveProviderAccountId(authentication);
+        BookingDetailResponse response = bookingService.startServiceByProvider(
+                providerAccountId, bookingId, request != null ? request : new StartServiceRequest()
+        );
+        return StandardResponse.success("Bắt đầu thực hiện dịch vụ thành công", response);
+    }
+
+    @PostMapping("/{bookingId}/complete")
+    public StandardResponse<BookingDetailResponse> completeService(
+            Authentication authentication,
+            @PathVariable Long bookingId,
+            @Valid @RequestBody(required = false) CompleteServiceRequest request
+    ) {
+        Long providerAccountId = resolveProviderAccountId(authentication);
+        BookingDetailResponse response = bookingService.completeServiceByProvider(
+                providerAccountId, bookingId, request != null ? request : new CompleteServiceRequest()
+        );
+        return StandardResponse.success("Hoàn thành thực hiện dịch vụ thành công", response);
     }
 
     private Long resolveProviderAccountId(Authentication authentication) {

@@ -8,6 +8,8 @@ import com.homeservice.account.repository.CustomerAddressRepository;
 import com.homeservice.booking.dto.request.AcceptBookingRequest;
 import com.homeservice.booking.dto.request.CancelBookingRequest;
 import com.homeservice.booking.dto.request.RejectBookingRequest;
+import com.homeservice.booking.dto.request.StartServiceRequest;
+import com.homeservice.booking.dto.request.CompleteServiceRequest;
 import com.homeservice.booking.dto.request.CreateBookingRequest;
 import com.homeservice.booking.dto.response.BookingDetailResponse;
 import com.homeservice.booking.entity.Booking;
@@ -549,6 +551,137 @@ public class BookingService {
         history.setActorAccount(providerAccount);
         history.setReasonCode(TerminationReason.PROVIDER_REJECT.name());
         history.setNote(trimmedReason);
+        historyRepository.save(history);
+
+        return bookingMapper.toDetailResponse(savedBooking);
+    }
+
+    @Transactional
+    public BookingDetailResponse startServiceByProvider(Long providerAccountId, Long bookingId, StartServiceRequest request) {
+        // 1. Validate provider account
+        Account providerAccount = accountRepository.findById(providerAccountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin nhà cung cấp: " + providerAccountId));
+
+        if (providerAccount.getStatus() != AccountStatus.ACTIVE) {
+            throw new BusinessException("Tài khoản nhà cung cấp chưa được kích hoạt hoặc đã bị khóa.");
+        }
+
+        // 2. Find booking
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn đặt lịch: " + bookingId));
+
+        // 3. Ownership check: Must be the provider assigned to this booking
+        if (booking.getProvider() == null || !booking.getProvider().getAccountId().equals(providerAccountId)) {
+            throw new AccessDeniedException("Bạn không có quyền thao tác trên đơn đặt lịch của nhà cung cấp khác.");
+        }
+
+        // 4. Optimistic locking check
+        if (request != null && request.getVersion() != null && !request.getVersion().equals(booking.getVersion())) {
+            throw new DataConflictException("Thông tin đơn đặt lịch đã bị thay đổi đồng thời. Vui lòng tải lại trang và thử lại.");
+        }
+
+        // 5. Status check: Must be CONFIRMED (BR-UC22-02)
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new BusinessException("Đơn đặt lịch không ở trạng thái đã xác nhận (CONFIRMED): " + booking.getStatus());
+        }
+
+        Instant now = Instant.now();
+
+        // 6. Timing check: Must start at or after startsAt (BR-UC22-03)
+        if (now.isBefore(booking.getStartsAt())) {
+            throw new BusinessException("Chưa đến giờ hẹn thực hiện dịch vụ. Đơn đặt lịch chỉ có thể bắt đầu từ: " + booking.getStartsAt());
+        }
+
+        // 7. Concurrent check: No other booking currently IN_PROGRESS for this provider (BR-UC22-04)
+        Optional<Booking> concurrentInProgress = bookingRepository.findFirstByProviderIdAndStatusExcluding(
+                providerAccountId, BookingStatus.IN_PROGRESS, bookingId
+        );
+        if (concurrentInProgress.isPresent()) {
+            throw new DataConflictException("Nhà cung cấp đang có đơn đặt lịch "
+                    + concurrentInProgress.get().getBookingCode() + " đang được thực hiện. Vui lòng hoàn thành đơn hiện tại trước khi bắt đầu đơn mới.");
+        }
+
+        // 8. Update booking to IN_PROGRESS
+        booking.setStatus(BookingStatus.IN_PROGRESS);
+        booking.setStartedAt(now);
+
+        Booking savedBooking = bookingRepository.save(booking);
+
+        // 9. Record status history
+        String noteText = (request != null && request.getNote() != null && !request.getNote().trim().isEmpty())
+                ? request.getNote().trim()
+                : "Nhà cung cấp bắt đầu thực hiện dịch vụ";
+
+        BookingStatusHistory history = new BookingStatusHistory();
+        history.setBooking(savedBooking);
+        history.setFromStatus(BookingStatus.CONFIRMED);
+        history.setToStatus(BookingStatus.IN_PROGRESS);
+        history.setActorType(ActorType.PROVIDER);
+        history.setActorAccount(providerAccount);
+        history.setReasonCode("PROVIDER_STARTED");
+        history.setNote(noteText);
+        historyRepository.save(history);
+
+        return bookingMapper.toDetailResponse(savedBooking);
+    }
+
+    @Transactional
+    public BookingDetailResponse completeServiceByProvider(Long providerAccountId, Long bookingId, CompleteServiceRequest request) {
+        // 1. Validate provider account
+        Account providerAccount = accountRepository.findById(providerAccountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin nhà cung cấp: " + providerAccountId));
+
+        if (providerAccount.getStatus() != AccountStatus.ACTIVE) {
+            throw new BusinessException("Tài khoản nhà cung cấp chưa được kích hoạt hoặc đã bị khóa.");
+        }
+
+        // 2. Find booking
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn đặt lịch: " + bookingId));
+
+
+        // 3. Ownership check: Must be the provider assigned to this booking
+        if (booking.getProvider() == null || !booking.getProvider().getAccountId().equals(providerAccountId)) {
+            throw new AccessDeniedException("Bạn không có quyền thao tác trên đơn đặt lịch của nhà cung cấp khác.");
+        }
+
+        // 4. Optimistic locking check
+        if (request != null && request.getVersion() != null && !request.getVersion().equals(booking.getVersion())) {
+            throw new DataConflictException("Thông tin đơn đặt lịch đã bị thay đổi đồng thời. Vui lòng tải lại trang và thử lại.");
+        }
+
+        // 5. Status check: Must be IN_PROGRESS (BR-UC22-05)
+        if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+            throw new BusinessException("Đơn đặt lịch không ở trạng thái đang thực hiện (IN_PROGRESS): " + booking.getStatus());
+        }
+
+        Instant now = Instant.now();
+
+        // 6. Timing check: completedAt must not be before startedAt (BR-UC22-06)
+        if (booking.getStartedAt() != null && now.isBefore(booking.getStartedAt())) {
+            throw new BusinessException("Thời điểm hoàn thành không thể trước thời điểm bắt đầu dịch vụ.");
+        }
+
+        // 7. Update booking to COMPLETED and activate balance_due_at (24h) (BR-UC22-07, BR-UC22-08)
+        booking.setStatus(BookingStatus.COMPLETED);
+        booking.setCompletedAt(now);
+        booking.setBalanceDueAt(policyProperties.calculateBalanceDueAt(now));
+
+        Booking savedBooking = bookingRepository.save(booking);
+
+        // 8. Record status history
+        String noteText = (request != null && request.getNote() != null && !request.getNote().trim().isEmpty())
+                ? request.getNote().trim()
+                : "Nhà cung cấp xác nhận hoàn thành dịch vụ";
+
+        BookingStatusHistory history = new BookingStatusHistory();
+        history.setBooking(savedBooking);
+        history.setFromStatus(BookingStatus.IN_PROGRESS);
+        history.setToStatus(BookingStatus.COMPLETED);
+        history.setActorType(ActorType.PROVIDER);
+        history.setActorAccount(providerAccount);
+        history.setReasonCode("PROVIDER_COMPLETED");
+        history.setNote(noteText);
         historyRepository.save(history);
 
         return bookingMapper.toDetailResponse(savedBooking);
