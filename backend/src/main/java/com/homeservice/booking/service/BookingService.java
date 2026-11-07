@@ -37,6 +37,9 @@ import com.homeservice.payment.repository.PaymentTransactionRepository;
 import com.homeservice.provider.entity.ProviderProfile;
 import com.homeservice.provider.repository.ProviderAvailabilityRepository;
 import lombok.RequiredArgsConstructor;
+import com.homeservice.booking.policy.BookingExpirationProperties;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.time.Clock;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,7 +52,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class BookingService {
 
     private final BookingRepository bookingRepository;
@@ -61,6 +63,50 @@ public class BookingService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final BookingMapper bookingMapper;
     private final BookingPolicyProperties policyProperties;
+    private final BookingExpirationService bookingExpirationService;
+
+    @Autowired
+    public BookingService(
+            BookingRepository bookingRepository,
+            BookingStatusHistoryRepository historyRepository,
+            AccountRepository accountRepository,
+            CustomerAddressRepository customerAddressRepository,
+            ServiceOfferingRepository serviceOfferingRepository,
+            ProviderAvailabilityRepository providerAvailabilityRepository,
+            PaymentTransactionRepository paymentTransactionRepository,
+            BookingMapper bookingMapper,
+            BookingPolicyProperties policyProperties,
+            BookingExpirationService bookingExpirationService
+    ) {
+        this.bookingRepository = bookingRepository;
+        this.historyRepository = historyRepository;
+        this.accountRepository = accountRepository;
+        this.customerAddressRepository = customerAddressRepository;
+        this.serviceOfferingRepository = serviceOfferingRepository;
+        this.providerAvailabilityRepository = providerAvailabilityRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
+        this.bookingMapper = bookingMapper;
+        this.policyProperties = policyProperties;
+        this.bookingExpirationService = bookingExpirationService != null
+                ? bookingExpirationService
+                : new BookingExpirationService(bookingRepository, historyRepository, new BookingExpirationProperties(), Clock.systemUTC());
+    }
+
+    public BookingService(
+            BookingRepository bookingRepository,
+            BookingStatusHistoryRepository historyRepository,
+            AccountRepository accountRepository,
+            CustomerAddressRepository customerAddressRepository,
+            ServiceOfferingRepository serviceOfferingRepository,
+            ProviderAvailabilityRepository providerAvailabilityRepository,
+            PaymentTransactionRepository paymentTransactionRepository,
+            BookingMapper bookingMapper,
+            BookingPolicyProperties policyProperties
+    ) {
+        this(bookingRepository, historyRepository, accountRepository, customerAddressRepository,
+                serviceOfferingRepository, providerAvailabilityRepository, paymentTransactionRepository,
+                bookingMapper, policyProperties, null);
+    }
 
     @Transactional
     public BookingDetailResponse createBooking(Long customerId, CreateBookingRequest request) {
@@ -284,12 +330,46 @@ public class BookingService {
 
         switch (currentStatus) {
             case PENDING_PROVIDER -> {
-                // Not yet accepted by provider, no deposit collected
+                // Endpoint Lazy Check (MD01 / UC 51): Kiem tra deadline phan hoi cua NCC
+                if (booking.getRequestExpiresAt() != null && !now.isBefore(booking.getRequestExpiresAt())) {
+                    if (bookingExpirationService != null) {
+                        bookingExpirationService.expireSingleBookingInNewTransaction(
+                                booking.getId(),
+                                TerminationReason.PROVIDER_RESPONSE_TIMEOUT,
+                                "Quá hạn phản hồi của Nhà cung cấp (30 phút hoặc sát giờ hẹn)",
+                                now
+                        );
+                    }
+                    booking.setStatus(BookingStatus.EXPIRED);
+                    booking.setTerminationKind(TerminationKind.EXPIRE);
+                    booking.setTerminationReasonCode(TerminationReason.PROVIDER_RESPONSE_TIMEOUT);
+                    booking.setTerminationReason("Quá hạn phản hồi của Nhà cung cấp (30 phút hoặc sát giờ hẹn)");
+                    booking.setTerminatedAt(now);
+                    booking.setTerminationActorType(ActorType.SYSTEM);
+                    throw new BusinessException("Đơn đặt lịch đã quá hạn phản hồi của Nhà cung cấp và đã kết thúc (EXPIRED).");
+                }
                 refundPercent = booking.getProviderRefundPercent() != null ? booking.getProviderRefundPercent() : 100;
                 refundDueVnd = 0L;
             }
             case PENDING_DEPOSIT -> {
-                // Provider accepted, slot was held, but deposit not yet paid
+                // Endpoint Lazy Check (MD01 / UC 51): Kiem tra deadline giu cho coc
+                if (booking.getDepositDueAt() != null && !now.isBefore(booking.getDepositDueAt())) {
+                    if (bookingExpirationService != null) {
+                        bookingExpirationService.expireSingleBookingInNewTransaction(
+                                booking.getId(),
+                                TerminationReason.DEPOSIT_TIMEOUT,
+                                "Quá thời hạn giữ chỗ chờ thanh toán cọc (15 phút hoặc sát giờ hẹn)",
+                                now
+                        );
+                    }
+                    booking.setStatus(BookingStatus.EXPIRED);
+                    booking.setTerminationKind(TerminationKind.EXPIRE);
+                    booking.setTerminationReasonCode(TerminationReason.DEPOSIT_TIMEOUT);
+                    booking.setTerminationReason("Quá thời hạn giữ chỗ chờ thanh toán cọc (15 phút hoặc sát giờ hẹn)");
+                    booking.setTerminatedAt(now);
+                    booking.setTerminationActorType(ActorType.SYSTEM);
+                    throw new BusinessException("Đơn đặt lịch đã quá thời hạn giữ chỗ chờ thanh toán cọc và đã kết thúc (EXPIRED).");
+                }
                 refundPercent = booking.getProviderRefundPercent() != null ? booking.getProviderRefundPercent() : 100;
                 refundDueVnd = 0L;
             }
@@ -396,27 +476,22 @@ public class BookingService {
             throw new BusinessException("Đơn đặt lịch không ở trạng thái chờ phản hồi: " + booking.getStatus());
         }
 
-        // 6. Deadline check (MD01): now must be before requestExpiresAt
+        // 6. Deadline check (MD01 / UC 51): now must be before requestExpiresAt
         if (now.isAfter(booking.getRequestExpiresAt())) {
-            // Auto transition to EXPIRED
+            if (bookingExpirationService != null) {
+                bookingExpirationService.expireSingleBookingInNewTransaction(
+                        booking.getId(),
+                        TerminationReason.PROVIDER_RESPONSE_TIMEOUT,
+                        "Quá hạn phản hồi của Nhà cung cấp (30 phút hoặc sát giờ hẹn)",
+                        now
+                );
+            }
             booking.setStatus(BookingStatus.EXPIRED);
             booking.setTerminationKind(TerminationKind.EXPIRE);
-            booking.setTerminationActorType(ActorType.SYSTEM);
             booking.setTerminationReasonCode(TerminationReason.PROVIDER_RESPONSE_TIMEOUT);
             booking.setTerminationReason("Quá hạn phản hồi của Nhà cung cấp (30 phút hoặc sát giờ hẹn)");
             booking.setTerminatedAt(now);
-            booking.setRefundPercent(booking.getSystemRefundPercent() != null ? booking.getSystemRefundPercent() : 100);
-            Booking expiredBooking = bookingRepository.save(booking);
-
-            BookingStatusHistory expireHistory = new BookingStatusHistory();
-            expireHistory.setBooking(expiredBooking);
-            expireHistory.setFromStatus(BookingStatus.PENDING_PROVIDER);
-            expireHistory.setToStatus(BookingStatus.EXPIRED);
-            expireHistory.setActorType(ActorType.SYSTEM);
-            expireHistory.setReasonCode(TerminationReason.PROVIDER_RESPONSE_TIMEOUT.name());
-            expireHistory.setNote("Quá hạn phản hồi của Nhà cung cấp (30 phút hoặc sát giờ hẹn)");
-            historyRepository.save(expireHistory);
-
+            booking.setTerminationActorType(ActorType.SYSTEM);
             throw new BusinessException("Yêu cầu đặt lịch đã quá hạn phản hồi của Nhà cung cấp.");
         }
 
@@ -435,7 +510,12 @@ public class BookingService {
             throw new BusinessException("Khung giờ này đã bị khóa trong lịch làm việc của Nhà cung cấp.");
         }
 
-        // 8. Check competing bookings: no other booking already holding exclusive slot (PENDING_DEPOSIT, CONFIRMED, IN_PROGRESS)
+        // 8. Auto-release any overdue PENDING_DEPOSIT holds for this provider overlapping [startsAt, endsAt] (UC 51)
+        bookingExpirationService.releaseOverdueHoldSlots(
+                providerAccountId, booking.getStartsAt(), booking.getEndsAt(), now
+        );
+
+        // Check competing bookings: no other booking already holding exclusive slot (PENDING_DEPOSIT, CONFIRMED, IN_PROGRESS)
         Optional<Booking> conflict = bookingRepository.findFirstOverlappingExclusiveBookingExcluding(
                 providerAccountId, booking.getStartsAt(), booking.getEndsAt(), bookingId, now
         );
@@ -506,27 +586,22 @@ public class BookingService {
             throw new BusinessException("Đơn đặt lịch không ở trạng thái chờ phản hồi: " + booking.getStatus());
         }
 
-        // 7. Deadline check (MD01)
+        // 7. Deadline check (MD01 / UC 51)
         if (now.isAfter(booking.getRequestExpiresAt())) {
-            // Auto transition to EXPIRED
+            if (bookingExpirationService != null) {
+                bookingExpirationService.expireSingleBookingInNewTransaction(
+                        booking.getId(),
+                        TerminationReason.PROVIDER_RESPONSE_TIMEOUT,
+                        "Quá hạn phản hồi của Nhà cung cấp (30 phút hoặc sát giờ hẹn)",
+                        now
+                );
+            }
             booking.setStatus(BookingStatus.EXPIRED);
             booking.setTerminationKind(TerminationKind.EXPIRE);
-            booking.setTerminationActorType(ActorType.SYSTEM);
             booking.setTerminationReasonCode(TerminationReason.PROVIDER_RESPONSE_TIMEOUT);
             booking.setTerminationReason("Quá hạn phản hồi của Nhà cung cấp (30 phút hoặc sát giờ hẹn)");
             booking.setTerminatedAt(now);
-            booking.setRefundPercent(booking.getSystemRefundPercent() != null ? booking.getSystemRefundPercent() : 100);
-            Booking expiredBooking = bookingRepository.save(booking);
-
-            BookingStatusHistory expireHistory = new BookingStatusHistory();
-            expireHistory.setBooking(expiredBooking);
-            expireHistory.setFromStatus(BookingStatus.PENDING_PROVIDER);
-            expireHistory.setToStatus(BookingStatus.EXPIRED);
-            expireHistory.setActorType(ActorType.SYSTEM);
-            expireHistory.setReasonCode(TerminationReason.PROVIDER_RESPONSE_TIMEOUT.name());
-            expireHistory.setNote("Quá hạn phản hồi của Nhà cung cấp (30 phút hoặc sát giờ hẹn)");
-            historyRepository.save(expireHistory);
-
+            booking.setTerminationActorType(ActorType.SYSTEM);
             throw new BusinessException("Yêu cầu đặt lịch đã quá hạn phản hồi của Nhà cung cấp.");
         }
 
