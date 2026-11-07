@@ -27,6 +27,11 @@ app:
     allowed-origins: http://localhost:5173
     secure-cookies: false
   booking:
+    expiration:
+      enabled: false
+      cron: "0 * * * * *"
+      interval: 60s
+      batch-size: 50
     policy:
       deposit-percent: 30
       platform-fee-percent: 20

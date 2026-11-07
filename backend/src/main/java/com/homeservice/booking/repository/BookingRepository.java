@@ -2,12 +2,14 @@ package com.homeservice.booking.repository;
 
 import com.homeservice.booking.entity.Booking;
 import com.homeservice.booking.enums.BookingStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -106,5 +108,37 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("providerId") Long providerId,
             @Param("status") BookingStatus status,
             @Param("excludedBookingId") Long excludedBookingId
+    );
+
+    /**
+     * Tìm danh sách đơn PENDING_PROVIDER đã quá hạn phản hồi của NCC (requestExpiresAt <= now).
+     */
+    List<Booking> findByStatusAndRequestExpiresAtBefore(
+            BookingStatus status,
+            Instant now,
+            Pageable pageable
+    );
+
+    /**
+     * Tìm danh sách đơn PENDING_DEPOSIT đã quá hạn thanh toán tiền cọc (depositDueAt <= now).
+     */
+    List<Booking> findByStatusAndDepositDueAtBefore(
+            BookingStatus status,
+            Instant now,
+            Pageable pageable
+    );
+
+    /**
+     * Tìm các đơn PENDING_DEPOSIT đã quá hạn cọc của NCC đang chồng lấn với khung giờ [startsAt, endsAt]
+     * để giải phóng lịch (nhả lịch) ngay lập tức khi xét duyệt đơn cạnh tranh.
+     */
+    @Query("SELECT b FROM Booking b WHERE b.provider.accountId = :providerId " +
+           "AND b.status = 'PENDING_DEPOSIT' AND b.depositDueAt <= :now " +
+           "AND b.startsAt < :endsAt AND b.endsAt > :startsAt")
+    List<Booking> findOverduePendingDepositOverlapping(
+            @Param("providerId") Long providerId,
+            @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt,
+            @Param("now") Instant now
     );
 }

@@ -74,6 +74,11 @@ app:
     allowed-origins: ${FRONTEND_ORIGINS:http://localhost:5173}
     secure-cookies: ${COOKIE_SECURE:false}
   booking:
+    expiration:
+      enabled: ${BOOKING_EXPIRATION_ENABLED:true}
+      cron: ${BOOKING_EXPIRATION_CRON:0 * * * * *}
+      interval: ${BOOKING_EXPIRATION_INTERVAL:60s}
+      batch-size: ${BOOKING_EXPIRATION_BATCH_SIZE:50}
     policy:
       deposit-percent: 30
       platform-fee-percent: 20
@@ -85,5 +90,4 @@ app:
       lead-time-minutes: 60
       request-expire-minutes: 30
       deposit-due-minutes: 15
-
       balance-due-hours: 24
