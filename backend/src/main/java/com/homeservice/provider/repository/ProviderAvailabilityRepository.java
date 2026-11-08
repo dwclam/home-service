@@ -78,4 +78,26 @@ public interface ProviderAvailabilityRepository extends JpaRepository<ProviderAv
             @Param("startsAt") Instant startsAt,
             @Param("endsAt") Instant endsAt
     );
+
+    /**
+     * UC38 — Lấy danh sách slot AVAILABLE của NCC trong phạm vi [from, to),
+     * đã sắp xếp theo thời gian bắt đầu tăng dần.
+     * Dùng để tính lịch rảnh thực tế sau khi trừ đi các booking đang chiếm lịch.
+     */
+    @Query("SELECT pa FROM ProviderAvailability pa " +
+           "WHERE pa.provider.accountId = :providerId " +
+           "AND pa.state = :state " +
+           "AND pa.startsAt < :to " +
+           "AND pa.endsAt > :from " +
+           "ORDER BY pa.startsAt ASC")
+    List<ProviderAvailability> findSlotsInRangeByState(
+            @Param("providerId") Long providerId,
+            @Param("state") AvailabilityState state,
+            @Param("from") Instant from,
+            @Param("to") Instant to
+    );
+
+    default List<ProviderAvailability> findAvailableSlotsInRange(Long providerId, Instant from, Instant to) {
+        return findSlotsInRangeByState(providerId, AvailabilityState.AVAILABLE, from, to);
+    }
 }

@@ -141,4 +141,26 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("endsAt") Instant endsAt,
             @Param("now") Instant now
     );
+
+    /**
+     * UC38 — Lấy danh sách các booking đang chiếm lịch (exclusive bookings) của NCC
+     * trong phạm vi [from, to). Dùng để tính lịch rảnh thực tế bằng cách trừ đi các khoảng này.
+     * Exclusive bookings bao gồm:
+     * - CONFIRMED hoặc IN_PROGRESS
+     * - PENDING_DEPOSIT và deposit_due_at > now (đơn đang giữ chỗ còn hạn cọc)
+     */
+    @Query("SELECT b FROM Booking b " +
+           "WHERE b.provider.accountId = :providerId " +
+           "AND (" +
+           "    b.status IN (com.homeservice.booking.enums.BookingStatus.CONFIRMED, com.homeservice.booking.enums.BookingStatus.IN_PROGRESS) " +
+           "    OR (b.status = com.homeservice.booking.enums.BookingStatus.PENDING_DEPOSIT AND b.depositDueAt > :now)" +
+           ") " +
+           "AND b.startsAt < :to AND b.endsAt > :from " +
+           "ORDER BY b.startsAt ASC")
+    List<Booking> findExclusiveBookingsInRange(
+            @Param("providerId") Long providerId,
+            @Param("from") Instant from,
+            @Param("to") Instant to,
+            @Param("now") Instant now
+    );
 }
