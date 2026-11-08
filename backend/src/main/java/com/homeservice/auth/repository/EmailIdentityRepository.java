@@ -10,7 +10,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
-@Repository
 public interface EmailIdentityRepository extends JpaRepository<EmailIdentity, String> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from EmailIdentity i where i.email = :email")
