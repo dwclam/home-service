@@ -97,7 +97,15 @@ public interface ProviderAvailabilityRepository extends JpaRepository<ProviderAv
             @Param("to") Instant to
     );
 
-    default List<ProviderAvailability> findAvailableSlotsInRange(Long providerId, Instant from, Instant to) {
-        return findSlotsInRangeByState(providerId, AvailabilityState.AVAILABLE, from, to);
-    }
+    @Query("SELECT pa FROM ProviderAvailability pa " +
+           "WHERE pa.provider.accountId = :providerId " +
+           "AND pa.state = 'AVAILABLE' " +
+           "AND pa.startsAt < :to " +
+           "AND pa.endsAt > :from " +
+           "ORDER BY pa.startsAt ASC")
+    List<ProviderAvailability> findAvailableSlotsInRange(
+            @Param("providerId") Long providerId,
+            @Param("from") Instant from,
+            @Param("to") Instant to
+    );
 }
