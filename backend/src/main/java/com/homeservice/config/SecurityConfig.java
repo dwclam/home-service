@@ -10,15 +10,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -48,9 +51,30 @@ public class SecurityConfig {
                 paths.matcher("/api/provider-applications"),
                 paths.matcher("/api/provider-applications/verify-email"),
                 paths.matcher("/api/provider-applications/resend-verification"));
+        var adminEndpoints = new OrRequestMatcher(paths.matcher("/api/admin/**"), paths.matcher("/api/v1/admin/**"));
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository)
+                        .withObjectPostProcessor(new ObjectPostProcessor<CsrfFilter>() {
+                            @Override
+                            public <T extends CsrfFilter> T postProcess(T filter) {
+                                // Resource Server normally skips CSRF for Bearer requests. Admin writes require both.
+                                filter.setRequireCsrfProtectionMatcher(request -> {
+                                    if (!CsrfFilter.DEFAULT_CSRF_MATCHER.matches(request)) {
+                                        return false;
+                                    }
+                                    if (adminEndpoints.matches(request) || cookieEndpoints.matches(request)) {
+                                        return true;
+                                    }
+                                    try {
+                                        return bearerTokens.resolve(request) == null;
+                                    } catch (OAuth2AuthenticationException exception) {
+                                        return true;
+                                    }
+                                });
+                                return filter;
+                            }
+                        }))
                 // Access JWTs are verified without a database lookup or servlet session.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(AbstractHttpConfigurer::disable)
@@ -79,7 +103,7 @@ public class SecurityConfig {
                                 "/api/provider-applications/verify-email",
                                 "/api/provider-applications/resend-verification").permitAll()
                         .requestMatchers("/api/auth/me").hasAnyRole("CUSTOMER", "ADMIN")
-                        .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers(adminEndpoints).hasRole("ADMIN")
                         .requestMatchers("/api/provider/**", "/api/v1/provider/**").hasRole("PROVIDER")
                         .requestMatchers("/api/customer/**", "/api/v1/customer/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated());

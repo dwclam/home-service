@@ -43,9 +43,9 @@ Khách không tự hủy đúng/sau giờ hẹn; chuyển hỗ trợ. NCC không
 
 ### 1.3. Phạm vi xác thực hiện đã triển khai
 
-Backend đã có JWT cho khách hàng: đăng ký/OTP, login, refresh, `/me` và logout dưới `/api/auth`. Đã bổ sung login ADMIN và refresh/me/logout dùng chung CUSTOMER/ADMIN, nhưng hoãn test riêng ADM-02. Login/refresh NCC, đổi/reset mật khẩu và API khóa account là phạm vi triển khai tiếp; yêu cầu thu hồi khi khóa/reset bên dưới là thiết kế cho các luồng đó.
+Backend có đăng ký/OTP và login cho khách hàng, login ADMIN và các endpoint refresh, `/me`, logout dùng chung CUSTOMER/ADMIN. UC28 có cấp và cấp lại mật khẩu tạm cho NCC. Đăng nhập NCC (UC17), đổi mật khẩu lần đầu (UC42), quên mật khẩu (UC04) và khóa account (UC29) chưa triển khai.
 
-Access JWT mặc định 15 phút, xác thực chữ ký/claim mà không tra bảng phiên. Refresh JWT mặc định tối đa 14 ngày từ lần login, có trạng thái trong `refresh_tokens` để rotation một lần và phát hiện reuse. Không có claim `sid`; `family_id` chỉ liên kết lịch sử refresh trong database. Hợp đồng cụ thể và giới hạn logout ở [customer-auth.md](customer-auth.md).
+YAML mặc định access JWT `24h`, `.env.example` đặt `15m`. Bộ lọc xác thực chữ ký và claim mà không tra bảng phiên. Refresh JWT mặc định 14 ngày từ lần login, có trạng thái trong `refresh_tokens` để rotation một lần và phát hiện reuse. `family_id` liên kết lịch sử refresh trong database. Xem [hợp đồng xác thực](customer-auth.md).
 
 ## 2. Cách đọc cột và quy ước triển khai
 
@@ -182,7 +182,7 @@ Mỗi dòng theo dõi một refresh JWT đã cấp; một account có thể có 
 - Mỗi refresh dùng một lần. Rotation đánh dấu `used_at`, cấp token mới cùng family/hạn tuyệt đối. Reuse thu hồi toàn bộ family, kể cả token hậu duệ; transaction thu hồi vẫn commit khi trả 401. Lock account trước thao tác để serialize refresh/logout/login giữa các instance.
 - Giữ các token đã dùng/thu hồi tới hạn tuyệt đối để phát hiện reuse. Có thể dọn lịch sử sau hạn; không xóa sớm token tổ tiên khi token hậu duệ còn hiệu lực.
 - Mỗi lần đăng nhập tạo family mới. Đăng nhập lại cùng account với cookie refresh cũ hợp lệ thu hồi family cũ; các trình duyệt khác có family riêng. `family_id` không UNIQUE vì các token trước và sau rotation dùng chung giá trị này.
-- Logout thu hồi family của refresh cookie hiện tại. Khóa account/đặt lại mật khẩu phải thu hồi toàn bộ refresh token của account trong cùng transaction khóa account. Access JWT đã cấp vẫn dùng được tới `exp` (tối đa 15 phút); không có kiểm tra thu hồi trên mỗi request.
+- Logout thu hồi family của refresh cookie hiện tại. ADM-06 thu hồi mọi refresh token chưa bị thu hồi của account NCC trong cùng transaction thay hash, dưới khóa account. Access JWT đã cấp chịu `exp` của token. API khóa account và quên mật khẩu sẽ áp dụng quy tắc thu hồi tương ứng khi được triển khai.
 
 ### 04. `provider_applications`
 
@@ -203,6 +203,7 @@ Hồ sơ xét duyệt được giữ độc lập với account/profile; nộp l
 | `decided_by_admin_id` | `BIGINT` | Có | FK → accounts.id | Admin đưa ra quyết định. |
 | `decided_at` | `TIMESTAMPTZ` | Có | — | Thời điểm duyệt/từ chối. |
 | `rejection_reason` | `TEXT` | Có | — | Lý do từ chối, gửi cho người nộp. |
+| `credentials_email_status` | `VARCHAR(16)` | Có | `UNCONFIRMED`, `SENT`, `FAILED` | Trạng thái gửi email mật khẩu tạm của lần cấp hiện tại. |
 | `created_at` | `TIMESTAMPTZ` | Không | DEFAULT CURRENT_TIMESTAMP | Thời điểm tạo bản ghi. |
 | `updated_at` | `TIMESTAMPTZ` | Không | DEFAULT CURRENT_TIMESTAMP | Thời điểm cập nhật gần nhất; backend/trigger cập nhật khi ghi. |
 
@@ -211,7 +212,8 @@ Hồ sơ xét duyệt được giữ độc lập với account/profile; nộp l
 - Partial UNIQUE(email) cho PENDING_EMAIL/PENDING_REVIEW/APPROVED; REJECTED được giữ và cho phép nộp lại.
 - PENDING_REVIEW/APPROVED/REJECTED phải có `email_verified_at`. APPROVED/REJECTED có admin và thời điểm quyết định; REJECTED có lý do.
 - PENDING_EMAIL hết hạn sau TTL tính từ created_at; PENDING_REVIEW/APPROVED/REJECTED không thuộc diện dọn. REJECTED và challenge của hồ sơ đó được giữ.
-- Duyệt hồ sơ, tạo account/profile và audit cùng transaction; duyệt lặp không tạo account thứ hai.
+- Duyệt hồ sơ, tạo account/profile, ghi audit và đặt `credentials_email_status=UNCONFIRMED` trong cùng transaction. Sau commit, gửi SMTP và cập nhật `SENT` hoặc `FAILED`. Hồ sơ APPROVED cũ có giá trị null được hiển thị `UNCONFIRMED`. Duyệt lặp giữ nguyên account và kết quả gửi hiện có.
+- Khi cấp lại, lưu hash mới, thu hồi refresh token, ghi audit và đặt `UNCONFIRMED` cùng transaction. Sau SMTP, backend khóa account và đối chiếu hash hiện tại với hash của lần gửi trước khi ghi trạng thái. Phản hồi muộn của mật khẩu cũ không thay đổi trạng thái mới.
 
 ### 05. `email_challenges`
 

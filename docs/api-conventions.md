@@ -1,6 +1,6 @@
 # API Conventions — Nestify
 
-**Cập nhật:** 28/10/2026. Quy ước API dùng chung, đồng bộ với xác thực JWT hiện tại. Request/response chi tiết cho tài khoản nằm ở [customer-auth.md](customer-auth.md), hồ sơ NCC ở [provider-registration.md](provider-registration.md); cấu hình nằm ở [backend-config.md](backend-config.md).
+**Cập nhật:** 14/11/2026. Quy ước API dùng chung. Xem [xác thực](customer-auth.md), [đăng ký NCC](provider-registration.md) và [cấu hình backend](backend-config.md).
 
 ## 1. Định dạng chung
 
@@ -13,8 +13,12 @@
 
 | Phạm vi | Đường dẫn | Trạng thái |
 | --- | --- | --- |
-| Xác thực khách/admin | `/api/auth/...` | Login khách `/login`, admin `/login/admin`; refresh/me/logout dùng chung. Test riêng ADM-02 đang hoãn. |
+| Xác thực khách/admin | `/api/auth/...` | Login khách `/login`, admin `/login/admin`. Refresh, `/me` và logout dùng chung. |
 | Đăng ký NCC | `/api/provider-applications`, `/verify-email`, `/resend-verification` dưới tiền tố này | Đã triển khai nộp hồ sơ/OTP đến PENDING_REVIEW; không có ID trong URL. |
+| Admin xem hồ sơ NCC | GET `/api/admin/provider-applications`, `/{id}` | ADM-03 yêu cầu Bearer ADMIN và kiểm tra account trong DB. Xem [UC28](../tai_lieu_api/UC28_DUYET_NCC.md). |
+| Admin duyệt hồ sơ NCC | POST `/api/admin/provider-applications/{id}/approve` | ADM-04 yêu cầu Bearer ADMIN và CSRF. Trả quyết định đã commit và `credentialsEmailStatus`. Xem [UC28](../tai_lieu_api/UC28_DUYET_NCC.md). |
+| Admin từ chối hồ sơ NCC | POST `/api/admin/provider-applications/{id}/reject` | ADM-05 yêu cầu Bearer ADMIN, CSRF và JSON `reason`. Trả quyết định `REJECTED` hoặc lỗi gửi email `503`. Xem [UC28](../tai_lieu_api/UC28_DUYET_NCC.md). |
+| Admin cấp lại mật khẩu tạm | POST `/api/admin/provider-applications/{id}/reissue-credentials` | ADM-06 yêu cầu Bearer ADMIN và CSRF. Body để trống. Trả quyết định đã duyệt và trạng thái email hiện tại. Xem [UC28](../tai_lieu_api/UC28_DUYET_NCC.md). |
 | Health | `/api/health` | Đã triển khai. |
 | Nghiệp vụ khách/NCC/admin | `/api/v1/customer/...`, `/api/v1/provider/...`, `/api/v1/admin/...` | Tiền tố dùng cho khung nghiệp vụ; từng endpoint phải được triển khai riêng. |
 | Nội dung công khai | `/api/v1/public/...` | Quy ước cho chức năng triển khai sau; chưa tự động được mở trong SecurityConfig. |
@@ -31,12 +35,12 @@ API được bảo vệ nhận access JWT qua header:
 Authorization: Bearer <access JWT>
 ```
 
-- Access JWT hết hạn mặc định sau 15 phút. Server kiểm tra chữ ký/claim, lấy `sub` làm account ID và `role` làm quyền; không dùng cookie refresh để xác thực API nghiệp vụ.
+- Access JWT hết hạn theo `expiresAt`. YAML mặc định `JWT_ACCESS_TTL=24h`, file `.env.example` đặt `15m`. Server kiểm tra chữ ký và claim, lấy `sub` làm account ID và `role` làm quyền. Cookie refresh chỉ dùng cho endpoint refresh/logout và khi login lại để thu hồi chuỗi trước.
 - Refresh JWT tối đa 14 ngày kể từ login, nằm trong cookie HttpOnly `NESTIFY_REFRESH`. Không gửi refresh token trong query string, URL hoặc body của API nghiệp vụ.
 - `POST /api/auth/refresh` dùng cookie refresh và CSRF, trả access JWT mới trong JSON, đồng thời thay cookie refresh. Mỗi refresh token chỉ được dùng một lần; frontend điều phối để tránh refresh đồng thời, kể cả giữa các tab.
 - `POST /api/auth/logout` thu hồi chuỗi refresh và xóa cookie; frontend xóa access token trong bộ nhớ. Access token đã cấp vẫn có thể dùng tới `exp`; không hứa chặn ngay mọi request sau logout/khóa account.
 - Quyền URL kiểm tra vai trò; quyền sở hữu tài nguyên phải kiểm tra trong service nghiệp vụ dựa trên principal. Account ID/role do client gửi không quyết định người đang đăng nhập.
-- Login khách dùng `/api/auth/login`, admin dùng `/api/auth/login/admin`; refresh, `/me`, logout dùng chung CUSTOMER/ADMIN. Kiểm thử riêng ADM-02 đang hoãn; xem [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md). Đăng ký NCC đã có đến PENDING_REVIEW; duyệt hồ sơ, login NCC và reset/khóa account chưa triển khai.
+- Login khách dùng `/api/auth/login`, admin dùng `/api/auth/login/admin`. Refresh, `/me` và logout dùng chung CUSTOMER/ADMIN. Đăng nhập NCC (UC17), đổi mật khẩu lần đầu (UC42), quên mật khẩu (UC04) và khóa account (UC29) chưa triển khai. Xem [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md) và [API xét duyệt hồ sơ UC28](../tai_lieu_api/UC28_DUYET_NCC.md).
 
 - Đăng ký trả `registrationToken` ngẫu nhiên gắn với lần nhập thông tin/mật khẩu. Verify gửi `email`, `code`, `registrationToken`; resend gửi `email`, `registrationToken`. Đây không phải access/refresh JWT. Chỉ lưu hash trong DB; frontend giữ token theo đúng form. Đăng ký lại CUSTOMER đang PENDING_EMAIL cập nhật thông tin và thay OTP/token sau thời gian chờ gửi mã. Token cũ không được dùng với OTP mới. ACTIVE, SUSPENDED và các loại account khác vẫn bị từ chối đăng ký lại.
 
@@ -49,7 +53,9 @@ Authorization: Bearer <access JWT>
 | Ba POST nộp hồ sơ/OTP tại `/api/provider-applications` | Không cần. | Gửi cookie CSRF và header lấy từ JSON; không cấp JWT hoặc cookie refresh. |
 | `POST /api/auth/refresh` | Không cần. | Cookie refresh và CSRF bắt buộc để làm mới thành công. |
 | `POST /api/auth/logout` | Không cần. | CSRF hợp lệ; nếu có refresh hợp lệ thì thu hồi chuỗi. |
-| `GET /api/auth/me` và API nghiệp vụ được bảo vệ | Gửi Bearer access JWT. | Không dùng refresh cookie làm danh tính; Bearer request không cần mã CSRF. |
+| `GET /api/auth/me` và các GET nghiệp vụ được bảo vệ | Gửi Bearer access JWT. | Không cần CSRF. |
+| POST nghiệp vụ admin | Gửi Bearer access JWT của admin. | Gửi cookie CSRF và header lấy từ JSON. |
+| Request ghi nghiệp vụ khác xác thực bằng Bearer header | Gửi Bearer access JWT. | Không cần CSRF. |
 
 Frontend dùng `credentials: 'include'` hoặc `withCredentials: true` cho các request cần cookie. Cookie CSRF là HttpOnly; gửi token được trả trong JSON, không đọc cookie bằng JavaScript. Token JSON đã được che bằng XOR nên không so sánh chuỗi trực tiếp với giá trị cookie.
 
@@ -104,10 +110,12 @@ Lỗi trả `ApiError`; ví dụ:
 | 403 / ACCESS_DENIED hoặc lỗi trạng thái account | Hiển thị giới hạn quyền/trạng thái; không tự lặp request. |
 | 409 / EMAIL_ALREADY_USED hoặc DATA_CONFLICT | Xử lý dữ liệu trùng/xung đột theo chức năng. |
 | 409 / APPLICATION_ALREADY_EXISTS | Hồ sơ NCC đang chờ duyệt hoặc đã duyệt; không nộp lại để ghi đè. |
+| 409 / APPLICATION_NOT_REVIEWABLE | Tải lại hồ sơ để xem trạng thái và quyết định hiện tại. |
+| 409 / CREDENTIAL_REISSUE_NOT_ALLOWED | Tải lại hồ sơ để xem trạng thái. Chỉ cấp lại khi đủ điều kiện trong UC28. |
 | 400 / VERIFICATION_NOT_AVAILABLE | Không có lượt khách pending còn hạn để xác thực/gửi lại; đăng ký mới nếu lượt đã hết hạn. |
 | 400 / REGISTRATION_INVALID | Token/lượt đăng ký không còn hợp lệ, bao gồm hồ sơ NCC hết hạn; bắt đầu đăng ký lại để lấy OTP/token mới. |
 | 429 / OTP_RESEND_TOO_SOON hoặc OTP_ATTEMPTS_EXCEEDED | Chờ đủ thời gian trước khi xin mã tiếp. |
 | 429 / LOGIN_RATE_LIMITED | Chờ số giây trong header `Retry-After` rồi thử đăng nhập lại. Không tự refresh token để lặp lại login. |
-| 503 / EMAIL_DELIVERY_FAILED | Kiểm tra SMTP/thử lại theo luồng gửi mã. |
+| 503 / EMAIL_DELIVERY_FAILED | Kiểm tra SMTP và thử lại thao tác gửi mã hoặc từ chối hồ sơ. |
 
 Không tự retry thao tác ghi khi response bị mất hoặc kết quả chưa rõ. Riêng refresh token chỉ dùng một lần: retry bằng token cũ sau một lần đổi đã thành công trên server có thể làm cả chuỗi bị thu hồi. Hợp đồng chống lặp của các API thanh toán/đặt lịch cần được thống nhất riêng cho từng thao tác.

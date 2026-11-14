@@ -35,13 +35,15 @@ SERVER_PORT=8080
 
 Dự án dùng được Neon với URL JDBC PostgreSQL có `sslmode=require`; giữ nguyên thông tin Neon đã cấu hình trong `.env`. Các cấu hình mới có mặc định: `FRONTEND_ORIGINS=http://localhost:5173`, `COOKIE_SECURE=false` cho HTTP local, `SHOW_SQL=false`, `FLYWAY_ENABLED=false`. Khi dùng HTTPS, đặt `COOKIE_SECURE=true`.
 
-Hibernate mặc định dùng `ddl-auto: ${DDL_AUTO:update}` để tự tạo bảng còn thiếu và cập nhật cấu trúc theo entity khi khởi động. Profile `dev` dùng `update`, profile `prod` dùng `validate`. Flyway hiện tắt; chưa cần migration để chạy ở chế độ `update`. Xem [cấu hình backend và hợp đồng CSRF](docs/backend-config.md) trước khi nối frontend.
+Hibernate mặc định dùng `ddl-auto: ${DDL_AUTO:update}` để tự tạo bảng còn thiếu và cập nhật cấu trúc theo entity khi khởi động. Profile `dev` dùng `update`, profile `prod` dùng `validate`. Với schema hiện có ở profile `prod`, áp dụng [SQL thêm trạng thái gửi email NCC](backend/src/main/resources/db/manual/add_provider_credentials_email_status.sql) trước khi chạy ADM-04. Flyway hiện tắt. Xem [cấu hình backend và hợp đồng CSRF](docs/backend-config.md) trước khi nối frontend.
 
 Backend đã có luồng đăng ký khách, OTP, đăng nhập bằng JWT access/refresh, làm mới token, xem tài khoản và đăng xuất. Cần hai khóa ký độc lập `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` trong `.env` (sinh mỗi khóa bằng `openssl rand -base64 32`). Đăng ký cần SMTP hoạt động; xem [hướng dẫn chạy và hợp đồng API khách hàng](docs/customer-auth.md).
 
-Backend cũng đã có [đăng ký làm NCC](docs/provider-registration.md): nộp hồ sơ kèm link tài liệu Drive, xác thực/gửi lại OTP và chuyển sang `PENDING_REVIEW`. Phần admin duyệt và tạo tài khoản NCC triển khai sau.
+Backend cũng đã có [đăng ký làm NCC](docs/provider-registration.md): nộp hồ sơ kèm link tài liệu Drive, xác thực/gửi lại OTP và chuyển sang `PENDING_REVIEW`.
 
-Cấp admin nội bộ bằng lệnh chạy riêng `./backend/create-admin.sh`, đọc `ADMIN_EMAIL`/`ADMIN_PASS` từ `backend/.env`; xem [hướng dẫn ADM-01](docs/admin-provisioning.md). Lệnh không tự chạy khi backend khởi động. Đăng nhập admin dùng `POST /api/auth/login/admin`; refresh, `/me` và logout dùng chung với khách. Xem [hướng dẫn UC27](tai_lieu_api/UC27_DANG_NHAP_ADMIN.md); kiểm thử riêng ADM-02 đang được hoãn theo yêu cầu.
+Cấp admin nội bộ bằng lệnh chạy riêng `./backend/create-admin.sh`, đọc `ADMIN_EMAIL`/`ADMIN_PASS` từ `backend/.env`. Đăng nhập admin dùng `POST /api/auth/login/admin`. Refresh, `/me` và logout dùng chung với khách. Xem [hướng dẫn cấp admin](docs/admin-provisioning.md) và [hướng dẫn UC27](tai_lieu_api/UC27_DANG_NHAP_ADMIN.md).
+
+Admin có thể xem, duyệt và từ chối hồ sơ NCC. Nếu kết quả email của hồ sơ đã duyệt là `FAILED` hoặc `UNCONFIRMED`, admin có thể cấp lại mật khẩu tạm khi NCC còn phải đổi mật khẩu lần đầu. Xem [hướng dẫn UC28](tai_lieu_api/UC28_DUYET_NCC.md).
 
 Chạy backend từ thư mục `backend`:
 

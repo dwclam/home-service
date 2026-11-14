@@ -1,6 +1,7 @@
 package com.homeservice.provider.entity;
 
 import com.homeservice.account.entity.Account;
+import com.homeservice.provider.enums.CredentialsEmailStatus;
 import com.homeservice.provider.enums.ProviderApplicationStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -58,11 +59,22 @@ public class ProviderApplication {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "credentials_email_status", length = 16)
+    private CredentialsEmailStatus credentialsEmailStatus;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public CredentialsEmailStatus getCredentialsEmailStatus() {
+        if (status == ProviderApplicationStatus.APPROVED && credentialsEmailStatus == null) {
+            return CredentialsEmailStatus.UNCONFIRMED;
+        }
+        return credentialsEmailStatus;
+    }
 
     @PrePersist
     public void prePersist() {

@@ -1,10 +1,10 @@
 # Nestify — Xác thực khách hàng bằng JWT
 
-**Cập nhật:** 27/10/2026. Tài liệu mô tả backend hiện có và hợp đồng để frontend tích hợp.
+**Cập nhật:** 14/11/2026. Tài liệu mô tả backend hiện có và hợp đồng để frontend tích hợp.
 
 Đã triển khai: đăng ký khách hàng, gửi/gửi lại OTP, xác thực email, đăng nhập, làm mới token, xem tài khoản hiện tại và đăng xuất. Access token và refresh token đều là JWT. DTO API dùng class thông thường với constructor, getter/setter.
 
-Đã bổ sung login ADMIN tại `/api/auth/login/admin`, dùng chung refresh, `/me` và logout; xem [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md). Kiểm thử riêng ADM-02 đang hoãn theo yêu cầu.
+ADMIN đăng nhập tại `/api/auth/login/admin`. CUSTOMER và ADMIN dùng chung refresh, `/me` và logout. Bộ test Maven có kiểm thử tích hợp cho cả hai vai trò. Xem [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md).
 
 Chưa triển khai: đăng nhập NCC, luồng NCC đổi mật khẩu lần đầu, quên/đổi mật khẩu, API quản trị khóa tài khoản và chỉnh sửa hồ sơ. Frontend cần nối các API theo tài liệu này; mô tả dưới đây không có nghĩa các màn hình đã tích hợp xong.
 
@@ -104,9 +104,9 @@ Hai refresh đồng thời với cùng token được xử lý như reuse: một
 
 Logout thu hồi family của refresh cookie hiện tại, xóa cookie refresh và CSRF, trả 204. Gọi lại khi không có refresh token hợp lệ vẫn trả 204 nếu CSRF hợp lệ. Frontend xóa access token trong bộ nhớ.
 
-Access JWT đã cấp vẫn được chấp nhận đến `exp`, tối đa 15 phút từ lúc cấp, kể cả sau logout. Xác thực hiện tại không tra danh sách thu hồi access token hoặc trạng thái account trên mỗi request. Thay đổi vai trò/khóa account cũng có độ trễ tương tự đối với access token cũ.
+Access JWT đã cấp còn hiệu lực đến `exp`, kể cả sau logout. Bộ lọc JWT không tra danh sách thu hồi access token. Các API xét duyệt và cấp lại của admin đọc lại account trong DB để chặn admin đã bị khóa dù JWT còn hạn.
 
-Login và refresh kiểm tra trạng thái account ở database. Khi triển khai API khóa hoặc đặt lại mật khẩu, cần thu hồi tất cả refresh token của account trong transaction có cùng khóa account; đó là công việc tiếp theo, chưa phải chức năng đã hoàn thành. Sau mở khóa, token cũ đã thu hồi vẫn không được làm mới.
+Login và refresh kiểm tra trạng thái account trong DB. ADM-06 thu hồi mọi refresh token của NCC trong cùng giao dịch lưu hash mới. Quên mật khẩu (UC04), đăng nhập NCC (UC17), khóa/mở tài khoản (UC29) và đổi mật khẩu lần đầu (UC42) thuộc các task sau.
 
 ## 3. API và DTO
 
@@ -120,9 +120,9 @@ Các endpoint hiện tại dùng **`/api/auth`**, chưa dùng `/api/v1/auth`. M�
 | POST | `/api/auth/verify-email` | `email`, `code`, `registrationToken`. | 200: chuyển sang ACTIVE, trả `AccountResponse`; chưa tự cấp JWT. |
 | POST | `/api/auth/login` | `email`, `password`. | 200: `LoginResponse` và cookie refresh cho CUSTOMER. |
 | POST | `/api/auth/login/admin` | `email`, `password`. | 200: cùng `LoginResponse` và cookie refresh cho ADMIN. |
-| POST | `/api/auth/refresh` | Không cần body. | 200: `LoginResponse` và cookie refresh mới. |
-| GET | `/api/auth/me` | Không. | 200: `AccountResponse` của principal hiện tại. |
-| POST | `/api/auth/logout` | Không cần body. | 204: không có body, xóa cookie. |
+| POST | `/api/auth/refresh` | Không cần body. | 200: `LoginResponse` và cookie refresh mới cho CUSTOMER hoặc ADMIN hợp lệ. |
+| GET | `/api/auth/me` | Không. | 200: `AccountResponse` của principal CUSTOMER hoặc ADMIN. |
+| POST | `/api/auth/logout` | Không cần body. | 204: thu hồi refresh family hiện tại nếu có và xóa cookie. |
 
 Đăng ký:
 
@@ -191,7 +191,7 @@ Login dùng `{"email":"lam@example.com","password":"Your-password-123!"}`. Login
 | `NESTIFY_REFRESH` | HttpOnly, SameSite=Lax, Path=/api/auth, Secure theo `COOKIE_SECURE`; Max-Age bằng thời gian còn lại tới hạn refresh. | Trình duyệt gửi tự động; JavaScript không đọc token. |
 | `XSRF-TOKEN` | HttpOnly, SameSite=Lax, Path=/, Secure theo `COOKIE_SECURE`. | Lấy mã gửi header từ JSON của `/api/auth/csrf`, không đọc giá trị cookie. |
 
-Mã CSRF trong JSON đã được che bằng cơ chế XOR của Spring. Header và cookie không cần giống nhau về chuỗi; Spring kiểm tra quan hệ hợp lệ giữa chúng. Các POST đăng ký/OTP/login/refresh/logout luôn kiểm tra CSRF, kể cả khi có `Authorization`. Request nghiệp vụ xác thực bằng Bearer header không cần mã CSRF.
+Mã CSRF trong JSON đã được che bằng cơ chế XOR của Spring. Gửi giá trị JSON trong header, cùng cookie CSRF của lần lấy token. Các POST đăng ký/OTP/login/refresh/logout luôn kiểm tra CSRF. Các request ghi của admin yêu cầu cả Bearer JWT và CSRF.
 
 Frontend thực hiện:
 
@@ -217,7 +217,7 @@ Lượt CUSTOMER `PENDING_EMAIL` có deadline `created_at + app.auth.pending-reg
 
 Giữ thông tin Neon trong `backend/.env`. Xem [mẫu biến môi trường](../backend/.env.example). Hai biến `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` bắt buộc là hai giá trị Base64 khác nhau, mỗi giá trị từ ít nhất 32 byte ngẫu nhiên. Sinh riêng từng khóa bằng `openssl rand -base64 32`; không đưa khóa thật vào tài liệu/Git.
 
-Mặc định `JWT_ISSUER=nestify`, `JWT_ACCESS_TTL=15m`, `JWT_REFRESH_TTL=14d`. Access TTL được giới hạn từ 1 giây đến 15 phút; refresh TTL phải lớn hơn access TTL và không quá 14 ngày, cả hai dùng số nguyên giây. Giữ khóa ổn định qua restart và đồng nhất giữa các instance; backend không tự sinh khóa tạm. Đổi khóa làm token đã ký bằng khóa cũ không còn được chấp nhận bởi decoder tương ứng.
+YAML mặc định `JWT_ISSUER=nestify`, `JWT_ACCESS_TTL=24h`, `JWT_REFRESH_TTL=14d`. File `.env.example` đặt `JWT_ACCESS_TTL=15m`. Access TTL từ 1 giây đến 24 giờ. Refresh TTL phải lớn hơn access TTL và tối đa 14 ngày. Cả hai dùng số nguyên giây. Giữ khóa ổn định qua restart và đồng nhất giữa các instance. Đổi khóa làm token ký bằng khóa cũ không còn được chấp nhận.
 
 Đăng ký cần SMTP. Có thể chạy hộp thư thử nghiệm Mailpit:
 

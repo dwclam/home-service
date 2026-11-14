@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface ProviderProfileRepository extends JpaRepository<ProviderProfile, Long> {
     Optional<ProviderProfile> findByAccountId(Long accountId);
+
+    Optional<ProviderProfile> findByApplicationId(Long applicationId);
 }

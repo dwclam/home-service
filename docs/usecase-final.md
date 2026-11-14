@@ -36,7 +36,7 @@ Các dòng dưới đây là lựa chọn thiết kế bổ sung cho những đi
 | MD01 | Đặt trước ít nhất 60 phút. NCC có tối đa 30 phút phản hồi; sau khi chấp nhận, giữ lịch tối đa 15 phút cho khách cọc. Deadline được lưu theo từng đơn. |
 | MD02 | Khách thanh toán qua cổng được Nestify tích hợp, có thể chọn VNPay hoặc MoMo nếu đã cấu hình kênh đó. Phương thức ngân hàng bên trong cổng phụ thuộc tích hợp thực tế. Chuyển khoản thủ công vào tài khoản Nestify chưa nằm trong luồng mặc định. |
 | MD03 | Admin duyệt và thực hiện chuyển tiền vào tài khoản ngân hàng đã xác minh của NCC, sau khi đủ điều kiện đối soát. Chưa có chuyển tiền tự động định kỳ. |
-| MD04 | OTP có hiệu lực 10 phút, tối đa 5 lần nhập sai, gửi lại sau ít nhất 60 giây; gửi lại vô hiệu mã trước của cùng mục đích/đối tượng. Access JWT mặc định tối đa 15 phút; refresh JWT tối đa 14 ngày, rotation một lần và có thể thu hồi. Access JWT đã cấp hết hiệu lực tại exp, kể cả sau logout/khóa/reset mật khẩu. |
+| MD04 | OTP có hiệu lực mặc định 10 phút, tối đa 5 lần nhập sai và gửi lại sau ít nhất 60 giây. Gửi lại vô hiệu mã trước của cùng mục đích và đối tượng. Access JWT chịu TTL cấu hình và hết hạn tại `exp`. Refresh JWT tối đa 14 ngày, rotation một lần và có thể thu hồi. |
 | MD05 | Khách chỉ tự hủy trước giờ hẹn và trước khi bắt đầu thực hiện. Đúng/sau giờ hẹn chuyển sang hỗ trợ. NCC hủy khi đang làm phải qua admin, vẫn hoàn đủ cọc theo C08; không có chức năng hủy thông thường sau `COMPLETED`. |
 | MD06 | Một đánh giá cho mỗi đơn `COMPLETED`, không sửa/xóa bởi khách ở bản đầu. Admin có thể ẩn kèm lý do. Có sổ địa chỉ, xem lịch rảnh và gửi yêu cầu hỗ trợ (các UC37–UC39 từng được ghi là đề xuất). |
 | MD07 | Không đổi email/đổi loại tài khoản ở bản đầu. Lượt pending còn hạn được tiếp tục cùng loại; sau khi hết hạn và dữ liệu giữ chỗ đã được dọn, email không còn tham chiếu có thể dùng cho đăng ký mới với loại khách hoặc NCC. Hồ sơ NCC bị từ chối và identity PROVIDER được giữ, cho phép nộp lại NCC nhưng không đăng ký khách. |
@@ -141,7 +141,7 @@ Giữ mã UC01–UC42 từ tài liệu cũ; UC43–UC52 bổ sung cho dòng ti�
 1. Khách nhập email, mật khẩu, tên và thông tin liên hệ. Hệ thống chuẩn hóa email, kiểm tra quyền sở hữu email và tạo account `PENDING_EMAIL`.
 2. Gửi OTP gắn với **account, email và mục đích đăng ký**. Nhập đúng mã còn hạn thì chuyển account thành `ACTIVE` và đánh dấu email đã xác thực.
 3. Mã sai/hết hạn/đã dùng không kích hoạt tài khoản. Lượt pending có hạn mặc định 24 giờ từ created_at; đúng deadline đã hết hạn, verify/resend bị từ chối. Trong hạn, đăng ký lại giữ account và deadline; sau hạn đăng ký tạo lượt mới sau khi dọn dữ liệu đủ điều kiện.
-4. Đăng nhập chỉ cấp quyền nghiệp vụ cho account đang hoạt động. Admin khóa account phải thu hồi toàn bộ refresh token và chặn login/refresh. Access JWT đã cấp có thể tiếp tục dùng tới exp (tối đa 15 phút); đây là độ trễ của thiết kế xác thực JWT không tra thu hồi mỗi request.
+4. Đăng nhập chỉ cấp quyền nghiệp vụ cho account đang hoạt động. UC29 yêu cầu thu hồi mọi refresh token và chặn login/refresh khi khóa account. Access JWT đã cấp chịu `exp`. Các API xét duyệt kiểm tra trạng thái admin trong database khi xử lý.
 5. Đặt lại mật khẩu dùng mã riêng cho account đã tồn tại; thành công thu hồi toàn bộ refresh token cũ. Không tạo account mới bằng luồng quên mật khẩu; hồ sơ NCC chưa duyệt chưa có mật khẩu đăng nhập.
 
 #### Hợp đồng xác thực JWT — UC02, UC03 và làm mới token
@@ -150,24 +150,24 @@ Cả access token và refresh token đều là JWT ký bằng HS256, dùng khóa
 
 | Thao tác | Hành vi |
 | --- | --- |
-| Login | Kiểm tra tài khoản/mật khẩu, cấp access JWT trong JSON và refresh JWT trong cookie HttpOnly. Access mặc định 15 phút, refresh tối đa 14 ngày từ lần login. |
+| Login | Kiểm tra tài khoản/mật khẩu, cấp access JWT trong JSON và refresh JWT trong cookie HttpOnly. YAML mặc định access `24h`, `.env.example` đặt `15m`. Refresh có hạn tối đa 14 ngày từ lần login. |
 | Gọi API | Gửi access JWT bằng Bearer header; server kiểm tra chữ ký/claim, role và quyền sở hữu tài nguyên trong nghiệp vụ. |
 | Refresh | Cookie refresh và CSRF hợp lệ; kiểm tra account và bản ghi token, đánh dấu token cũ đã dùng, cấp cặp mới. Không gia hạn mốc hết hạn tuyệt đối của chuỗi refresh. |
 | Dùng lại refresh token | Thu hồi cả chuỗi token từ lần login đó và yêu cầu đăng nhập lại. Frontend cần điều phối refresh để tránh request đồng thời dùng một token. |
 | Logout | Thu hồi chuỗi refresh token hiện tại, xóa cookie; frontend xóa access token trong bộ nhớ. Access đã cấp vẫn có thể dùng đến exp. |
-| Khóa/reset mật khẩu | Khi triển khai, thu hồi tất cả refresh token của account và chặn cấp mới theo trạng thái; access cũ có độ trễ hết hạn tối đa 15 phút. |
+| Khóa/reset mật khẩu | Yêu cầu khi triển khai: thu hồi mọi refresh token của account và chặn cấp mới theo trạng thái. Access JWT đã cấp chịu `exp`. |
 
-**Tình trạng:** đã triển khai backend khách hàng tại `/api/auth/login`, `/refresh`, `/me`, `/logout` cùng đăng ký/OTP. Frontend cần nối API. Đã bổ sung login admin tại `/api/auth/login/admin` và refresh/me/logout dùng chung; kiểm thử riêng ADM-02 đang hoãn. Login NCC, giới hạn đổi mật khẩu lần đầu, reset và API khóa account chưa hoàn thành. Các rule role trong SecurityConfig không thay thế việc triển khai các luồng này. Xem [hợp đồng API và luồng JWT](customer-auth.md).
+**Tình trạng:** backend có đăng ký/OTP và login khách hàng, login admin tại `/api/auth/login/admin`, refresh, `/me` và logout dùng chung. Đăng nhập NCC (UC17), đổi mật khẩu lần đầu (UC42), quên mật khẩu (UC04) và khóa account (UC29) chưa triển khai. Xem [hợp đồng xác thực](customer-auth.md) và [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md).
 
 ### 4.2. Nộp và duyệt NCC — UC16, UC28, UC36, UC42
 
-**Tình trạng:** backend đã triển khai nộp/nộp lại hồ sơ, xác thực và gửi lại OTP tại `/api/provider-applications`, kết thúc ở `PENDING_REVIEW`. Chưa triển khai admin duyệt/từ chối, tạo account/profile và đăng nhập NCC. Xem [hợp đồng đăng ký NCC](provider-registration.md).
+**Tình trạng:** backend có nộp/nộp lại hồ sơ, xác thực và gửi lại OTP đến `PENDING_REVIEW`, cùng API admin xem, duyệt, từ chối và cấp lại mật khẩu tạm. Xem [đăng ký NCC](provider-registration.md) và [API xét duyệt hồ sơ](../tai_lieu_api/UC28_DUYET_NCC.md).
 
 1. Người nộp cung cấp email, tên liên hệ, điện thoại, tên cơ sở/cá nhân, mô tả, khu vực và tài liệu xét duyệt.
 2. OTP gắn với **đúng lần nộp hồ sơ**. Hồ sơ `PENDING_EMAIL` có hạn mặc định 24 giờ từ `created_at`; nộp lại trong hạn giữ deadline, sau hạn tạo hồ sơ mới. Verify/resend tại hoặc sau deadline bị từ chối. Xác thực xong, hồ sơ vào `PENDING_REVIEW` và không còn thuộc diện dọn pending; admin chưa được duyệt hồ sơ chưa xác thực.
-3. Nếu từ chối, lưu người duyệt, thời điểm và lý do, gửi email. Cho phép nộp hồ sơ mới cùng email loại NCC sau khi hồ sơ trước đã bị từ chối.
-4. Nếu duyệt, chuyển hồ sơ thành `APPROVED`, tạo account `PROVIDER` và profile trong cùng giao dịch dữ liệu. Gửi username/email và mật khẩu tạm; chỉ lưu hash mật khẩu.
-5. Duyệt lặp hoặc thử gửi lại email không tạo thêm account/profile. Nếu gửi thông tin đăng nhập thất bại, admin có thể cấp lại mật khẩu tạm mới và gửi lại; không lưu mật khẩu rõ trong lịch sử.
+3. Nếu từ chối, lưu người từ chối, thời điểm, lý do và audit, rồi gửi email trước khi commit. SMTP báo lỗi thì rollback quyết định, admin có thể thử lại. Sau khi từ chối thành công, người nộp có thể nộp hồ sơ mới cùng email loại NCC.
+4. Nếu duyệt, lưu hồ sơ `APPROVED`, account `PROVIDER`, profile và audit trong cùng giao dịch. Sau commit, gửi email chứa mật khẩu tạm và lưu trạng thái gửi. Database chỉ lưu hash mật khẩu.
+5. Duyệt lặp trả lại quyết định đã lưu. Với email `FAILED` hoặc `UNCONFIRMED`, admin có thể cấp lại mật khẩu tạm nếu NCC còn phải đổi mật khẩu lần đầu. Sau khi lưu hash mới, mật khẩu tạm cũ hết hiệu lực. Backend thu hồi refresh token của NCC và ghi audit cho lần cấp lại.
 6. Lần đăng nhập đầu chỉ được cấp quyền đổi mật khẩu/đăng xuất; sau đổi thành công mới cấp JWT có quyền nghiệp vụ NCC. Cơ chế giới hạn này được triển khai cùng luồng NCC, chưa có trong API login khách hàng hiện tại.
 
 ### 4.3. Dịch vụ và lịch — UC05–UC07, UC18–UC20, UC30, UC37–UC38

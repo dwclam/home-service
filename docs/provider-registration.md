@@ -1,6 +1,6 @@
 # Đăng ký làm nhà cung cấp
 
-Backend đã triển khai nộp hồ sơ, xác thực email và gửi lại OTP. Luồng hiện tại kết thúc ở `PENDING_REVIEW`: chưa tạo account, mật khẩu, provider profile hoặc JWT. Duyệt/từ chối hồ sơ và đăng nhập NCC được triển khai riêng sau này.
+Luồng nộp hồ sơ và xác thực OTP kết thúc ở `PENDING_REVIEW`. Tài khoản NCC chỉ được tạo khi admin duyệt. Đăng nhập NCC và đổi mật khẩu lần đầu thuộc UC17/UC42. Xem [API xét duyệt hồ sơ](../tai_lieu_api/UC28_DUYET_NCC.md).
 
 ## Chuẩn bị
 
@@ -110,7 +110,7 @@ Hồ sơ `PENDING_EMAIL` có deadline `created_at + app.auth.pending-registratio
 
 Nếu người dùng thoát và mất token, nộp lại thông tin từ đầu sau thời gian chờ. Không lấy được OTP mới bằng token của form cũ. Hồ sơ đã xác thực không bị ghi đè bởi thao tác nộp lại.
 
-Các thao tác NCC khóa cùng bản ghi email identity trong transaction để tránh nộp/xác thực/gửi lại đồng thời làm lệch hồ sơ và OTP. Hai yêu cầu tạo email mới cùng lúc chỉ một yêu cầu được tạo; yêu cầu còn lại có thể nhận `409 DATA_CONFLICT` hoặc `429 OTP_RESEND_TOO_SOON`. Khi triển khai API duyệt sau này, cần dùng cùng thứ tự khóa email identity trước hồ sơ/account.
+Các thao tác nộp hồ sơ, xác thực và gửi lại OTP khóa cùng bản ghi email identity trong transaction. Hai yêu cầu tạo email mới cùng lúc chỉ một yêu cầu được tạo. Yêu cầu còn lại có thể nhận `409 DATA_CONFLICT` hoặc `429 OTP_RESEND_TOO_SOON`. API duyệt, từ chối và cấp lại dùng cùng thứ tự khóa email identity, account nếu có, rồi hồ sơ.
 
 Nếu SMTP báo lỗi, transaction rollback: không giữ hồ sơ/email mới, không ghi đè hồ sơ cũ và không vô hiệu OTP trước đó. SMTP và database không có transaction chung; nếu email đã được gửi nhưng commit DB thất bại, mã trong email đó có thể không dùng được.
 
