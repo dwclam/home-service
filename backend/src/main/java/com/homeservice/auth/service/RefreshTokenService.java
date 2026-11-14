@@ -60,7 +60,8 @@ public class RefreshTokenService {
             throw new InvalidRefreshTokenException(stored.getUsedAt() != null);
         }
         if (!stored.getExpiresAt().isAfter(now) || account.getStatus() != AccountStatus.ACTIVE
-                || account.getEmailVerifiedAt() == null || account.getAccountType() != AccountType.CUSTOMER
+                || account.getEmailVerifiedAt() == null
+                || (account.getAccountType() != AccountType.CUSTOMER && account.getAccountType() != AccountType.ADMIN)
                 || Boolean.TRUE.equals(account.getMustChangePassword())) {
             refreshTokens.revokeFamily(stored.getFamilyId(), now);
             throw new InvalidRefreshTokenException(false);

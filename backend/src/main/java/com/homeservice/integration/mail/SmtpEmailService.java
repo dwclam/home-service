@@ -26,6 +26,14 @@ public class SmtpEmailService implements EmailService {
     }
 
     @Override
+    public void sendProviderApplicationVerificationEmail(String toEmail, String otp) {
+        send(toEmail, "Nestify — Xác thực hồ sơ nhà cung cấp",
+                "Mã xác thực hồ sơ nhà cung cấp của bạn là: " + otp
+                        + ".\nMã có hiệu lực tối đa 10 phút. Không chia sẻ mã này với người khác."
+                        + "\nSau khi xác thực, hồ sơ sẽ được chuyển đến quản trị viên để xét duyệt.");
+    }
+
+    @Override
     public void sendProviderApprovedEmail(String toEmail, String temporaryPassword) {
         send(toEmail, "Nestify — Hồ sơ nhà cung cấp đã được duyệt",
                 "Tài khoản: " + toEmail + "\nMật khẩu tạm: " + temporaryPassword

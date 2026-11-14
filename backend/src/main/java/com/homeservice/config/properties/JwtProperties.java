@@ -17,9 +17,9 @@ public record JwtProperties(
         @NotNull Duration accessTtl,
         @NotNull Duration refreshTtl
 ) {
-    @AssertTrue(message = "Access TTL must be whole seconds between 1 second and 15 minutes")
+    @AssertTrue(message = "Access TTL must be whole seconds between 1 second and 24 hours")
     public boolean isAccessTtlValid() {
-        return validDuration(accessTtl, Duration.ofMinutes(15));
+        return validDuration(accessTtl, Duration.ofDays(1));
     }
 
     @AssertTrue(message = "Refresh TTL must be whole seconds between access TTL and 14 days")

@@ -4,7 +4,9 @@
 
 Đã triển khai: đăng ký khách hàng, gửi/gửi lại OTP, xác thực email, đăng nhập, làm mới token, xem tài khoản hiện tại và đăng xuất. Access token và refresh token đều là JWT. DTO API dùng class thông thường với constructor, getter/setter.
 
-Chưa triển khai: đăng nhập NCC/admin, luồng NCC đổi mật khẩu lần đầu, quên/đổi mật khẩu, API quản trị khóa tài khoản và chỉnh sửa hồ sơ. Frontend cần nối các API theo tài liệu này; mô tả dưới đây không có nghĩa các màn hình đã tích hợp xong.
+Đã bổ sung login ADMIN tại `/api/auth/login/admin`, dùng chung refresh, `/me` và logout; xem [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md). Kiểm thử riêng ADM-02 đang hoãn theo yêu cầu.
+
+Chưa triển khai: đăng nhập NCC, luồng NCC đổi mật khẩu lần đầu, quên/đổi mật khẩu, API quản trị khóa tài khoản và chỉnh sửa hồ sơ. Frontend cần nối các API theo tài liệu này; mô tả dưới đây không có nghĩa các màn hình đã tích hợp xong.
 
 Tài liệu liên quan: [Cấu hình backend](backend-config.md), [Quy ước API](api-conventions.md), [Use case final](usecase-final.md), [Database final](database-design-final.md).
 
@@ -14,7 +16,7 @@ Tài liệu liên quan: [Cấu hình backend](backend-config.md), [Quy ước AP
 | --- | --- | --- |
 | Định dạng | JWT ký bằng HS256. | JWT ký bằng HS256, dùng khóa khác access token. |
 | Mục đích | Xác thực request gọi API được bảo vệ. | Xin cặp access/refresh token mới. |
-| Thời hạn mặc định | 15 phút kể từ lúc cấp. | 14 ngày tính từ lần login; không kéo dài mốc khi refresh. |
+| Thời hạn mặc định | 24 giờ kể từ lúc cấp (theo YAML hiện tại, có thể ghi đè). | 14 ngày tính từ lần login; không kéo dài mốc khi refresh. |
 | Trả về frontend | Trường `accessToken` trong JSON. | Cookie `NESTIFY_REFRESH`, không trả trong JSON. |
 | Frontend giữ/gửi | Giữ trong bộ nhớ; gửi `Authorization: Bearer <accessToken>`. | Trình duyệt giữ cookie HttpOnly; gửi với `credentials: 'include'`. |
 | Xác minh ở backend | Kiểm tra chữ ký và claim bằng Spring Security; không tra bảng phiên. | Kiểm tra JWT, rồi kiểm tra account và bản ghi trong `refresh_tokens`. |
@@ -30,7 +32,7 @@ JWT được ký, không mã hóa payload. Các claim không chứa mật khẩu
 | `aud` | `nestify-api`. | `nestify-refresh`. |
 | `iat`, `exp` | Thời điểm cấp/hết hạn, dạng NumericDate trong JWT. | Thời điểm cấp và hạn tuyệt đối của chuỗi refresh. |
 | `token_use` | `access`. | `refresh`. |
-| `role` | `CUSTOMER` trong luồng đang triển khai. | Không có claim này. |
+| `role` | `CUSTOMER` hoặc `ADMIN`, theo endpoint đăng nhập và account. | Không có claim này. |
 
 Không có claim `sid`, không tạo `HttpSession`/`JSESSIONID`. `CurrentAccount` chỉ biểu diễn người dùng đã xác thực trong request hiện tại. Việc xác thực bằng access token không cần trạng thái phiên; việc quản lý refresh token vẫn có trạng thái trong database.
 
@@ -70,7 +72,7 @@ sequenceDiagram
 
 ### 2.1. Đăng nhập
 
-`CustomerAuthController.login()` nhận DTO và gọi `CustomerAuthService.login()`. Backend chuẩn hóa email, kiểm tra mật khẩu bằng PasswordEncoder, loại account CUSTOMER, trạng thái ACTIVE, email đã xác thực và `mustChangePassword=false`.
+`CustomerAuthController.login()` nhận DTO và gọi `CustomerAuthService.login()` cho CUSTOMER. `/login/admin` gọi `loginAdmin()` cho ADMIN. Hai luồng dùng chung phần kiểm tra mật khẩu, trạng thái ACTIVE, email đã xác thực và `mustChangePassword=false`; loại tài khoản do endpoint chọn, không lấy từ request. PROVIDER chưa được hỗ trợ.
 
 Trước khi gọi service kiểm tra mật khẩu, login áp dụng rate limit mặc định 5 yêu cầu cho mỗi cặp email–IP và 30 yêu cầu cho mỗi IP trong một cửa sổ 1 phút. Mọi yêu cầu login có body hợp lệ và qua CSRF đều được tính, kể cả login thành công hoặc bị từ chối do trạng thái tài khoản. Vượt giới hạn trả `429 / LOGIN_RATE_LIMITED` cùng header `Retry-After` (số giây cần chờ); frontend có thể đọc header này qua CORS. Đổi email không bỏ qua giới hạn tổng theo IP. Rate limit tự hết hạn và không đổi trạng thái account sang `SUSPENDED`.
 
@@ -84,13 +86,13 @@ Nếu cookie refresh cũ thuộc cùng account và hợp lệ, login thu hồi c
 
 Frontend gửi access JWT trong `Authorization`. Spring Security xử lý trước controller, sử dụng decoder trong `JwtConfig` để kiểm tra HS256, chữ ký, issuer, audience, `token_use`, thời hạn và các claim bắt buộc. Backend không chấp nhận refresh JWT ở vị trí access JWT.
 
-Từ `sub` và `role`, `SecurityConfig` tạo `CurrentAccount` cùng authority `ROLE_CUSTOMER`. Controller nhận principal bằng `@AuthenticationPrincipal`. Token không hợp lệ trả 401; không đủ vai trò trả 403. Các service nghiệp vụ vẫn phải kiểm tra quyền sở hữu đơn, hồ sơ hoặc tài nguyên; chỉ có role chưa đủ.
+Từ `sub` và `role`, `SecurityConfig` tạo `CurrentAccount` cùng authority `ROLE_CUSTOMER` hoặc `ROLE_ADMIN` theo token. `/me` cho phép cả hai vai trò. Controller nhận principal bằng `@AuthenticationPrincipal`. Token không hợp lệ trả 401; không đủ vai trò trả 403. Các service nghiệp vụ vẫn phải kiểm tra quyền sở hữu đơn, hồ sơ hoặc tài nguyên; chỉ có role chưa đủ.
 
 ### 2.3. Làm mới token và phát hiện dùng lại
 
 1. Frontend gọi `POST /api/auth/refresh` với cookie refresh và mã CSRF; không cần access token còn hạn.
 2. Backend xác minh refresh JWT rồi khóa account trong transaction để điều phối refresh/logout đồng thời.
-3. Tìm bản ghi theo `jti` và account, so sánh hash và hạn. Token phải chưa dùng, chưa thu hồi, còn hạn; account vẫn phải CUSTOMER, ACTIVE, đã xác thực và không yêu cầu đổi mật khẩu.
+3. Tìm bản ghi theo `jti` và account, so sánh hash và hạn. Token phải chưa dùng, chưa thu hồi, còn hạn; account vẫn phải CUSTOMER hoặc ADMIN, ACTIVE, đã xác thực và không yêu cầu đổi mật khẩu.
 4. Đặt `used_at` cho token cũ, cấp token mới có `jti` khác nhưng giữ `family_id` và hạn tuyệt đối của chuỗi. Cấp access JWT mới theo thông tin account tại thời điểm này.
 5. Nếu token đã dùng xuất hiện lại, thu hồi toàn bộ family và trả `401 / REFRESH_TOKEN_REUSED`. Việc thu hồi vẫn commit dù request kết thúc bằng lỗi.
 
@@ -116,7 +118,8 @@ Các endpoint hiện tại dùng **`/api/auth`**, chưa dùng `/api/v1/auth`. M�
 | POST | `/api/auth/register/customer` | `email`, `password`, `displayName`, `phone` tùy chọn. | 201: tạo hoặc cập nhật khách PENDING_EMAIL, gửi OTP và token đăng ký mới. |
 | POST | `/api/auth/resend-verification` | `email`, `registrationToken`. | 200: gửi OTP mới cho đúng lần đăng ký, giữ nguyên token. |
 | POST | `/api/auth/verify-email` | `email`, `code`, `registrationToken`. | 200: chuyển sang ACTIVE, trả `AccountResponse`; chưa tự cấp JWT. |
-| POST | `/api/auth/login` | `email`, `password`. | 200: `LoginResponse` và cookie refresh. |
+| POST | `/api/auth/login` | `email`, `password`. | 200: `LoginResponse` và cookie refresh cho CUSTOMER. |
+| POST | `/api/auth/login/admin` | `email`, `password`. | 200: cùng `LoginResponse` và cookie refresh cho ADMIN. |
 | POST | `/api/auth/refresh` | Không cần body. | 200: `LoginResponse` và cookie refresh mới. |
 | GET | `/api/auth/me` | Không. | 200: `AccountResponse` của principal hiện tại. |
 | POST | `/api/auth/logout` | Không cần body. | 204: không có body, xóa cookie. |
@@ -157,7 +160,7 @@ Xác thực dùng:
 }
 ```
 
-Gửi lại OTP dùng `{"email":"lam@example.com","registrationToken":"<token hiện tại>"}`. Gửi lại chỉ đổi OTP, giữ nguyên mật khẩu và token; OTP cũ bị vô hiệu. Token hiện tại vẫn có thể dùng để yêu cầu OTP mới sau khi mã hết hạn hoặc hết số lần thử, nếu tài khoản còn pending và đã qua thời gian chờ. Khi verify, OTP và token phải cùng thuộc challenge mới nhất, OTP còn hạn và chưa được dùng/vô hiệu. Token sai/cũ không làm tăng số lần thử của OTP hiện tại.
+Gửi lại OTP dùng `{"email":"lam@example.com","registrationToken":"<token hiện tại>"}`. Gửi lại chỉ đổi OTP, giữ nguyên mật khẩu và token; OTP cũ bị vô hiệu. Token hiện tại vẫn có thể dùng để yêu cầu OTP mới sau khi mã hết hạn hoặc hết số lần thử, nếu tài khoản còn pending, lượt đăng ký còn hạn và đã qua thời gian chờ. Khi verify, OTP và token phải cùng thuộc challenge mới nhất, OTP còn hạn và chưa được dùng/vô hiệu. Token sai/cũ không làm tăng số lần thử của OTP hiện tại.
 
 Login dùng `{"email":"lam@example.com","password":"Your-password-123!"}`. Login và refresh trả cùng cấu trúc; JWT dưới đây chỉ là chỗ điền minh họa:
 
@@ -202,10 +205,12 @@ CORS cho phép origin cụ thể từ `FRONTEND_ORIGINS`, header `Authorization`
 
 ## 5. Quy tắc đăng ký và OTP
 
-- Một email giữ đúng một loại tài khoản qua `email_identities`; account liên kết bằng cặp `(email, account_type)`. Chỉ CUSTOMER đang PENDING_EMAIL được đăng ký lại: cập nhật mật khẩu/tên/điện thoại trên cùng account, vô hiệu OTP trước và cấp OTP cùng token mới. ACTIVE, SUSPENDED, account khác loại hoặc identity đã được giữ cho NCC đều trả `409 / EMAIL_ALREADY_USED` và không bị thay đổi.
+Lượt CUSTOMER `PENDING_EMAIL` có deadline `created_at + app.auth.pending-registration-ttl` (mặc định 24 giờ liên tục); tại deadline đã hết hạn. Verify/resend hết hạn trả `400 VERIFICATION_NOT_AVAILABLE`, kể cả challenge cũ còn hạn OTP. Đăng ký lại hoặc gửi lại trong hạn không đổi mốc tạo; OTP mới có hạn không vượt deadline. Đăng ký sau hạn dọn lượt cũ và tạo account/token/OTP mới trong cùng giao dịch, kể cả khi job chưa chạy. Pending NCC hết hạn cũng được dọn khi đăng ký khách nếu không còn lịch sử hay tham chiếu cần giữ; lịch sử NCC REJECTED vẫn giữ identity PROVIDER. SMTP lỗi rollback cả dọn và tạo lượt thay thế; lượt cũ vẫn hết hạn.
+
+- Một email giữ đúng một loại tài khoản qua `email_identities`; account liên kết bằng cặp `(email, account_type)`. Chỉ CUSTOMER đang PENDING_EMAIL còn hạn được đăng ký lại: cập nhật mật khẩu/tên/điện thoại trên cùng account, vô hiệu OTP trước và cấp OTP cùng token mới. ACTIVE, SUSPENDED, account khác loại hoặc identity còn được giữ cho NCC đều trả `409 / EMAIL_ALREADY_USED` và không bị thay đổi.
 - Đăng ký lại pending cũng tuân theo thời gian chờ gửi OTP (mặc định 60 giây). OTP và token trước đó không được dùng để xác thực lần đăng ký mới. Nếu người khác đăng ký sau khi form hiện tại được tạo, ngay cả OTP mới nhất trong hộp thư cũng không thể kích hoạt account từ form mang token cũ; người dùng phải bắt đầu đăng ký lại.
 - OTP sáu chữ số sinh bằng SecureRandom, lưu hash có salt. Mã phải đúng account/email/purpose REGISTER_CUSTOMER, đã gửi, chưa dùng/vô hiệu và còn hạn.
-- Mặc định OTP 10 phút, tối đa 5 lần sai, gửi lại sau ít nhất 60 giây và vô hiệu mã cũ. Đăng ký lại/verify/resend cùng khóa account trong transaction để tránh trộn mật khẩu, OTP và token giữa các request đồng thời. Nhập sai vẫn lưu bộ đếm; gửi mail thất bại rollback cả thông tin account, token và OTP.
+- Mặc định OTP 10 phút, tối đa 5 lần sai, gửi lại sau ít nhất 60 giây và vô hiệu mã cũ. Đăng ký lại/verify/resend khóa identity rồi account trong transaction để tránh trộn mật khẩu, OTP và token giữa các request đồng thời. Nhập sai vẫn lưu bộ đếm; gửi mail thất bại rollback cả thông tin account, token và OTP.
 - Không trả OTP qua API hoặc ghi OTP vào log. SMTP gửi đồng bộ trong transaction: nếu mail đã được SMTP nhận nhưng database commit thất bại, mã đó không dùng được; outbox chưa triển khai.
 
 ## 6. Chạy local và chuyển từ session sang JWT
