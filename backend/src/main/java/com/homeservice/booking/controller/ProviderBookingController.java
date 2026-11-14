@@ -5,6 +5,7 @@ import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.booking.dto.request.AcceptBookingRequest;
 import com.homeservice.booking.dto.request.CompleteServiceRequest;
+import com.homeservice.booking.dto.request.ProviderCancelBookingRequest;
 import com.homeservice.booking.dto.request.RejectBookingRequest;
 import com.homeservice.booking.dto.request.StartServiceRequest;
 import com.homeservice.booking.dto.response.BookingDetailResponse;
@@ -50,6 +51,19 @@ public class ProviderBookingController {
                 providerAccountId, bookingId, request
         );
         return StandardResponse.success("Nhà cung cấp đã từ chối đơn đặt lịch thành công", response);
+    }
+
+    @PostMapping("/{bookingId}/cancel")
+    public StandardResponse<BookingDetailResponse> cancelBooking(
+            Authentication authentication,
+            @PathVariable Long bookingId,
+            @Valid @RequestBody ProviderCancelBookingRequest request
+    ) {
+        Long providerAccountId = resolveProviderAccountId(authentication);
+        BookingDetailResponse response = bookingService.cancelBookingByProvider(
+                providerAccountId, bookingId, request
+        );
+        return StandardResponse.success("Nhà cung cấp đã hủy đơn đặt lịch thành công", response);
     }
 
     @PostMapping("/{bookingId}/start")
