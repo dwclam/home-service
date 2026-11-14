@@ -1,6 +1,7 @@
 package com.homeservice.provider.controller;
 
 import com.homeservice.account.entity.Account;
+import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.common.dto.StandardResponse;
 import com.homeservice.common.exception.ResourceNotFoundException;
@@ -88,6 +89,11 @@ public class ProviderAvailabilityController {
         }
         Object principal = authentication.getPrincipal();
         if (principal instanceof CurrentAccount currentAccount) {
+            // Kiểm tra vai trò PROVIDER từ CurrentAccount
+            if (currentAccount.getAccountType() != null
+                    && !AccountType.PROVIDER.name().equalsIgnoreCase(currentAccount.getAccountType())) {
+                throw new AccessDeniedException("Tài khoản không có vai trò Nhà cung cấp");
+            }
             return currentAccount.getId();
         }
         String identifier = authentication.getName();
@@ -95,10 +101,21 @@ public class ProviderAvailabilityController {
             throw new AccessDeniedException("Không xác định được danh tính người dùng");
         }
         return accountRepository.findByEmail(identifier)
-                .map(Account::getId)
+                .map(acc -> {
+                    if (acc.getAccountType() != AccountType.PROVIDER) {
+                        throw new AccessDeniedException("Tài khoản không có vai trò Nhà cung cấp");
+                    }
+                    return acc.getId();
+                })
                 .orElseGet(() -> {
                     try {
-                        return Long.parseLong(identifier);
+                        Long accountId = Long.parseLong(identifier);
+                        Account acc = accountRepository.findById(accountId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản người dùng: " + identifier));
+                        if (acc.getAccountType() != AccountType.PROVIDER) {
+                            throw new AccessDeniedException("Tài khoản không có vai trò Nhà cung cấp");
+                        }
+                        return acc.getId();
                     } catch (NumberFormatException e) {
                         throw new ResourceNotFoundException("Không tìm thấy tài khoản người dùng: " + identifier);
                     }

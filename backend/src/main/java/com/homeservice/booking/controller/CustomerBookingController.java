@@ -1,6 +1,7 @@
 package com.homeservice.booking.controller;
 
 import com.homeservice.account.entity.Account;
+import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.booking.dto.request.CancelBookingRequest;
 import com.homeservice.booking.dto.request.CreateBookingRequest;
@@ -52,6 +53,11 @@ public class CustomerBookingController {
         }
         Object principal = authentication.getPrincipal();
         if (principal instanceof CurrentAccount currentAccount) {
+            // Kiểm tra vai trò CUSTOMER từ CurrentAccount
+            if (currentAccount.getAccountType() != null
+                    && !AccountType.CUSTOMER.name().equalsIgnoreCase(currentAccount.getAccountType())) {
+                throw new AccessDeniedException("Tài khoản không có vai trò Khách hàng");
+            }
             return currentAccount.getId();
         }
         String identifier = authentication.getName();
@@ -59,10 +65,21 @@ public class CustomerBookingController {
             throw new AccessDeniedException("Không xác định được danh tính người dùng");
         }
         return accountRepository.findByEmail(identifier)
-                .map(Account::getId)
+                .map(acc -> {
+                    if (acc.getAccountType() != AccountType.CUSTOMER) {
+                        throw new AccessDeniedException("Tài khoản không có vai trò Khách hàng");
+                    }
+                    return acc.getId();
+                })
                 .orElseGet(() -> {
                     try {
-                        return Long.parseLong(identifier);
+                        Long accountId = Long.parseLong(identifier);
+                        Account acc = accountRepository.findById(accountId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản người dùng: " + identifier));
+                        if (acc.getAccountType() != AccountType.CUSTOMER) {
+                            throw new AccessDeniedException("Tài khoản không có vai trò Khách hàng");
+                        }
+                        return acc.getId();
                     } catch (NumberFormatException e) {
                         throw new ResourceNotFoundException("Không tìm thấy tài khoản người dùng: " + identifier);
                     }
