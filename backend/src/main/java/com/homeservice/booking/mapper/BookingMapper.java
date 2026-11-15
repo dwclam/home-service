@@ -3,6 +3,8 @@ package com.homeservice.booking.mapper;
 import com.homeservice.booking.dto.response.BookingDetailResponse;
 import com.homeservice.booking.dto.response.BookingResponse;
 import com.homeservice.booking.entity.Booking;
+import com.homeservice.booking.enums.BookingStatus;
+import com.homeservice.booking.enums.TerminationReason;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -14,8 +16,27 @@ public class BookingMapper {
         }
 
         Long estimatedRefund = null;
+        Long refundedAmount = null;
+        if (booking.getTerminationKind() != null || booking.getTerminatedAt() != null) {
+            refundedAmount = booking.getRefundedVnd() != null ? booking.getRefundedVnd() : 0L;
+        } else {
+            refundedAmount = booking.getRefundedVnd();
+        }
+
         if (booking.getRefundPercent() != null && booking.getDepositAmountVnd() != null) {
-            estimatedRefund = Math.round(booking.getDepositAmountVnd() * booking.getRefundPercent() / 100.0);
+            boolean hasPaidDeposit = true;
+            if (booking.getTerminationReasonCode() == TerminationReason.PROVIDER_RESPONSE_TIMEOUT
+                    || booking.getTerminationReasonCode() == TerminationReason.DEPOSIT_TIMEOUT
+                    || booking.getTerminationReasonCode() == TerminationReason.PROVIDER_REJECT
+                    || booking.getStatus() == BookingStatus.EXPIRED
+                    || booking.getStatus() == BookingStatus.REJECTED) {
+                hasPaidDeposit = false;
+            }
+            if (hasPaidDeposit) {
+                estimatedRefund = Math.round(booking.getDepositAmountVnd() * booking.getRefundPercent() / 100.0);
+            } else {
+                estimatedRefund = 0L;
+            }
         }
 
         return BookingDetailResponse.builder()
@@ -67,6 +88,7 @@ public class BookingMapper {
                 .terminatedAt(booking.getTerminatedAt())
                 .refundPercent(booking.getRefundPercent())
                 .estimatedRefundAmountVnd(estimatedRefund)
+                .refundedAmountVnd(refundedAmount)
                 .build();
     }
 

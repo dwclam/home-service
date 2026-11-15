@@ -1,12 +1,20 @@
 package com.homeservice.booking.service;
 
+import com.homeservice.audit.entity.AdminAuditLog;
+import com.homeservice.audit.repository.AdminAuditLogRepository;
 import com.homeservice.booking.dto.request.AdminBookingSearchFilter;
+import com.homeservice.booking.dto.response.AdminBookingDetailResponse;
 import com.homeservice.booking.dto.response.AdminBookingSummaryResponse;
 import com.homeservice.booking.entity.Booking;
+import com.homeservice.booking.entity.BookingStatusHistory;
 import com.homeservice.booking.mapper.AdminBookingMapper;
 import com.homeservice.booking.repository.BookingRepository;
+import com.homeservice.booking.repository.BookingStatusHistoryRepository;
 import com.homeservice.booking.repository.specification.BookingSpecification;
 import com.homeservice.common.dto.PageResponse;
+import com.homeservice.common.exception.ResourceNotFoundException;
+import com.homeservice.payment.entity.PaymentTransaction;
+import com.homeservice.payment.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,6 +34,9 @@ import java.util.Set;
 public class AdminBookingService {
 
     private final BookingRepository bookingRepository;
+    private final BookingStatusHistoryRepository bookingStatusHistoryRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
+    private final AdminAuditLogRepository adminAuditLogRepository;
     private final AdminBookingMapper adminBookingMapper;
 
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
@@ -68,5 +79,27 @@ public class AdminBookingService {
                 bookingPage.getTotalElements(),
                 bookingPage.getTotalPages()
         );
+    }
+
+    /**
+     * Xem chi tiết toàn diện (360-degree view) một đơn đặt lịch dành cho Admin (UC 31).
+     *
+     * @param bookingId ID của đơn đặt lịch
+     * @return Chi tiết đơn đặt lịch toàn diện
+     */
+    @Transactional(readOnly = true)
+    public AdminBookingDetailResponse getBookingDetail(Long bookingId) {
+        if (bookingId == null) {
+            throw new ResourceNotFoundException("ID đơn đặt lịch không hợp lệ");
+        }
+
+        Booking booking = bookingRepository.findByIdWithDetails(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn đặt lịch với ID: " + bookingId));
+
+        List<BookingStatusHistory> statusHistories = bookingStatusHistoryRepository.findByBookingIdOrderByCreatedAtAsc(bookingId);
+        List<PaymentTransaction> transactions = paymentTransactionRepository.findByBookingIdOrderByCreatedAtAsc(bookingId);
+        List<AdminAuditLog> auditLogs = adminAuditLogRepository.findByEntityTypeAndEntityIdOrderByCreatedAtDesc("BOOKING", String.valueOf(bookingId));
+
+        return adminBookingMapper.toDetailResponse(booking, statusHistories, transactions, auditLogs);
     }
 }

@@ -4,6 +4,7 @@ import com.homeservice.account.entity.Account;
 import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.booking.dto.request.AdminBookingSearchFilter;
+import com.homeservice.booking.dto.response.AdminBookingDetailResponse;
 import com.homeservice.booking.dto.response.AdminBookingSummaryResponse;
 import com.homeservice.booking.dto.response.BookingExpirationResult;
 import com.homeservice.booking.service.AdminBookingService;
@@ -18,6 +19,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,6 +49,21 @@ public class AdminBookingController {
         resolveAdminId(authentication);
         PageResponse<AdminBookingSummaryResponse> response = adminBookingService.getBookings(filter);
         return StandardResponse.success("Lấy danh sách đơn đặt lịch thành công", response);
+    }
+
+    /**
+     * Xem chi tiết toàn diện (360-degree view) đơn đặt lịch dành cho Admin (UC 31).
+     * Yêu cầu quyền ROLE_ADMIN.
+     */
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<AdminBookingDetailResponse> getBookingDetail(
+            Authentication authentication,
+            @PathVariable("id") Long bookingId
+    ) {
+        resolveAdminId(authentication);
+        AdminBookingDetailResponse response = adminBookingService.getBookingDetail(bookingId);
+        return StandardResponse.success("Lấy chi tiết đơn đặt lịch thành công", response);
     }
 
     /**

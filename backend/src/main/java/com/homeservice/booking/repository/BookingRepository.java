@@ -25,6 +25,17 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     @EntityGraph(attributePaths = {"customer", "provider", "provider.account", "service"})
     Page<Booking> findAll(@Nullable Specification<Booking> spec, Pageable pageable);
 
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.customer " +
+           "LEFT JOIN FETCH b.provider p " +
+           "LEFT JOIN FETCH p.account " +
+           "LEFT JOIN FETCH b.service " +
+           "LEFT JOIN FETCH b.address " +
+           "LEFT JOIN FETCH b.settledByAdmin " +
+           "LEFT JOIN FETCH b.terminatedByAccount " +
+           "WHERE b.id = :id")
+    Optional<Booking> findByIdWithDetails(@Param("id") Long id);
+
     Optional<Booking> findByCustomerIdAndClientRequestKey(Long customerId, UUID clientRequestKey);
 
     boolean existsByBookingCode(String bookingCode);
