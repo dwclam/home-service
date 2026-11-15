@@ -1,6 +1,6 @@
 # API Conventions — Nestify
 
-**Cập nhật:** 14/11/2026. Quy ước API dùng chung. Xem [xác thực](customer-auth.md), [đăng ký NCC](provider-registration.md) và [cấu hình backend](backend-config.md).
+**Cập nhật:** 15/11/2026. Quy ước API dùng chung. Xem [xác thực](customer-auth.md), [đăng ký NCC](provider-registration.md) và [cấu hình backend](backend-config.md).
 
 ## 1. Định dạng chung
 
@@ -13,7 +13,8 @@
 
 | Phạm vi | Đường dẫn | Trạng thái |
 | --- | --- | --- |
-| Xác thực khách/admin | `/api/auth/...` | Login khách `/login`, admin `/login/admin`. Refresh, `/me` và logout dùng chung. |
+| Xác thực khách/admin/NCC | `/api/auth/...` | Login khách `/login`, admin `/login/admin`, NCC `/login/provider`. Refresh, `/me` và logout dùng chung. |
+| Đổi mật khẩu tạm của NCC | POST `/api/auth/provider/first-password` | Đổi mật khẩu và nhận cặp token đăng nhập. Xem [UC42](../tai_lieu_api/UC42_DOI_MAT_KHAU_LAN_DAU.md). |
 | Đăng ký NCC | `/api/provider-applications`, `/verify-email`, `/resend-verification` dưới tiền tố này | Đã triển khai nộp hồ sơ/OTP đến PENDING_REVIEW; không có ID trong URL. |
 | Admin xem hồ sơ NCC | GET `/api/admin/provider-applications`, `/{id}` | ADM-03 yêu cầu Bearer ADMIN và kiểm tra account trong DB. Xem [UC28](../tai_lieu_api/UC28_DUYET_NCC.md). |
 | Admin duyệt hồ sơ NCC | POST `/api/admin/provider-applications/{id}/approve` | ADM-04 yêu cầu Bearer ADMIN và CSRF. Trả quyết định đã commit và `credentialsEmailStatus`. Xem [UC28](../tai_lieu_api/UC28_DUYET_NCC.md). |
@@ -38,18 +39,19 @@ Authorization: Bearer <access JWT>
 - Access JWT hết hạn theo `expiresAt`. YAML mặc định `JWT_ACCESS_TTL=24h`, file `.env.example` đặt `15m`. Server kiểm tra chữ ký và claim, lấy `sub` làm account ID và `role` làm quyền. Cookie refresh chỉ dùng cho endpoint refresh/logout và khi login lại để thu hồi chuỗi trước.
 - Refresh JWT tối đa 14 ngày kể từ login, nằm trong cookie HttpOnly `NESTIFY_REFRESH`. Không gửi refresh token trong query string, URL hoặc body của API nghiệp vụ.
 - `POST /api/auth/refresh` dùng cookie refresh và CSRF, trả access JWT mới trong JSON, đồng thời thay cookie refresh. Mỗi refresh token chỉ được dùng một lần; frontend điều phối để tránh refresh đồng thời, kể cả giữa các tab.
-- `POST /api/auth/logout` thu hồi chuỗi refresh và xóa cookie; frontend xóa access token trong bộ nhớ. Access token đã cấp vẫn có thể dùng tới `exp`; không hứa chặn ngay mọi request sau logout/khóa account.
+- `POST /api/auth/logout` thu hồi chuỗi refresh và xóa cookie. Frontend xóa access token và token đổi mật khẩu trong bộ nhớ. Access token đã cấp vẫn có thể dùng tới `exp`.
 - Quyền URL kiểm tra vai trò; quyền sở hữu tài nguyên phải kiểm tra trong service nghiệp vụ dựa trên principal. Account ID/role do client gửi không quyết định người đang đăng nhập.
-- Login khách dùng `/api/auth/login`, admin dùng `/api/auth/login/admin`. Refresh, `/me` và logout dùng chung CUSTOMER/ADMIN. Đăng nhập NCC (UC17), đổi mật khẩu lần đầu (UC42), quên mật khẩu (UC04) và khóa account (UC29) chưa triển khai. Xem [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md) và [API xét duyệt hồ sơ UC28](../tai_lieu_api/UC28_DUYET_NCC.md).
+- Login NCC bằng mật khẩu tạm trả JWT giới hạn để đổi mật khẩu. JWT này hết hạn sau tối đa 5 phút và chỉ dùng được cho POST `/api/auth/provider/first-password`. Quên mật khẩu (UC04) và khóa account (UC29) chưa triển khai. Xem [UC17](../tai_lieu_api/UC17_DANG_NHAP_NCC.md), [UC42](../tai_lieu_api/UC42_DOI_MAT_KHAU_LAN_DAU.md) và [UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md).
 
 - Đăng ký trả `registrationToken` ngẫu nhiên gắn với lần nhập thông tin/mật khẩu. Verify gửi `email`, `code`, `registrationToken`; resend gửi `email`, `registrationToken`. Đây không phải access/refresh JWT. Chỉ lưu hash trong DB; frontend giữ token theo đúng form. Đăng ký lại CUSTOMER đang PENDING_EMAIL cập nhật thông tin và thay OTP/token sau thời gian chờ gửi mã. Token cũ không được dùng với OTP mới. ACTIVE, SUSPENDED và các loại account khác vẫn bị từ chối đăng ký lại.
 
 ## 4. Cookie và CSRF
 
-| Request | Access JWT | Cookie và CSRF |
+| Request | Bearer JWT | Cookie và CSRF |
 | --- | --- | --- |
 | `GET /api/auth/csrf` | Không cần. | Trả cookie CSRF và `{headerName, token}`. |
-| POST đăng ký/OTP/login dưới `/api/auth` | Không cần. | Gửi cookie CSRF và header lấy từ JSON. Login thành công đặt cookie refresh. |
+| POST đăng ký/OTP/login dưới `/api/auth` | Không cần. | Gửi cookie CSRF và header lấy từ JSON. Login đặt cookie refresh nếu được cấp access JWT. |
+| `POST /api/auth/provider/first-password` | Gửi `passwordChangeToken` từ login NCC. | Gửi cookie CSRF và header lấy từ JSON. Thành công đặt cookie refresh. |
 | Ba POST nộp hồ sơ/OTP tại `/api/provider-applications` | Không cần. | Gửi cookie CSRF và header lấy từ JSON; không cấp JWT hoặc cookie refresh. |
 | `POST /api/auth/refresh` | Không cần. | Cookie refresh và CSRF bắt buộc để làm mới thành công. |
 | `POST /api/auth/logout` | Không cần. | CSRF hợp lệ; nếu có refresh hợp lệ thì thu hồi chuỗi. |
@@ -59,7 +61,7 @@ Authorization: Bearer <access JWT>
 
 Frontend dùng `credentials: 'include'` hoặc `withCredentials: true` cho các request cần cookie. Cookie CSRF là HttpOnly; gửi token được trả trong JSON, không đọc cookie bằng JavaScript. Token JSON đã được che bằng XOR nên không so sánh chuỗi trực tiếp với giá trị cookie.
 
-Các POST xác thực công khai kiểm tra CSRF kể cả khi có Authorization header và bỏ qua Bearer token ở những endpoint này. Sau login/logout thành công, lấy lại CSRF trước POST xác thực tiếp theo. Cookie refresh và CSRF có SameSite=Lax; môi trường HTTPS đặt Secure, origin FE phải có trong CORS.
+Các POST xác thực công khai kiểm tra CSRF kể cả khi có Authorization header và bỏ qua Bearer token ở những endpoint này. Sau login, đổi mật khẩu lần đầu hoặc logout thành công, lấy lại CSRF trước POST xác thực tiếp theo. Cookie refresh và CSRF có SameSite=Lax. Môi trường HTTPS đặt Secure và thêm origin FE vào CORS.
 
 ## 5. Cấu trúc response
 

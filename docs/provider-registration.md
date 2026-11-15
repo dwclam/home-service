@@ -1,6 +1,6 @@
 # Đăng ký làm nhà cung cấp
 
-Luồng nộp hồ sơ và xác thực OTP kết thúc ở `PENDING_REVIEW`. Tài khoản NCC chỉ được tạo khi admin duyệt. Đăng nhập NCC và đổi mật khẩu lần đầu thuộc UC17/UC42. Xem [API xét duyệt hồ sơ](../tai_lieu_api/UC28_DUYET_NCC.md).
+Luồng nộp hồ sơ và xác thực OTP kết thúc ở `PENDING_REVIEW`. Tài khoản NCC chỉ được tạo khi admin duyệt. Sau duyệt, NCC đăng nhập và đổi mật khẩu tạm để dùng API nghiệp vụ. Xem [API xét duyệt hồ sơ](../tai_lieu_api/UC28_DUYET_NCC.md), [UC17](../tai_lieu_api/UC17_DANG_NHAP_NCC.md) và [UC42](../tai_lieu_api/UC42_DOI_MAT_KHAU_LAN_DAU.md).
 
 ## Chuẩn bị
 

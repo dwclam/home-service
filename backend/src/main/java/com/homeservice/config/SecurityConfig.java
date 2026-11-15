@@ -7,6 +7,7 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,6 +33,49 @@ import java.util.List;
 @Configuration(proxyBeanMethods = false)
 @EnableMethodSecurity
 public class SecurityConfig {
+    private static final String FIRST_PASSWORD_CHANGE = "FIRST_PASSWORD_CHANGE";
+
+    @Bean
+    @Order(1)
+    SecurityFilterChain firstPasswordChangeFilterChain(
+            HttpSecurity http,
+            UrlBasedCorsConfigurationSource corsConfigurationSource,
+            CookieCsrfTokenRepository csrfTokenRepository,
+            SecurityErrorHandler errorHandler,
+            @Qualifier("firstPasswordChangeJwtDecoder") JwtDecoder decoder
+    ) throws Exception {
+        http
+                .securityMatcher(PathPatternRequestMatcher.withDefaults()
+                        .matcher(HttpMethod.POST, "/api/auth/provider/first-password"))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository)
+                        .withObjectPostProcessor(new ObjectPostProcessor<CsrfFilter>() {
+                            @Override
+                            public <T extends CsrfFilter> T postProcess(T filter) {
+                                // A password change requires CSRF even when authenticated by JWT.
+                                filter.setRequireCsrfProtectionMatcher(CsrfFilter.DEFAULT_CSRF_MATCHER);
+                                return filter;
+                            }
+                        }))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .requestCache(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .oauth2ResourceServer(resource -> resource
+                        .jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(token -> {
+                            CurrentAccount account = new CurrentAccount(Long.valueOf(token.getSubject()), null, null);
+                            return UsernamePasswordAuthenticationToken.authenticated(account, null,
+                                    List.of(new SimpleGrantedAuthority(FIRST_PASSWORD_CHANGE)));
+                        }))
+                        .authenticationEntryPoint(errorHandler::passwordChangeTokenInvalid)
+                        .accessDeniedHandler(errorHandler))
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint(errorHandler::passwordChangeTokenInvalid)
+                        .accessDeniedHandler(errorHandler))
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().hasAuthority(FIRST_PASSWORD_CHANGE));
+        return http.build();
+    }
 
     @Bean
     SecurityFilterChain securityFilterChain(
@@ -45,7 +89,8 @@ public class SecurityConfig {
         // Public cookie-based endpoints must still enforce CSRF, even with an Authorization header.
         var paths = PathPatternRequestMatcher.withDefaults();
         var cookieEndpoints = new OrRequestMatcher(paths.matcher("/api/auth/csrf"),
-                paths.matcher("/api/auth/login"), paths.matcher("/api/auth/login/admin"), paths.matcher("/api/auth/refresh"),
+                paths.matcher("/api/auth/login"), paths.matcher("/api/auth/login/admin"),
+                paths.matcher("/api/auth/login/provider"), paths.matcher("/api/auth/refresh"),
                 paths.matcher("/api/auth/logout"), paths.matcher("/api/auth/register/customer"),
                 paths.matcher("/api/auth/verify-email"), paths.matcher("/api/auth/resend-verification"),
                 paths.matcher("/api/provider-applications"),
@@ -97,12 +142,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/login/admin", "/api/auth/register/customer",
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/login/admin",
+                                "/api/auth/login/provider", "/api/auth/register/customer",
                                 "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/logout", "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/provider-applications",
                                 "/api/provider-applications/verify-email",
                                 "/api/provider-applications/resend-verification").permitAll()
-                        .requestMatchers("/api/auth/me").hasAnyRole("CUSTOMER", "ADMIN")
+                        .requestMatchers("/api/auth/me").hasAnyRole("CUSTOMER", "ADMIN", "PROVIDER")
                         .requestMatchers(adminEndpoints).hasRole("ADMIN")
                         .requestMatchers("/api/provider/**", "/api/v1/provider/**").hasRole("PROVIDER")
                         .requestMatchers("/api/customer/**", "/api/v1/customer/**").hasRole("CUSTOMER")

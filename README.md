@@ -41,9 +41,11 @@ Backend đã có luồng đăng ký khách, OTP, đăng nhập bằng JWT access
 
 Backend cũng đã có [đăng ký làm NCC](docs/provider-registration.md): nộp hồ sơ kèm link tài liệu Drive, xác thực/gửi lại OTP và chuyển sang `PENDING_REVIEW`.
 
-Cấp admin nội bộ bằng lệnh chạy riêng `./backend/create-admin.sh`, đọc `ADMIN_EMAIL`/`ADMIN_PASS` từ `backend/.env`. Đăng nhập admin dùng `POST /api/auth/login/admin`. Refresh, `/me` và logout dùng chung với khách. Xem [hướng dẫn cấp admin](docs/admin-provisioning.md) và [hướng dẫn UC27](tai_lieu_api/UC27_DANG_NHAP_ADMIN.md).
+Cấp admin nội bộ bằng lệnh chạy riêng `./backend/create-admin.sh`, đọc `ADMIN_EMAIL`/`ADMIN_PASS` từ `backend/.env`. Đăng nhập admin dùng `POST /api/auth/login/admin`. Xem [hướng dẫn cấp admin](docs/admin-provisioning.md) và [hướng dẫn UC27](tai_lieu_api/UC27_DANG_NHAP_ADMIN.md).
 
 Admin có thể xem, duyệt và từ chối hồ sơ NCC. Nếu kết quả email của hồ sơ đã duyệt là `FAILED` hoặc `UNCONFIRMED`, admin có thể cấp lại mật khẩu tạm khi NCC còn phải đổi mật khẩu lần đầu. Xem [hướng dẫn UC28](tai_lieu_api/UC28_DUYET_NCC.md).
+
+NCC đã duyệt đăng nhập tại `POST /api/auth/login/provider` và phải đổi mật khẩu tạm trước khi được cấp access token nghiệp vụ. Refresh, `/me` và logout dùng chung với khách và admin. Xem [UC17](tai_lieu_api/UC17_DANG_NHAP_NCC.md) và [UC42](tai_lieu_api/UC42_DOI_MAT_KHAU_LAN_DAU.md).
 
 Chạy backend từ thư mục `backend`:
 

@@ -7,7 +7,7 @@
 
 ## 1. Phạm vi và trạng thái
 
-Backend hỗ trợ đăng nhập ADMIN cấp nội bộ bằng ADM-01. CUSTOMER và ADMIN dùng chung refresh, `/me` và logout. Đăng nhập/refresh NCC chưa triển khai. Xem [cấp tài khoản admin](../docs/admin-provisioning.md) và [xét duyệt hồ sơ NCC](UC28_DUYET_NCC.md).
+Backend hỗ trợ đăng nhập ADMIN cấp nội bộ bằng ADM-01. CUSTOMER, ADMIN và PROVIDER đã đổi mật khẩu dùng chung refresh, `/me` và logout. Xem [cấp tài khoản admin](../docs/admin-provisioning.md), [xét duyệt hồ sơ NCC](UC28_DUYET_NCC.md) và [đăng nhập NCC](UC17_DANG_NHAP_NCC.md).
 
 Base URL local: `http://localhost:8080`. Response JSON trực tiếp, không bọc `success/data`; có `Cache-Control: no-store`. Mật khẩu/hash và refresh JWT không được trả trong JSON.
 
@@ -56,17 +56,17 @@ Access JWT có `role=ADMIN`, `sub` là ID account, `token_use=access`. YAML mặ
 
 Cookie `NESTIFY_REFRESH` chứa refresh JWT: HttpOnly, SameSite=Lax, Path=/api/auth, Secure theo cấu hình. Không đọc hoặc tự đưa refresh JWT vào body. Nếu đổi từ tài khoản khác trên cùng cookie jar, logout trước khi login để kết thúc chuỗi cũ; login khác account không tự thu hồi refresh của account trước.
 
-Login admin và khách dùng chung bộ đếm rate limit theo email/IP và IP. Yêu cầu login có dữ liệu hợp lệ được tính trước kiểm tra mật khẩu, kể cả thành công; vượt ngưỡng trả 429 kèm `Retry-After`.
+Login admin, khách và NCC dùng chung bộ đếm rate limit theo email/IP và IP. Yêu cầu login có dữ liệu hợp lệ được tính trước kiểm tra mật khẩu, kể cả thành công. Vượt ngưỡng trả 429 kèm `Retry-After`.
 
 ## 4. Các endpoint dùng chung
 
 | Endpoint | Cách gọi | Kết quả |
 | --- | --- | --- |
-| `GET /api/auth/me` | Bearer access JWT CUSTOMER hoặc ADMIN | 200 `AccountResponse` của chính principal, không có lớp bọc `account` |
+| `GET /api/auth/me` | Bearer access JWT CUSTOMER, ADMIN hoặc PROVIDER | 200 `AccountResponse` của chính principal, không có lớp bọc `account` |
 | `POST /api/auth/refresh` | Cookie refresh + CSRF, không body | 200 `LoginResponse`, thay cookie refresh; access mới giữ đúng vai trò account trong DB |
 | `POST /api/auth/logout` | Cookie + CSRF, không body | 204, thu hồi family refresh hiện tại và xóa cookie refresh/CSRF |
 
-Refresh kiểm tra account vẫn CUSTOMER/ADMIN ACTIVE, đã xác thực và không phải đổi mật khẩu. Rotation dùng một lần; dùng lại token đã tiêu thụ thu hồi cả chuỗi, kể cả token mới. Hạn tuyệt đối của chuỗi không kéo dài. Client điều phối một refresh tại một thời điểm và không tự retry khi mất response.
+Refresh kiểm tra account vẫn ACTIVE, đã xác thực và không phải đổi mật khẩu. Với NCC, backend kiểm tra thêm liên kết profile và hồ sơ đã duyệt. Rotation dùng một lần. Dùng lại token đã tiêu thụ thu hồi cả chuỗi, kể cả token mới. Hạn tuyệt đối của chuỗi không kéo dài. Client điều phối một refresh tại một thời điểm và không tự retry khi mất response.
 
 Logout thu hồi refresh family hiện tại. Access JWT đã cấp còn hạn tới `exp`. Các API xét duyệt và cấp lại kiểm tra admin trong database trên mỗi request để chặn admin đã bị khóa dù token còn hạn. `/me` dùng access JWT để đọc thông tin tài khoản hiện tại.
 

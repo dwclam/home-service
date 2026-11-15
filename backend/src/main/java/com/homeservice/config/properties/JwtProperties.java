@@ -15,7 +15,8 @@ public record JwtProperties(
         @NotBlank String accessSecret,
         @NotBlank String refreshSecret,
         @NotNull Duration accessTtl,
-        @NotNull Duration refreshTtl
+        @NotNull Duration refreshTtl,
+        @NotNull Duration firstPasswordChangeTtl
 ) {
     @AssertTrue(message = "Access TTL must be whole seconds between 1 second and 24 hours")
     public boolean isAccessTtlValid() {
@@ -26,6 +27,11 @@ public record JwtProperties(
     public boolean isRefreshTtlValid() {
         return validDuration(refreshTtl, Duration.ofDays(14))
                 && (refreshTtl == null || accessTtl == null || refreshTtl.compareTo(accessTtl) > 0);
+    }
+
+    @AssertTrue(message = "First password change TTL must be whole seconds between 1 second and 5 minutes")
+    public boolean isFirstPasswordChangeTtlValid() {
+        return validDuration(firstPasswordChangeTtl, Duration.ofMinutes(5));
     }
 
     private boolean validDuration(Duration value, Duration maximum) {

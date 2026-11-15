@@ -1,6 +1,7 @@
 package com.homeservice.provider.repository;
 
 import com.homeservice.provider.entity.ProviderProfile;
+import com.homeservice.provider.enums.ProviderApplicationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -11,4 +12,7 @@ public interface ProviderProfileRepository extends JpaRepository<ProviderProfile
     Optional<ProviderProfile> findByAccountId(Long accountId);
 
     Optional<ProviderProfile> findByApplicationId(Long applicationId);
+
+    boolean existsByAccountIdAndApplication_StatusAndApplication_Email(
+            Long accountId, ProviderApplicationStatus applicationStatus, String email);
 }

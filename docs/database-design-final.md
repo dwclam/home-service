@@ -43,7 +43,7 @@ Khách không tự hủy đúng/sau giờ hẹn; chuyển hỗ trợ. NCC không
 
 ### 1.3. Phạm vi xác thực hiện đã triển khai
 
-Backend có đăng ký/OTP và login cho khách hàng, login ADMIN và các endpoint refresh, `/me`, logout dùng chung CUSTOMER/ADMIN. UC28 có cấp và cấp lại mật khẩu tạm cho NCC. Đăng nhập NCC (UC17), đổi mật khẩu lần đầu (UC42), quên mật khẩu (UC04) và khóa account (UC29) chưa triển khai.
+Backend có đăng ký/OTP cho khách hàng và đăng nhập cho CUSTOMER, ADMIN, PROVIDER. Ba loại tài khoản dùng chung refresh, `/me` và logout. UC28 cấp và cấp lại mật khẩu tạm cho NCC. UC17 cấp JWT đổi mật khẩu khi `must_change_password=true`. UC42 dùng khóa account tương thích ADM-06 để cập nhật hash, tắt cờ và thu hồi các refresh token cũ trong cùng transaction. JWT đổi mật khẩu hết hạn sau tối đa 5 phút và được giữ trong bộ nhớ client. Quên mật khẩu (UC04) và khóa account (UC29) thuộc phạm vi triển khai sau. Xem [UC17](../tai_lieu_api/UC17_DANG_NHAP_NCC.md) và [UC42](../tai_lieu_api/UC42_DOI_MAT_KHAU_LAN_DAU.md).
 
 YAML mặc định access JWT `24h`, `.env.example` đặt `15m`. Bộ lọc xác thực chữ ký và claim mà không tra bảng phiên. Refresh JWT mặc định 14 ngày từ lần login, có trạng thái trong `refresh_tokens` để rotation một lần và phát hiện reuse. `family_id` liên kết lịch sử refresh trong database. Xem [hợp đồng xác thực](customer-auth.md).
 
@@ -178,11 +178,11 @@ Mỗi dòng theo dõi một refresh JWT đã cấp; một account có thể có 
 **Ràng buộc và cách dùng:**
 
 - CHECK `expires_at > created_at`. Refresh JWT mặc định có hạn tuyệt đối 14 ngày từ lần đăng nhập; rotation không gia hạn mốc này.
-- Refresh phải xác minh JWT rồi tìm theo `(id=jti, account_id=sub)`, so sánh hash và hạn với JWT, kiểm tra trạng thái trong DB. Code hiện tại chấp nhận CUSTOMER hoặc ADMIN đang ACTIVE, đã xác thực và có `must_change_password=false`.
+- Refresh xác minh JWT rồi tìm theo `(id=jti, account_id=sub)`, so sánh hash và hạn với JWT, kiểm tra trạng thái trong DB. Account CUSTOMER, ADMIN hoặc PROVIDER phải ACTIVE, đã xác thực và có `must_change_password=false`. PROVIDER cần profile liên kết với hồ sơ APPROVED.
 - Mỗi refresh dùng một lần. Rotation đánh dấu `used_at`, cấp token mới cùng family/hạn tuyệt đối. Reuse thu hồi toàn bộ family, kể cả token hậu duệ; transaction thu hồi vẫn commit khi trả 401. Lock account trước thao tác để serialize refresh/logout/login giữa các instance.
 - Giữ các token đã dùng/thu hồi tới hạn tuyệt đối để phát hiện reuse. Có thể dọn lịch sử sau hạn; không xóa sớm token tổ tiên khi token hậu duệ còn hiệu lực.
 - Mỗi lần đăng nhập tạo family mới. Đăng nhập lại cùng account với cookie refresh cũ hợp lệ thu hồi family cũ; các trình duyệt khác có family riêng. `family_id` không UNIQUE vì các token trước và sau rotation dùng chung giá trị này.
-- Logout thu hồi family của refresh cookie hiện tại. ADM-06 thu hồi mọi refresh token chưa bị thu hồi của account NCC trong cùng transaction thay hash, dưới khóa account. Access JWT đã cấp chịu `exp` của token. API khóa account và quên mật khẩu sẽ áp dụng quy tắc thu hồi tương ứng khi được triển khai.
+- Logout thu hồi family của refresh cookie hiện tại. ADM-06 và UC42 thu hồi mọi refresh token chưa bị thu hồi của account NCC trong cùng transaction thay hash, dưới khóa account. UC42 cấp family mới trong transaction đó. Access JWT đã cấp chịu `exp` của token. API khóa account và quên mật khẩu sẽ áp dụng quy tắc thu hồi tương ứng khi được triển khai.
 
 ### 04. `provider_applications`
 

@@ -30,6 +30,12 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
                 new ApiError("AUTHENTICATION_REQUIRED", "Bạn cần đăng nhập để thực hiện thao tác này."));
     }
 
+    public void passwordChangeTokenInvalid(HttpServletRequest request, HttpServletResponse response,
+                                           AuthenticationException exception) throws IOException {
+        write(response, HttpServletResponse.SC_UNAUTHORIZED,
+                new ApiError("PASSWORD_CHANGE_TOKEN_INVALID", "Mã đổi mật khẩu không hợp lệ hoặc đã hết hạn."));
+    }
+
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException exception) throws IOException {

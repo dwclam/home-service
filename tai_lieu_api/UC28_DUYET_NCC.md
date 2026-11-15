@@ -7,7 +7,7 @@
 
 ## 1. Phạm vi và trạng thái
 
-Backend có hai GET xem hồ sơ và ba POST để duyệt, từ chối hoặc cấp lại mật khẩu tạm. Đăng nhập NCC (UC17), đổi mật khẩu lần đầu (UC42) và quên mật khẩu (UC04) chưa triển khai.
+Backend có hai GET xem hồ sơ và ba POST để duyệt, từ chối hoặc cấp lại mật khẩu tạm. Sau duyệt, NCC có thể đăng nhập và đổi mật khẩu lần đầu. Quên mật khẩu (UC04) thuộc phạm vi triển khai sau. Xem [UC17](UC17_DANG_NHAP_NCC.md) và [UC42](UC42_DOI_MAT_KHAU_LAN_DAU.md).
 
 Controller/service và DTO response nằm trong `com.homeservice.admin`. Chỉ POST từ chối nhận body JSON.
 

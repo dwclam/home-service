@@ -1,6 +1,6 @@
 # Nestify — Cấu hình backend và bảo mật JWT
 
-Backend có đăng ký/OTP và xác thực khách hàng bằng JWT access + refresh, cùng nộp hồ sơ và xác thực email NCC. Admin đăng nhập tại `/api/auth/login/admin`, dùng chung refresh, `/me` và logout với khách. Admin có thể xem, duyệt, từ chối hồ sơ và cấp lại mật khẩu tạm. Xem [xác thực](customer-auth.md), [đăng ký NCC](provider-registration.md) và [xét duyệt hồ sơ NCC](../tai_lieu_api/UC28_DUYET_NCC.md).
+Backend có đăng ký/OTP và xác thực khách hàng bằng JWT access + refresh, cùng nộp hồ sơ và xác thực email NCC. Admin có thể xem, duyệt, từ chối hồ sơ và cấp lại mật khẩu tạm. Khách, admin và NCC đã đổi mật khẩu dùng chung refresh, `/me` và logout. Xem [xác thực](customer-auth.md), [đăng ký NCC](provider-registration.md), [xét duyệt hồ sơ NCC](../tai_lieu_api/UC28_DUYET_NCC.md) và [đổi mật khẩu lần đầu](../tai_lieu_api/UC42_DOI_MAT_KHAU_LAN_DAU.md).
 
 ## 1. Tổ chức mã nguồn
 
@@ -58,6 +58,7 @@ Các biến được ánh xạ trong [application.yaml](../backend/src/main/reso
 | `JWT_ISSUER` | `nestify` | Giá trị `iss` phải khớp khi ký và xác minh. |
 | `JWT_ACCESS_TTL` | `24h` | Số nguyên giây, từ 1 giây đến 24 giờ. `.env.example` đặt `15m`. |
 | `JWT_REFRESH_TTL` | `14d` | Số nguyên giây, lớn hơn access TTL và không quá 14 ngày. |
+| `JWT_FIRST_PASSWORD_CHANGE_TTL` | `5m` | `app.jwt.first-password-change-ttl`, số nguyên giây từ 1 giây đến 5 phút. |
 | `FRONTEND_ORIGINS` | `http://localhost:5173` | Danh sách origin chính xác, phân tách bằng dấu phẩy; không có dấu `/` cuối, không dùng `*`. |
 | `COOKIE_SECURE` | `false` | Đặt `true` khi phục vụ API qua HTTPS; áp dụng cookie refresh và CSRF. |
 | `SHOW_SQL` | `false` | Log SQL; profile dev bật, prod tắt. |
@@ -85,14 +86,15 @@ Sinh mỗi khóa JWT riêng bằng `openssl rand -base64 32`. Khóa được c�
 | Request | Quyền |
 | --- | --- |
 | `GET /api/health`, `GET /api/auth/csrf` | Công khai. |
-| `POST /api/auth/login`, `/login/admin`, `/register/customer`, `/verify-email`, `/resend-verification`, `/refresh`, `/logout` dưới `/api/auth` | Công khai về access token nhưng vẫn kiểm tra CSRF; refresh/logout xử lý cookie refresh. |
-| `GET /api/auth/me` | Access JWT có `ROLE_CUSTOMER` hoặc `ROLE_ADMIN`. |
+| POST `/login`, `/login/admin`, `/login/provider`, `/register/customer`, `/verify-email`, `/resend-verification`, `/refresh`, `/logout` dưới `/api/auth` | Công khai về access token và kiểm tra CSRF. Refresh/logout xử lý cookie refresh. |
+| `POST /api/auth/provider/first-password` | Bearer JWT đổi mật khẩu lần đầu và CSRF. |
+| `GET /api/auth/me` | Access JWT có `ROLE_CUSTOMER`, `ROLE_ADMIN` hoặc `ROLE_PROVIDER`. |
 | `/api/admin/**`, `/api/v1/admin/**` | `ROLE_ADMIN`. |
 | `/api/provider/**`, `/api/v1/provider/**` | `ROLE_PROVIDER`. |
 | `/api/customer/**`, `/api/v1/customer/**` | `ROLE_CUSTOMER`. |
 | Các request khác | Cần xác thực. |
 
-Login khách và admin có endpoint riêng, refresh/me/logout dùng chung CUSTOMER/ADMIN hợp lệ. Access JWT được kiểm tra HS256, chữ ký, issuer, audience, `token_use`, `sub`, `jti`, `iat`, `exp` và role hợp lệ. Role từ account lúc cấp token được chuyển thành `ROLE_...`. Service nghiệp vụ kiểm tra quyền trên tài nguyên; service xem và duyệt hồ sơ NCC đọc lại trạng thái account admin từ DB.
+Login khách, admin và NCC có endpoint riêng. Access JWT được kiểm tra HS256, chữ ký, issuer, audience, `token_use`, `sub`, `jti`, `iat`, `exp` và role hợp lệ. Role từ account lúc cấp token được chuyển thành `ROLE_...`. JWT đổi mật khẩu dùng chung khóa ký với access và có decoder riêng để kiểm tra issuer, audience `nestify-first-password`, thời hạn và `token_use=first_password_change`. Chỉ endpoint đổi mật khẩu nhận loại token này. Service nghiệp vụ kiểm tra quyền trên tài nguyên. Service xem và duyệt hồ sơ NCC đọc lại trạng thái account admin từ DB.
 
 Đã tắt form login, HTTP Basic, logout mặc định, request cache và tài khoản `user` tự sinh. `SessionCreationPolicy.STATELESS` ngăn lưu xác thực vào HttpSession. Request Bearer không tra bảng phiên hoặc refresh token. Login/refresh/logout có truy cập database; dữ liệu quản lý refresh token vẫn có trạng thái phía server.
 
@@ -107,7 +109,7 @@ PasswordEncoder mặc định dùng BCrypt qua DelegatingPasswordEncoder. Mật 
 - Cookie refresh: `NESTIFY_REFRESH`, HttpOnly, SameSite=Lax, Path=/api/auth. Cookie CSRF: `XSRF-TOKEN`, HttpOnly, SameSite=Lax, Path=/.
 - Frontend lấy token **từ JSON** của `/api/auth/csrf` rồi gửi header `X-XSRF-TOKEN`. Cookie/header có quan hệ được Spring kiểm tra; không so sánh trực tiếp chuỗi vì token JSON đã được che bằng XOR.
 - Các POST xác thực công khai luôn kiểm tra CSRF, kể cả khi có Bearer header. Chúng bỏ qua access token để refresh/logout không bị chặn bởi access đã hết hạn. Request ghi dưới `/api/admin/**` và `/api/v1/admin/**` yêu cầu cả Bearer ADMIN và CSRF. Các API nghiệp vụ khác xác thực bằng Bearer header dùng quy tắc mặc định của Resource Server.
-- Login/logout thành công xóa cookie CSRF cũ; frontend lấy lại trước POST xác thực tiếp theo. Refresh thành công không yêu cầu đổi CSRF.
+- Đổi mật khẩu lần đầu yêu cầu Bearer token riêng cùng cookie và header CSRF. Login, đổi mật khẩu lần đầu và logout thành công xóa cookie CSRF cũ. Frontend lấy lại trước POST xác thực tiếp theo. Refresh thành công giữ CSRF hiện tại.
 - CORS cho phép `Content-Type`, `Accept`, `Authorization`, `X-XSRF-TOKEN`, các method GET/POST/PUT/PATCH/DELETE/OPTIONS và credential từ origin đã cấu hình. Preflight không cần access token.
 - CORS expose header `Retry-After` để frontend đọc thời gian chờ khi login trả `429 / LOGIN_RATE_LIMITED`.
 

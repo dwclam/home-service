@@ -40,6 +40,13 @@ public class JwtTokenService {
                 .claim("role", account.getAccountType().name()).build()));
     }
 
+    public Jwt issueFirstPasswordChange(Long accountId) {
+        Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
+        return accessEncoder.encode(JwtEncoderParameters.from(header(), claims(accountId, now,
+                now.plus(properties.firstPasswordChangeTtl()), UUID.randomUUID(), JwtConfig.FIRST_PASSWORD_CHANGE_USE,
+                JwtConfig.FIRST_PASSWORD_CHANGE_AUDIENCE).build()));
+    }
+
     public Jwt issueRefresh(Long accountId, UUID tokenId, Instant expiresAt) {
         Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         return refreshEncoder.encode(JwtEncoderParameters.from(header(),

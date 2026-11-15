@@ -10,6 +10,8 @@ import com.homeservice.auth.entity.RefreshToken;
 import com.homeservice.auth.exception.InvalidRefreshTokenException;
 import com.homeservice.auth.repository.RefreshTokenRepository;
 import com.homeservice.config.properties.JwtProperties;
+import com.homeservice.provider.enums.ProviderApplicationStatus;
+import com.homeservice.provider.repository.ProviderProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -31,6 +33,7 @@ public class RefreshTokenService {
     private final TokenService tokens;
     private final JwtProperties properties;
     private final Clock clock;
+    private final ProviderProfileRepository profiles;
 
     // Login holds this account's write lock before issuing/replacing refresh tokens.
     @Transactional(propagation = Propagation.MANDATORY)
@@ -40,8 +43,13 @@ public class RefreshTokenService {
             RefreshToken stored = storedToken(previous, previousToken);
             if (stored != null) refreshTokens.revokeFamily(stored.getFamilyId(), clock.instant());
         }
-        return issue(account, UUID.randomUUID(),
-                clock.instant().truncatedTo(ChronoUnit.SECONDS).plus(properties.refreshTtl()));
+        return issueNewFamily(account);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public TokenPair issueAfterPasswordChange(Account account) {
+        refreshTokens.revokeByAccountId(account.getId(), clock.instant());
+        return issueNewFamily(account);
     }
 
     @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
@@ -59,15 +67,24 @@ public class RefreshTokenService {
             // Commit revocation even though the request returns 401.
             throw new InvalidRefreshTokenException(stored.getUsedAt() != null);
         }
-        if (!stored.getExpiresAt().isAfter(now) || account.getStatus() != AccountStatus.ACTIVE
-                || account.getEmailVerifiedAt() == null
-                || (account.getAccountType() != AccountType.CUSTOMER && account.getAccountType() != AccountType.ADMIN)
-                || Boolean.TRUE.equals(account.getMustChangePassword())) {
+        if (!stored.getExpiresAt().isAfter(now) || !canRefresh(account)) {
             refreshTokens.revokeFamily(stored.getFamilyId(), now);
             throw new InvalidRefreshTokenException(false);
         }
         stored.setUsedAt(now);
         return issue(account, stored.getFamilyId(), stored.getExpiresAt());
+    }
+
+    private boolean canRefresh(Account account) {
+        if (account.getStatus() != AccountStatus.ACTIVE || account.getEmailVerifiedAt() == null
+                || Boolean.TRUE.equals(account.getMustChangePassword())) {
+            return false;
+        }
+        return switch (account.getAccountType()) {
+            case CUSTOMER, ADMIN -> true;
+            case PROVIDER -> profiles.existsByAccountIdAndApplication_StatusAndApplication_Email(
+                    account.getId(), ProviderApplicationStatus.APPROVED, account.getEmail());
+        };
     }
 
     @Transactional
@@ -77,6 +94,11 @@ public class RefreshTokenService {
         if (accounts.findByIdForUpdate(Long.valueOf(decoded.getSubject())).isEmpty()) return;
         RefreshToken stored = storedToken(decoded, rawToken);
         if (stored != null) refreshTokens.revokeFamily(stored.getFamilyId(), clock.instant());
+    }
+
+    private TokenPair issueNewFamily(Account account) {
+        return issue(account, UUID.randomUUID(),
+                clock.instant().truncatedTo(ChronoUnit.SECONDS).plus(properties.refreshTtl()));
     }
 
     private TokenPair issue(Account account, UUID family, Instant expiresAt) {

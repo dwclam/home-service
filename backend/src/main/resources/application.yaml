@@ -68,6 +68,7 @@ app:
     refresh-secret: ${JWT_REFRESH_SECRET}
     access-ttl: ${JWT_ACCESS_TTL:24h}
     refresh-ttl: ${JWT_REFRESH_TTL:14d}
+    first-password-change-ttl: ${JWT_FIRST_PASSWORD_CHANGE_TTL:5m}
   mail:
     from: ${MAIL_FROM:no-reply@nestify.local}
   security:

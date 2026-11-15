@@ -68,17 +68,17 @@ Giữ mã UC01–UC42 từ tài liệu cũ; UC43–UC52 bổ sung cho dòng ti�
 | --- | --- | --- | --- |
 | UC01 | Đăng ký khách hàng | Khách truy cập | Giữ email và tạo account chờ xác thực. |
 | UC02 | Đăng nhập khách hàng | Khách truy cập | Cấp JWT access và refresh cho account khách hợp lệ. |
-| UC03 | Đăng xuất | Khách/NCC/admin | Thu hồi chuỗi refresh token hiện tại; frontend xóa access token. |
+| UC03 | Đăng xuất | Khách/NCC/admin | Thu hồi chuỗi refresh token hiện tại. Frontend xóa access token và token đổi mật khẩu nếu có. |
 | UC04 | Quên/đặt lại mật khẩu | Người có account | Xác minh email, đổi mật khẩu và thu hồi toàn bộ refresh token cũ. |
 | UC14 | Quản lý hồ sơ cá nhân | Khách | Sửa tên, điện thoại; không đổi email/loại tài khoản. |
 | UC16 | Nộp hồ sơ NCC | Khách truy cập | Tạo hồ sơ chờ xác thực, chưa tạo account NCC. |
-| UC17 | Đăng nhập NCC | NCC đã duyệt | Cấp quyền giới hạn nếu chưa đổi mật khẩu lần đầu; cơ chế JWT chi tiết triển khai cùng luồng NCC. |
+| UC17 | Đăng nhập NCC | NCC đã duyệt | Cấp JWT chỉ dùng đổi mật khẩu nếu còn dùng mật khẩu tạm. |
 | UC27 | Đăng nhập admin | Admin | Cấp JWT mang đúng quyền vận hành. |
 | UC28 | Duyệt/từ chối hồ sơ NCC | Admin | Tạo account/profile đúng một lần hoặc ghi lý do từ chối. |
 | UC29 | Quản lý người dùng | Admin | Xem/khoá/mở khoá tài khoản, ghi nhật ký. |
 | UC35 | Xác thực email khách | Khách truy cập | Kích hoạt account sau OTP hợp lệ. |
 | UC36 | Xác thực email hồ sơ NCC | Người nộp hồ sơ | Chuyển đúng hồ sơ sang chờ duyệt. |
-| UC42 | Đổi mật khẩu lần đầu | NCC | Gỡ giới hạn của tài khoản NCC sau khi đổi thành công. |
+| UC42 | Đổi mật khẩu lần đầu | NCC | Dùng JWT đổi mật khẩu và mật khẩu tạm hiện tại để đặt mật khẩu mới, rồi cấp cặp token đăng nhập. |
 
 ### 3.2. Dịch vụ, lịch và đặt lịch
 
@@ -150,16 +150,16 @@ Cả access token và refresh token đều là JWT ký bằng HS256, dùng khóa
 
 | Thao tác | Hành vi |
 | --- | --- |
-| Login | Kiểm tra tài khoản/mật khẩu, cấp access JWT trong JSON và refresh JWT trong cookie HttpOnly. YAML mặc định access `24h`, `.env.example` đặt `15m`. Refresh có hạn tối đa 14 ngày từ lần login. |
+| Login | Kiểm tra tài khoản/mật khẩu. Cấp access JWT trong JSON và refresh JWT trong cookie HttpOnly khi account đủ điều kiện. Nếu NCC còn phải đổi mật khẩu, cấp JWT riêng cho UC42. YAML mặc định access `24h`, `.env.example` đặt `15m`. Refresh có hạn tối đa 14 ngày từ lần login. |
 | Gọi API | Gửi access JWT bằng Bearer header; server kiểm tra chữ ký/claim, role và quyền sở hữu tài nguyên trong nghiệp vụ. |
 | Refresh | Cookie refresh và CSRF hợp lệ; kiểm tra account và bản ghi token, đánh dấu token cũ đã dùng, cấp cặp mới. Không gia hạn mốc hết hạn tuyệt đối của chuỗi refresh. |
 | Dùng lại refresh token | Thu hồi cả chuỗi token từ lần login đó và yêu cầu đăng nhập lại. Frontend cần điều phối refresh để tránh request đồng thời dùng một token. |
 | Logout | Thu hồi chuỗi refresh token hiện tại, xóa cookie; frontend xóa access token trong bộ nhớ. Access đã cấp vẫn có thể dùng đến exp. |
 | Khóa/reset mật khẩu | Yêu cầu khi triển khai: thu hồi mọi refresh token của account và chặn cấp mới theo trạng thái. Access JWT đã cấp chịu `exp`. |
 
-**Tình trạng:** backend có đăng ký/OTP và login khách hàng, login admin tại `/api/auth/login/admin`, refresh, `/me` và logout dùng chung. Đăng nhập NCC (UC17), đổi mật khẩu lần đầu (UC42), quên mật khẩu (UC04) và khóa account (UC29) chưa triển khai. Xem [hợp đồng xác thực](customer-auth.md) và [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md).
+Backend có đăng ký/OTP cho khách hàng, đăng nhập cho khách, admin và NCC, cùng refresh, `/me` và logout dùng chung. Quên mật khẩu (UC04) và khóa account (UC29) thuộc phạm vi triển khai sau. Xem [hợp đồng xác thực](customer-auth.md), [UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md) và [UC17](../tai_lieu_api/UC17_DANG_NHAP_NCC.md).
 
-### 4.2. Nộp và duyệt NCC — UC16, UC28, UC36, UC42
+### 4.2. Nộp, duyệt và kích hoạt tài khoản NCC — UC16, UC17, UC28, UC36, UC42
 
 **Tình trạng:** backend có nộp/nộp lại hồ sơ, xác thực và gửi lại OTP đến `PENDING_REVIEW`, cùng API admin xem, duyệt, từ chối và cấp lại mật khẩu tạm. Xem [đăng ký NCC](provider-registration.md) và [API xét duyệt hồ sơ](../tai_lieu_api/UC28_DUYET_NCC.md).
 
@@ -168,7 +168,7 @@ Cả access token và refresh token đều là JWT ký bằng HS256, dùng khóa
 3. Nếu từ chối, lưu người từ chối, thời điểm, lý do và audit, rồi gửi email trước khi commit. SMTP báo lỗi thì rollback quyết định, admin có thể thử lại. Sau khi từ chối thành công, người nộp có thể nộp hồ sơ mới cùng email loại NCC.
 4. Nếu duyệt, lưu hồ sơ `APPROVED`, account `PROVIDER`, profile và audit trong cùng giao dịch. Sau commit, gửi email chứa mật khẩu tạm và lưu trạng thái gửi. Database chỉ lưu hash mật khẩu.
 5. Duyệt lặp trả lại quyết định đã lưu. Với email `FAILED` hoặc `UNCONFIRMED`, admin có thể cấp lại mật khẩu tạm nếu NCC còn phải đổi mật khẩu lần đầu. Sau khi lưu hash mới, mật khẩu tạm cũ hết hiệu lực. Backend thu hồi refresh token của NCC và ghi audit cho lần cấp lại.
-6. Lần đăng nhập đầu chỉ được cấp quyền đổi mật khẩu/đăng xuất; sau đổi thành công mới cấp JWT có quyền nghiệp vụ NCC. Cơ chế giới hạn này được triển khai cùng luồng NCC, chưa có trong API login khách hàng hiện tại.
+6. Đăng nhập bằng mật khẩu tạm trả JWT chỉ dùng để đổi mật khẩu trong tối đa 5 phút. NCC gửi token này, mật khẩu tạm và mật khẩu mới. Khi đổi thành công, backend tắt cờ bắt buộc đổi, thu hồi refresh token cũ và cấp cặp JWT đăng nhập. Xem [UC17](../tai_lieu_api/UC17_DANG_NHAP_NCC.md) và [UC42](../tai_lieu_api/UC42_DOI_MAT_KHAU_LAN_DAU.md).
 
 ### 4.3. Dịch vụ và lịch — UC05–UC07, UC18–UC20, UC30, UC37–UC38
 
