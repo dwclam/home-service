@@ -6,6 +6,7 @@ import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.auth.dto.request.RegisterCustomerRequest;
 import com.homeservice.auth.dto.response.AccountResponse;
+import com.homeservice.auth.dto.response.FirstPasswordChangeResponse;
 import com.homeservice.auth.dto.response.RegistrationResponse;
 import com.homeservice.auth.entity.EmailChallenge;
 import com.homeservice.auth.entity.EmailIdentity;
@@ -14,11 +15,16 @@ import com.homeservice.auth.exception.AuthException;
 import com.homeservice.auth.exception.InvalidOtpException;
 import com.homeservice.auth.repository.EmailChallengeRepository;
 import com.homeservice.auth.repository.EmailIdentityRepository;
+import com.homeservice.common.exception.DataConflictException;
 import com.homeservice.config.properties.AuthProperties;
 import com.homeservice.integration.mail.EmailService;
+import com.homeservice.provider.enums.ProviderApplicationStatus;
 import com.homeservice.provider.repository.ProviderApplicationRepository;
+import com.homeservice.provider.repository.ProviderProfileRepository;
+import com.homeservice.security.LoginRateLimiter;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,13 +47,17 @@ public class CustomerAuthService {
     private final PendingRegistrationCleanup cleanup;
     private final PendingRegistrationPolicy pendingPolicy;
     private final ProviderApplicationRepository applications;
+    private final ProviderProfileRepository profiles;
+    private final JwtTokenService jwt;
+    private final LoginRateLimiter loginRateLimiter;
     private final String dummyPasswordHash;
 
     public CustomerAuthService(AccountRepository accounts, EmailIdentityRepository identities,
                                EmailChallengeRepository challenges, RefreshTokenService refreshTokens,
                                PasswordEncoder passwords, EmailService email, TokenService tokens,
                                AuthProperties properties, Clock clock, PendingRegistrationCleanup cleanup,
-                               PendingRegistrationPolicy pendingPolicy, ProviderApplicationRepository applications) {
+                               PendingRegistrationPolicy pendingPolicy, ProviderApplicationRepository applications,
+                               ProviderProfileRepository profiles, JwtTokenService jwt, LoginRateLimiter loginRateLimiter) {
         this.accounts = accounts;
         this.identities = identities;
         this.challenges = challenges;
@@ -60,6 +70,9 @@ public class CustomerAuthService {
         this.cleanup = cleanup;
         this.pendingPolicy = pendingPolicy;
         this.applications = applications;
+        this.profiles = profiles;
+        this.jwt = jwt;
+        this.loginRateLimiter = loginRateLimiter;
         this.dummyPasswordHash = passwords.encode(tokens.generateRandomValue());
     }
 
@@ -152,34 +165,106 @@ public class CustomerAuthService {
         return authenticate(emailAddress, password, previousToken, AccountType.ADMIN);
     }
 
+    @Transactional
+    public ProviderLoginResult loginProvider(String emailAddress, String password, String previousToken) {
+        Account account = authenticateCredentials(emailAddress, password, AccountType.PROVIDER);
+        requireActiveVerified(account);
+        requireApprovedProviderProfile(account);
+        account.setLastLoginAt(clock.instant());
+        if (Boolean.TRUE.equals(account.getMustChangePassword())) {
+            Jwt token = jwt.issueFirstPasswordChange(account.getId());
+            return new ProviderLoginResult(null,
+                    new FirstPasswordChangeResponse(token.getTokenValue(), token.getExpiresAt()));
+        }
+        return new ProviderLoginResult(refreshTokens.issueOnLogin(account, previousToken), null);
+    }
+
+    @Transactional
+    public RefreshTokenService.TokenPair changeFirstPassword(Long accountId, String currentPassword,
+                                                              String newPassword, String clientIp) {
+        validatePasswordLength(currentPassword);
+        validatePasswordLength(newPassword);
+        // ADM-06 takes this same account lock before replacing its hash or revoking tokens.
+        Account account = accounts.findByIdForUpdate(accountId)
+                .filter(candidate -> candidate.getAccountType() == AccountType.PROVIDER)
+                .orElseThrow(() -> new AuthException(HttpStatus.UNAUTHORIZED, "PASSWORD_CHANGE_TOKEN_INVALID",
+                        "Mã đổi mật khẩu không hợp lệ hoặc đã hết hạn."));
+        requireActiveVerified(account);
+        requireApprovedProviderProfile(account);
+        if (!Boolean.TRUE.equals(account.getMustChangePassword())) {
+            throw new AuthException(HttpStatus.CONFLICT, "PASSWORD_CHANGE_NOT_REQUIRED",
+                    "Tài khoản đã đổi mật khẩu lần đầu.");
+        }
+        loginRateLimiter.check(account.getEmail(), clientIp);
+        if (!passwords.matches(currentPassword, account.getPasswordHash())) {
+            throw invalidCredentials();
+        }
+        if (passwords.matches(newPassword, account.getPasswordHash())) {
+            throw new AuthException(HttpStatus.BAD_REQUEST, "PASSWORD_UNCHANGED",
+                    "Mật khẩu mới phải khác mật khẩu hiện tại.");
+        }
+        account.setPasswordHash(passwords.encode(newPassword));
+        account.setMustChangePassword(false);
+        return refreshTokens.issueAfterPasswordChange(account);
+    }
+
     // The endpoint chooses the expected role; clients never supply it in the login body.
     private RefreshTokenService.TokenPair authenticate(String emailAddress, String password, String previousToken,
                                                        AccountType expectedType) {
+        Account account = authenticateCredentials(emailAddress, password, expectedType);
+        requireActiveVerified(account);
+        requirePasswordChanged(account);
+        account.setLastLoginAt(clock.instant());
+        return refreshTokens.issueOnLogin(account, previousToken);
+    }
+
+    private Account authenticateCredentials(String emailAddress, String password, AccountType expectedType) {
         validatePasswordLength(password);
         Account account = accounts.findByEmailForUpdate(emailAddress).orElse(null);
         boolean matches = passwords.matches(password,
                 account == null ? dummyPasswordHash : account.getPasswordHash());
         if (account == null || !matches || account.getAccountType() != expectedType) {
-            throw new AuthException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Email hoặc mật khẩu không đúng.");
+            throw invalidCredentials();
         }
+        return account;
+    }
+
+    private AuthException invalidCredentials() {
+        return new AuthException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Email hoặc mật khẩu không đúng.");
+    }
+
+    private void requireActiveVerified(Account account) {
         if (account.getStatus() == AccountStatus.SUSPENDED) {
             throw new AuthException(HttpStatus.FORBIDDEN, "ACCOUNT_SUSPENDED", "Tài khoản đang bị khóa.");
         }
         if (account.getStatus() != AccountStatus.ACTIVE || account.getEmailVerifiedAt() == null) {
             throw new AuthException(HttpStatus.FORBIDDEN, "EMAIL_NOT_VERIFIED", "Vui lòng xác thực email trước khi đăng nhập.");
         }
+    }
+
+    private void requirePasswordChanged(Account account) {
         if (Boolean.TRUE.equals(account.getMustChangePassword())) {
             throw new AuthException(HttpStatus.FORBIDDEN, "PASSWORD_CHANGE_REQUIRED", "Tài khoản cần đổi mật khẩu.");
         }
-        Instant now = clock.instant();
-        account.setLastLoginAt(now);
-        return refreshTokens.issueOnLogin(account, previousToken);
+    }
+
+    private void requireApprovedProviderProfile(Account account) {
+        if (!profiles.existsByAccountIdAndApplication_StatusAndApplication_Email(
+                account.getId(), ProviderApplicationStatus.APPROVED, account.getEmail())) {
+            throw new DataConflictException("Dữ liệu hồ sơ và tài khoản nhà cung cấp không nhất quán.");
+        }
     }
 
     @Transactional(readOnly = true)
     public AccountResponse currentAccount(Long accountId) {
-        return AccountResponse.from(accounts.findById(accountId).orElseThrow(() ->
-                new AuthException(HttpStatus.UNAUTHORIZED, "AUTHENTICATION_REQUIRED", "Vui lòng đăng nhập.")));
+        Account account = accounts.findById(accountId).orElseThrow(() ->
+                new AuthException(HttpStatus.UNAUTHORIZED, "AUTHENTICATION_REQUIRED", "Vui lòng đăng nhập."));
+        if (account.getAccountType() == AccountType.PROVIDER) {
+            requireActiveVerified(account);
+            requirePasswordChanged(account);
+            requireApprovedProviderProfile(account);
+        }
+        return AccountResponse.from(account);
     }
 
     private Account pendingCustomer(String emailAddress) {
@@ -257,4 +342,6 @@ public class CustomerAuthService {
         }
     }
 
+    public record ProviderLoginResult(RefreshTokenService.TokenPair tokenPair,
+                                      FirstPasswordChangeResponse passwordChange) {}
 }
