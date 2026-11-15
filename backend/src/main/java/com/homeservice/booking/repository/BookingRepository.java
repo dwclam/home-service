@@ -2,10 +2,15 @@ package com.homeservice.booking.repository;
 
 import com.homeservice.booking.entity.Booking;
 import com.homeservice.booking.enums.BookingStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -14,7 +19,22 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface BookingRepository extends JpaRepository<Booking, Long> {
+public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpecificationExecutor<Booking> {
+
+    @Override
+    @EntityGraph(attributePaths = {"customer", "provider", "provider.account", "service"})
+    Page<Booking> findAll(@Nullable Specification<Booking> spec, Pageable pageable);
+
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.customer " +
+           "LEFT JOIN FETCH b.provider p " +
+           "LEFT JOIN FETCH p.account " +
+           "LEFT JOIN FETCH b.service " +
+           "LEFT JOIN FETCH b.address " +
+           "LEFT JOIN FETCH b.settledByAdmin " +
+           "LEFT JOIN FETCH b.terminatedByAccount " +
+           "WHERE b.id = :id")
+    Optional<Booking> findByIdWithDetails(@Param("id") Long id);
 
     Optional<Booking> findByCustomerIdAndClientRequestKey(Long customerId, UUID clientRequestKey);
 
