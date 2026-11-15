@@ -1,17 +1,40 @@
 package com.homeservice.booking.repository;
 
 import com.homeservice.booking.entity.Booking;
+import com.homeservice.booking.enums.BookingStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface BookingRepository extends JpaRepository<Booking, Long> {
+public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpecificationExecutor<Booking> {
+
+    @Override
+    @EntityGraph(attributePaths = {"customer", "provider", "provider.account", "service"})
+    Page<Booking> findAll(@Nullable Specification<Booking> spec, Pageable pageable);
+
+    @Query("SELECT b FROM Booking b " +
+           "LEFT JOIN FETCH b.customer " +
+           "LEFT JOIN FETCH b.provider p " +
+           "LEFT JOIN FETCH p.account " +
+           "LEFT JOIN FETCH b.service " +
+           "LEFT JOIN FETCH b.address " +
+           "LEFT JOIN FETCH b.settledByAdmin " +
+           "LEFT JOIN FETCH b.terminatedByAccount " +
+           "WHERE b.id = :id")
+    Optional<Booking> findByIdWithDetails(@Param("id") Long id);
 
     Optional<Booking> findByCustomerIdAndClientRequestKey(Long customerId, UUID clientRequestKey);
 
@@ -97,6 +120,67 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("slotStartsAt") Instant slotStartsAt,
             @Param("slotEndsAt") Instant slotEndsAt,
             @Param("excludedSlotId") Long excludedSlotId,
+            @Param("now") Instant now
+    );
+
+    @Query("SELECT b FROM Booking b WHERE b.provider.accountId = :providerId AND b.status = :status AND b.id != :excludedBookingId")
+    Optional<Booking> findFirstByProviderIdAndStatusExcluding(
+            @Param("providerId") Long providerId,
+            @Param("status") BookingStatus status,
+            @Param("excludedBookingId") Long excludedBookingId
+    );
+
+    /**
+     * Tìm danh sách đơn PENDING_PROVIDER đã quá hạn phản hồi của NCC (requestExpiresAt <= now).
+     */
+    List<Booking> findByStatusAndRequestExpiresAtBefore(
+            BookingStatus status,
+            Instant now,
+            Pageable pageable
+    );
+
+    /**
+     * Tìm danh sách đơn PENDING_DEPOSIT đã quá hạn thanh toán tiền cọc (depositDueAt <= now).
+     */
+    List<Booking> findByStatusAndDepositDueAtBefore(
+            BookingStatus status,
+            Instant now,
+            Pageable pageable
+    );
+
+    /**
+     * Tìm các đơn PENDING_DEPOSIT đã quá hạn cọc của NCC đang chồng lấn với khung giờ [startsAt, endsAt]
+     * để giải phóng lịch (nhả lịch) ngay lập tức khi xét duyệt đơn cạnh tranh.
+     */
+    @Query("SELECT b FROM Booking b WHERE b.provider.accountId = :providerId " +
+           "AND b.status = 'PENDING_DEPOSIT' AND b.depositDueAt <= :now " +
+           "AND b.startsAt < :endsAt AND b.endsAt > :startsAt")
+    List<Booking> findOverduePendingDepositOverlapping(
+            @Param("providerId") Long providerId,
+            @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt,
+            @Param("now") Instant now
+    );
+
+    /**
+     * UC38 — Lấy danh sách các booking đang chiếm lịch (exclusive bookings) của NCC
+     * trong phạm vi [from, to). Dùng để tính lịch rảnh thực tế bằng cách trừ đi các khoảng này.
+     * Exclusive bookings bao gồm:
+     * - CONFIRMED hoặc IN_PROGRESS
+     * - PENDING_DEPOSIT và deposit_due_at > now (đơn đang giữ chỗ còn hạn cọc)
+     */
+    @Query("SELECT b FROM Booking b " +
+           "WHERE b.provider.accountId = :providerId " +
+           "AND (" +
+           "    b.status IN (com.homeservice.booking.enums.BookingStatus.CONFIRMED, com.homeservice.booking.enums.BookingStatus.IN_PROGRESS) " +
+           "    OR (b.status = com.homeservice.booking.enums.BookingStatus.PENDING_DEPOSIT AND b.depositDueAt > :now)" +
+           ") " +
+           "AND b.startsAt < :to AND b.endsAt > :from " +
+           "ORDER BY b.startsAt ASC")
+    List<Booking> findExclusiveBookingsInRange(
+            @Param("providerId") Long providerId,
+            @Param("from") Instant from,
+            @Param("to") Instant to,
             @Param("now") Instant now
     );
 }

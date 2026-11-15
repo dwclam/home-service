@@ -77,4 +77,5 @@ public class BookingDetailResponse {
     private Instant terminatedAt;
     private Integer refundPercent;
     private Long estimatedRefundAmountVnd;
+    private Long refundedAmountVnd;
 }
