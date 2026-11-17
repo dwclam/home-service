@@ -17,6 +17,66 @@ export const login = async ({ email, password }) => {
 }
 
 /**
+ * Đăng nhập quản trị viên bằng email và mật khẩu.
+ * Endpoint: POST /api/auth/login/admin
+ * Phản hồi 200: { account, accessToken, tokenType, expiresAt }
+ * @param {{ email: string, password: string }} payload
+ * @returns {Promise<{ account: object, accessToken: string, tokenType: string, expiresAt: string }>}
+ */
+export const loginAdmin = async ({ email, password }) => {
+  const body = {
+    email: email.trim(),
+    password,
+  }
+
+  const response = await http.post('/auth/login/admin', body)
+  return response.data
+}
+
+/**
+ * Đăng nhập nhà cung cấp bằng email và mật khẩu.
+ * Endpoint: POST /api/auth/login/provider
+ * Phản hồi 200 có 2 nhánh:
+ * - Cần đổi mật khẩu lần đầu: { mustChangePassword: true, passwordChangeToken, expiresAt }
+ * - Đã đổi mật khẩu: { account, accessToken, tokenType, expiresAt }
+ * @param {{ email: string, password: string }} payload
+ */
+export const loginProvider = async ({ email, password }) => {
+  const body = {
+    email: email.trim(),
+    password,
+  }
+
+  const response = await http.post('/auth/login/provider', body)
+  return response.data
+}
+
+/**
+ * Đổi mật khẩu lần đầu cho tài khoản nhà cung cấp bằng passwordChangeToken tạm thời.
+ * Endpoint: POST /api/auth/provider/first-password
+ * Phản hồi 200: { account, accessToken, tokenType, expiresAt } và cookie refresh mới.
+ * @param {{ currentPassword: string, newPassword: string, passwordChangeToken: string }} payload
+ */
+export const changeProviderFirstPassword = async ({
+  currentPassword,
+  newPassword,
+  passwordChangeToken,
+}) => {
+  const body = {
+    currentPassword,
+    newPassword,
+  }
+
+  const response = await http.post('/auth/provider/first-password', body, {
+    _skipRefresh: true,
+    headers: {
+      Authorization: `Bearer ${passwordChangeToken}`,
+    },
+  })
+  return response.data
+}
+
+/**
  * Đăng xuất khỏi hệ thống: Thu hồi chuỗi refresh token hiện tại và xóa cookie.
  * Phản hồi 204: No Content.
  * @returns {Promise<void>}

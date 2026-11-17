@@ -11,9 +11,6 @@ export const RegisterPage = () => {
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink text-center tracking-tight">
           Đăng ký tài khoản
         </h1>
-        <p className="mt-2 text-sm text-neutral-500 font-sans text-center max-w-sm">
-          Tham gia Nestify để trải nghiệm dịch vụ chăm sóc gia đình chuyên nghiệp và tiện lợi.
-        </p>
       </div>
 
       {/* Register Card */}

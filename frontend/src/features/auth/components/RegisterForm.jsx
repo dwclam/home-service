@@ -158,7 +158,6 @@ export const RegisterForm = () => {
         htmlFor="password"
         required
         error={errors.password?.message}
-        hint="Độ dài từ 8 đến 72 ký tự"
       >
         <Input
           {...register('password')}

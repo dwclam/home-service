@@ -11,9 +11,6 @@ export const LoginPage = () => {
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink text-center tracking-tight">
           Đăng nhập tài khoản
         </h1>
-        <p className="mt-2 text-sm text-neutral-500 font-sans text-center max-w-sm">
-          Đăng nhập để quản lý đơn dịch vụ và trải nghiệm chăm sóc ngôi nhà hoàn hảo.
-        </p>
       </div>
 
       {/* Login Card */}
