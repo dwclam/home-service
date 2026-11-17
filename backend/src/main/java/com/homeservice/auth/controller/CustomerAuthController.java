@@ -1,8 +1,9 @@
 package com.homeservice.auth.controller;
 
-import com.homeservice.auth.dto.request.ResendVerificationRequest;
+import com.homeservice.auth.dto.request.FirstPasswordChangeRequest;
 import com.homeservice.auth.dto.request.LoginRequest;
 import com.homeservice.auth.dto.request.RegisterCustomerRequest;
+import com.homeservice.auth.dto.request.ResendVerificationRequest;
 import com.homeservice.auth.dto.request.VerifyEmailRequest;
 import com.homeservice.auth.dto.response.AccountResponse;
 import com.homeservice.auth.dto.response.LoginResponse;
@@ -72,6 +73,29 @@ public class CustomerAuthController {
                                     HttpServletRequest request, HttpServletResponse response) {
         loginRateLimiter.check(body.getEmail(), request.getRemoteAddr());
         RefreshTokenService.TokenPair result = auth.loginAdmin(body.getEmail(), body.getPassword(), cookies.read(request));
+        return finishLogin(request, response, result);
+    }
+
+    @PostMapping("/login/provider")
+    public Object loginProvider(@Valid @RequestBody LoginRequest body,
+                                HttpServletRequest request, HttpServletResponse response) {
+        loginRateLimiter.check(body.getEmail(), request.getRemoteAddr());
+        CustomerAuthService.ProviderLoginResult result =
+                auth.loginProvider(body.getEmail(), body.getPassword(), cookies.read(request));
+        if (result.passwordChange() != null) {
+            cookies.clear(response);
+            csrf.saveToken(null, request, response);
+            return result.passwordChange();
+        }
+        return finishLogin(request, response, result.tokenPair());
+    }
+
+    @PostMapping("/provider/first-password")
+    public LoginResponse changeFirstPassword(@AuthenticationPrincipal CurrentAccount account,
+                                             @Valid @RequestBody FirstPasswordChangeRequest body,
+                                             HttpServletRequest request, HttpServletResponse response) {
+        RefreshTokenService.TokenPair result = auth.changeFirstPassword(
+                account.getId(), body.getCurrentPassword(), body.getNewPassword(), request.getRemoteAddr());
         return finishLogin(request, response, result);
     }
 

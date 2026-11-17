@@ -164,7 +164,8 @@ http.interceptors.response.use(
     const isAuthEndpoint =
       originalRequest.url?.includes('/auth/login') ||
       originalRequest.url?.includes('/auth/refresh') ||
-      originalRequest.url?.includes('/auth/csrf')
+      originalRequest.url?.includes('/auth/csrf') ||
+      originalRequest.url?.includes('/auth/provider/first-password')
 
     // Nếu lỗi 401, chưa từng retry, không phải request refresh và không phải endpoint đăng nhập/làm mới
     if (

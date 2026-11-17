@@ -40,7 +40,28 @@ public class SmtpEmailService implements EmailService {
                         + "\nVui lòng đổi mật khẩu ngay trong lần đăng nhập đầu tiên.");
     }
 
+    @Override
+    public void sendProviderRejectedEmail(String toEmail, String reason) {
+        send(toEmail, "Nestify — Hồ sơ nhà cung cấp bị từ chối",
+                "Hồ sơ đăng ký nhà cung cấp của bạn đã bị từ chối.\nLý do: " + reason
+                        + "\nBạn có thể bổ sung thông tin và nộp hồ sơ mới với cùng email.",
+                "Chưa gửi được email kết quả xét duyệt. Vui lòng thử lại sau.");
+    }
+
+    @Override
+    public void sendProviderCredentialsReissuedEmail(String toEmail, String temporaryPassword) {
+        send(toEmail, "Nestify — Cấp lại mật khẩu tạm cho nhà cung cấp",
+                "Tài khoản: " + toEmail + "\nMật khẩu tạm: " + temporaryPassword
+                        + "\nCác mật khẩu tạm đã cấp trước lần này hết hiệu lực."
+                        + "\nVui lòng đổi mật khẩu ngay trong lần đăng nhập đầu tiên.",
+                "Chưa gửi được email cấp lại mật khẩu tạm. Vui lòng thử lại sau.");
+    }
+
     private void send(String to, String subject, String text) {
+        send(to, subject, text, "Chưa gửi được email xác thực. Vui lòng thử lại sau.");
+    }
+
+    private void send(String to, String subject, String text, String failureMessage) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
         message.setTo(to);
@@ -50,8 +71,7 @@ public class SmtpEmailService implements EmailService {
             sender.send(message);
         } catch (MailException exception) {
             // Do not expose SMTP details, credentials or message bodies (which contain secrets).
-            throw new AuthException(HttpStatus.SERVICE_UNAVAILABLE, "EMAIL_DELIVERY_FAILED",
-                    "Chưa gửi được email xác thực. Vui lòng thử lại sau.");
+            throw new AuthException(HttpStatus.SERVICE_UNAVAILABLE, "EMAIL_DELIVERY_FAILED", failureMessage);
         }
     }
 }

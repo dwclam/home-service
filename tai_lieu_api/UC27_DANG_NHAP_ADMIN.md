@@ -1,13 +1,13 @@
 # Nestify — Tài Liệu Tích Hợp API (Handoff Frontend)
 
-**Module:** Xác thực admin  
-**Use Case:** UC27 — Đăng nhập admin; refresh, thông tin hiện tại và đăng xuất dùng chung  
-**Ngày cập nhật:** 03/11/2026  
-**Người phụ trách backend:** Lâm
+- **Module:** Xác thực admin
+- **Use Case:** UC27 — Đăng nhập admin và dùng chung refresh, thông tin tài khoản hiện tại, đăng xuất
+- **Ngày cập nhật:** 14/11/2026
+- **Người phụ trách backend:** Lâm
 
 ## 1. Phạm vi và trạng thái
 
-Backend đã bổ sung đăng nhập ADMIN cấp nội bộ bằng [ADM-01](../docs/admin-provisioning.md). Chưa bổ sung kiểm thử tự động riêng cho ADM-02 theo yêu cầu trong chat; cần kiểm tra thủ công trước khi nghiệm thu. Chức năng duyệt/từ chối NCC thuộc các task sau. PROVIDER vẫn chưa được đăng nhập/refresh.
+Backend hỗ trợ đăng nhập ADMIN cấp nội bộ bằng ADM-01. CUSTOMER, ADMIN và PROVIDER đã đổi mật khẩu dùng chung refresh, `/me` và logout. Xem [cấp tài khoản admin](../docs/admin-provisioning.md), [xét duyệt hồ sơ NCC](UC28_DUYET_NCC.md) và [đăng nhập NCC](UC17_DANG_NHAP_NCC.md).
 
 Base URL local: `http://localhost:8080`. Response JSON trực tiếp, không bọc `success/data`; có `Cache-Control: no-store`. Mật khẩu/hash và refresh JWT không được trả trong JSON.
 
@@ -17,7 +17,7 @@ Base URL local: `http://localhost:8080`. Response JSON trực tiếp, không b�
 2. Khi POST login/refresh/logout, gửi cookie và header `X-XSRF-TOKEN: <token>`; body JSON dùng `Content-Type: application/json`.
 3. Login/logout thành công xóa CSRF cũ; gọi lại `/csrf` trước POST xác thực tiếp theo. Cookie CSRF HttpOnly, không đọc bằng JavaScript.
 
-Các POST xác thực này không cần Bearer và bỏ qua Bearer cũ/hết hạn, nhưng luôn kiểm tra CSRF. Trình duyệt dùng `credentials: 'include'` hoặc Axios `withCredentials: true`; Insomnia cần giữ cookie jar của cùng backend.
+Các POST xác thực này kiểm tra CSRF và bỏ qua Bearer header. Trình duyệt dùng `credentials: 'include'` hoặc Axios `withCredentials: true`. Trong Insomnia, dùng cùng collection và hostname cho GET CSRF và các POST. Header lấy `token` từ JSON, còn Insomnia gửi cookie `XSRF-TOKEN` đã lưu.
 
 ## 3. Đăng nhập — `POST /api/auth/login/admin`
 
@@ -52,23 +52,23 @@ Chỉ chấp nhận account ADMIN, ACTIVE, có `email_verified_at` và `must_cha
 }
 ```
 
-Access JWT có `role=ADMIN`, `sub` là ID account, `token_use=access`. TTL dùng cấu hình `JWT_ACCESS_TTL`/`JWT_REFRESH_TTL` hiện hành; YAML mặc định 24 giờ/14 ngày. Ví dụ thời gian chỉ minh họa; client dùng `expiresAt` thực tế.
+Access JWT có `role=ADMIN`, `sub` là ID account, `token_use=access`. YAML mặc định `JWT_ACCESS_TTL=24h` và `JWT_REFRESH_TTL=14d`. File `.env.example` đặt access là `15m`. Client dùng `expiresAt` từ response theo cấu hình đang chạy.
 
 Cookie `NESTIFY_REFRESH` chứa refresh JWT: HttpOnly, SameSite=Lax, Path=/api/auth, Secure theo cấu hình. Không đọc hoặc tự đưa refresh JWT vào body. Nếu đổi từ tài khoản khác trên cùng cookie jar, logout trước khi login để kết thúc chuỗi cũ; login khác account không tự thu hồi refresh của account trước.
 
-Login admin và khách dùng chung bộ đếm rate limit theo email/IP và IP. Yêu cầu login có dữ liệu hợp lệ được tính trước kiểm tra mật khẩu, kể cả thành công; vượt ngưỡng trả 429 kèm `Retry-After`.
+Login admin, khách và NCC dùng chung bộ đếm rate limit theo email/IP và IP. Yêu cầu login có dữ liệu hợp lệ được tính trước kiểm tra mật khẩu, kể cả thành công. Vượt ngưỡng trả 429 kèm `Retry-After`.
 
 ## 4. Các endpoint dùng chung
 
 | Endpoint | Cách gọi | Kết quả |
 | --- | --- | --- |
-| `GET /api/auth/me` | Bearer access JWT CUSTOMER hoặc ADMIN | 200 `AccountResponse` của chính principal, không có lớp bọc `account` |
+| `GET /api/auth/me` | Bearer access JWT CUSTOMER, ADMIN hoặc PROVIDER | 200 `AccountResponse` của chính principal, không có lớp bọc `account` |
 | `POST /api/auth/refresh` | Cookie refresh + CSRF, không body | 200 `LoginResponse`, thay cookie refresh; access mới giữ đúng vai trò account trong DB |
 | `POST /api/auth/logout` | Cookie + CSRF, không body | 204, thu hồi family refresh hiện tại và xóa cookie refresh/CSRF |
 
-Refresh kiểm tra account vẫn CUSTOMER/ADMIN ACTIVE, đã xác thực và không phải đổi mật khẩu. Rotation dùng một lần; dùng lại token đã tiêu thụ thu hồi cả chuỗi, kể cả token mới. Hạn tuyệt đối của chuỗi không kéo dài. Client điều phối một refresh tại một thời điểm và không tự retry khi mất response.
+Refresh kiểm tra account vẫn ACTIVE, đã xác thực và không phải đổi mật khẩu. Với NCC, backend kiểm tra thêm liên kết profile và hồ sơ đã duyệt. Rotation dùng một lần. Dùng lại token đã tiêu thụ thu hồi cả chuỗi, kể cả token mới. Hạn tuyệt đối của chuỗi không kéo dài. Client điều phối một refresh tại một thời điểm và không tự retry khi mất response.
 
-Logout không thu hồi access JWT đã cấp; token này vẫn chịu `exp` hiện hành. Các API nghiệp vụ quản trị sẽ phải kiểm tra trạng thái admin trong DB khi triển khai, không chỉ dựa vào role trong access JWT. `/me` đọc thông tin tài khoản hiện tại, không phải API quản trị tài khoản.
+Logout thu hồi refresh family hiện tại. Access JWT đã cấp còn hạn tới `exp`. Các API xét duyệt và cấp lại kiểm tra admin trong database trên mỗi request để chặn admin đã bị khóa dù token còn hạn. `/me` dùng access JWT để đọc thông tin tài khoản hiện tại.
 
 ## 5. Mã lỗi
 
@@ -93,4 +93,4 @@ Logout không thu hồi access JWT đã cấp; token này vẫn chịu `exp` hi�
 4. Lấy lại CSRF sau login; POST `/refresh` bằng cookie jar, kiểm tra token mới và `accountType=ADMIN`.
 5. POST `/logout` với cookie/CSRF; kiểm tra 204. Lấy CSRF mới rồi gọi refresh phải nhận 401 vì cookie refresh đã bị xóa.
 
-Chưa thực hiện trình tự này trên database thật trong phiên triển khai. Các kiểm tra tự động admin về sai role/trạng thái, rate limit, CSRF, rotation/reuse và logout được hoãn, không coi kiểm thử hồi quy khách/NCC là bằng chứng cho toàn bộ ADM-02.
+`AdminAuthIntegrationTests` dùng MockMvc, H2 và đồng hồ test để kiểm tra login admin, token và cookie, sai role/trạng thái, CSRF, rate limit dùng chung, `/me`, rotation, reuse và logout. Chưa chạy các bước Insomnia trên PostgreSQL thật trong lần bàn giao này.

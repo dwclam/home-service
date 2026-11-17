@@ -73,3 +73,34 @@ export const verifyOtpSchema = z.object({
     .length(6, 'Mã xác thực phải gồm đúng 6 chữ số')
     .regex(/^\d{6}$/, 'Mã xác thực chỉ chứa các chữ số từ 0 đến 9'),
 })
+
+const utf8Encoder = new TextEncoder()
+const getUtf8ByteLength = (val) => utf8Encoder.encode(val || '').length
+
+/**
+ * Schema xác thực form đổi mật khẩu lần đầu cho Nhà cung cấp (8..72 ký tự, tối đa 72 byte UTF-8).
+ */
+export const firstPasswordChangeSchema = z
+  .object({
+    newPassword: z
+      .string()
+      .min(8, 'Mật khẩu mới phải có ít nhất 8 ký tự')
+      .max(72, 'Mật khẩu mới không được vượt quá 72 ký tự')
+      .refine(
+        (val) => getUtf8ByteLength(val) <= 72,
+        'Mật khẩu mới không được vượt quá 72 byte UTF-8'
+      ),
+
+    confirmPassword: z
+      .string()
+      .min(1, 'Vui lòng xác nhận lại mật khẩu mới'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.newPassword && data.confirmPassword && data.newPassword !== data.confirmPassword) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirmPassword'],
+        message: 'Mật khẩu xác nhận không khớp',
+      })
+    }
+  })

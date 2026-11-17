@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, LogOut, ChevronDown } from 'lucide-react'
+import { Menu, X, LogOut, ChevronDown, Shield, Briefcase } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 import { useAuthStore } from '../features/auth/authStore'
@@ -10,38 +10,38 @@ import { Button } from '../components/ui/Button'
 import { BrandLogo } from '../components/ui/BrandLogo'
 
 const navLinks = [
-  { label: 'Đặt dịch vụ', href: '#featured' },
-  { label: 'Danh mục', href: '#categories' },
-  { label: 'Cách hoạt động', href: '#how-it-works' },
-  { label: 'Về chúng tôi', href: '#footer' },
+  { label: 'Dịch vụ', to: '/services' },
+  { label: 'Danh mục', href: '/#categories' },
+  { label: 'Cách hoạt động', href: '/#how-it-works' },
+  { label: 'Về chúng tôi', href: '/#footer' },
 ]
 
 const footerGroups = [
   {
     title: 'Sản phẩm',
     links: [
-      { label: 'Dịch vụ', href: '#featured' },
-      { label: 'Nhà cung cấp', href: '#providers' },
-      { label: 'Bảng giá', href: '#featured' },
-      { label: 'Khuyến mãi', href: '#featured' },
+      { label: 'Khám phá dịch vụ', to: '/services' },
+      { label: 'Dịch vụ nổi bật', href: '/#featured' },
+      { label: 'Nhà cung cấp', href: '/#providers' },
+      { label: 'Bảng giá', href: '/#featured' },
     ],
   },
   {
     title: 'Công ty',
     links: [
-      { label: 'Về chúng tôi', href: '#footer' },
-      { label: 'Tuyển dụng', href: '#provider' },
-      { label: 'Blog', href: '#footer' },
-      { label: 'Liên hệ', href: '#footer' },
+      { label: 'Về chúng tôi', href: '/#footer' },
+      { label: 'Tuyển dụng', href: '/#provider' },
+      { label: 'Blog', href: '/#footer' },
+      { label: 'Liên hệ', href: '/#footer' },
     ],
   },
   {
     title: 'Hỗ trợ',
     links: [
-      { label: 'Trung tâm trợ giúp', href: '#footer' },
-      { label: 'Điều khoản', href: '#footer' },
-      { label: 'Bảo mật', href: '#footer' },
-      { label: 'Hoàn tiền', href: '#footer' },
+      { label: 'Trung tâm trợ giúp', href: '/#footer' },
+      { label: 'Điều khoản', href: '/#footer' },
+      { label: 'Bảo mật', href: '/#footer' },
+      { label: 'Hoàn tiền', href: '/#footer' },
     ],
   },
 ]
@@ -94,26 +94,36 @@ function Header() {
           <div className="flex items-center gap-10">
             <BrandLogo size="md" />
             <nav aria-label="Điều hướng chính" className="hidden items-center gap-7 lg:flex">
-              {navLinks.map(({ label, href }) => (
-                <a
-                  key={label}
-                  href={href}
-                  className="text-sm font-medium font-sans text-neutral-700 transition-colors hover:text-primary-600"
-                >
-                  {label}
-                </a>
-              ))}
+              {navLinks.map(({ label, href, to }) =>
+                to ? (
+                  <Link
+                    key={label}
+                    to={to}
+                    className="text-sm font-medium font-sans text-neutral-700 transition-colors hover:text-primary-600"
+                  >
+                    {label}
+                  </Link>
+                ) : (
+                  <a
+                    key={label}
+                    href={href}
+                    className="text-sm font-medium font-sans text-neutral-700 transition-colors hover:text-primary-600"
+                  >
+                    {label}
+                  </a>
+                )
+              )}
             </nav>
           </div>
 
           {/* Cụm điều hướng Auth bên phải (Desktop) */}
           <div className="hidden items-center gap-3 sm:flex font-sans">
-            <a
-              href="#provider"
+            <Link
+              to="/provider/apply"
               className="inline-flex h-9 items-center rounded-full bg-primary-50 px-4 text-xs font-medium text-ink hover:bg-primary-100 transition-colors"
             >
               Trở thành nhà cung cấp
-            </a>
+            </Link>
 
             {!isAuthenticated ? (
               <>
@@ -159,6 +169,28 @@ function Header() {
                     </div>
 
                     <div className="py-1">
+                      {account?.accountType === 'ADMIN' && (
+                        <Link
+                          to="/admin/categories"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                        >
+                          <Shield className="w-4 h-4 text-primary-600" />
+                          <span>Quản trị hệ thống</span>
+                        </Link>
+                      )}
+
+                      {account?.accountType === 'PROVIDER' && (
+                        <Link
+                          to="/provider"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                        >
+                          <Briefcase className="w-4 h-4 text-primary-600" />
+                          <span>Kênh Nhà cung cấp</span>
+                        </Link>
+                      )}
+
                       <button
                         type="button"
                         onClick={handleLogout}
@@ -189,24 +221,35 @@ function Header() {
         {/* Mobile Navigation Drawer */}
         {menuOpen && (
           <nav aria-label="Điều hướng di động" className="flex flex-col gap-1 border-t border-neutral-200 py-3 lg:hidden font-sans">
-            {navLinks.map(({ label, href }) => (
-              <a
-                key={label}
-                href={href}
-                onClick={() => setMenuOpen(false)}
-                className="rounded-md px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                {label}
-              </a>
-            ))}
+            {navLinks.map(({ label, href, to }) =>
+              to ? (
+                <Link
+                  key={label}
+                  to={to}
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  {label}
+                </Link>
+              ) : (
+                <a
+                  key={label}
+                  href={href}
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  {label}
+                </a>
+              )
+            )}
 
-            <a
-              href="#provider"
+            <Link
+              to="/provider/apply"
               onClick={() => setMenuOpen(false)}
               className="rounded-md px-3 py-2 text-sm font-medium text-primary-600 hover:bg-neutral-50"
             >
               Trở thành nhà cung cấp
-            </a>
+            </Link>
 
             <div className="pt-2 mt-2 border-t border-neutral-200 flex flex-col gap-2">
               {!isAuthenticated ? (
@@ -239,6 +282,28 @@ function Header() {
                       <p className="text-xs text-neutral-500 truncate">{account?.email}</p>
                     </div>
                   </div>
+
+                  {account?.accountType === 'ADMIN' && (
+                    <Link
+                      to="/admin/categories"
+                      onClick={() => setMenuOpen(false)}
+                      className="w-full flex items-center justify-center gap-2 h-10 rounded-md bg-neutral-100 text-neutral-800 text-sm font-medium hover:bg-neutral-200 transition-colors"
+                    >
+                      <Shield className="w-4 h-4 text-primary-600" />
+                      <span>Quản trị hệ thống</span>
+                    </Link>
+                  )}
+
+                  {account?.accountType === 'PROVIDER' && (
+                    <Link
+                      to="/provider"
+                      onClick={() => setMenuOpen(false)}
+                      className="w-full flex items-center justify-center gap-2 h-10 rounded-md bg-neutral-100 text-neutral-800 text-sm font-medium hover:bg-neutral-200 transition-colors"
+                    >
+                      <Briefcase className="w-4 h-4 text-primary-600" />
+                      <span>Kênh Nhà cung cấp</span>
+                    </Link>
+                  )}
 
                   <button
                     type="button"
@@ -274,14 +339,23 @@ function Footer() {
             <div key={group.title}>
               <h3 className="mb-4 text-sm font-semibold text-ink">{group.title}</h3>
               <ul className="space-y-3">
-                {group.links.map(({ label, href }) => (
+                {group.links.map(({ label, href, to }) => (
                   <li key={label}>
-                    <a
-                      href={href}
-                      className="text-sm text-neutral-500 hover:text-primary-600 transition-colors"
-                    >
-                      {label}
-                    </a>
+                    {to ? (
+                      <Link
+                        to={to}
+                        className="text-sm text-neutral-500 hover:text-primary-600 transition-colors"
+                      >
+                        {label}
+                      </Link>
+                    ) : (
+                      <a
+                        href={href}
+                        className="text-sm text-neutral-500 hover:text-primary-600 transition-colors"
+                      >
+                        {label}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>

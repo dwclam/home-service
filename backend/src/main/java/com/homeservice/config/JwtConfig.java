@@ -17,6 +17,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import javax.crypto.SecretKey;
@@ -27,6 +29,8 @@ import javax.crypto.spec.SecretKeySpec;
 public class JwtConfig {
     public static final String ACCESS_AUDIENCE = "nestify-api";
     public static final String REFRESH_AUDIENCE = "nestify-refresh";
+    public static final String FIRST_PASSWORD_CHANGE_AUDIENCE = "nestify-first-password";
+    public static final String FIRST_PASSWORD_CHANGE_USE = "first_password_change";
 
     @Bean
     SecretKey accessSigningKey(JwtProperties properties) {
@@ -62,6 +66,23 @@ public class JwtConfig {
         return decoder(key, properties, clock, "refresh", REFRESH_AUDIENCE, properties.refreshTtl());
     }
 
+    @Bean
+    JwtDecoder firstPasswordChangeJwtDecoder(@Qualifier("accessSigningKey") SecretKey key,
+                                             JwtProperties properties, Clock clock) {
+        NimbusJwtDecoder decoder = decoder(key, properties, clock, FIRST_PASSWORD_CHANGE_USE, FIRST_PASSWORD_CHANGE_AUDIENCE,
+                properties.firstPasswordChangeTtl());
+        var standardClaims = MappedJwtClaimSetConverter.withDefaults(Map.of());
+        decoder.setClaimSetConverter(rawClaims -> {
+            var claims = standardClaims.convert(rawClaims);
+            // Spring supplies a fallback iat from exp. This token requires a signed iat claim.
+            if (rawClaims.get(JwtClaimNames.IAT) == null) {
+                claims.remove(JwtClaimNames.IAT);
+            }
+            return claims;
+        });
+        return decoder;
+    }
+
     private SecretKey signingKey(String encoded) {
         byte[] bytes;
         try {
@@ -75,8 +96,8 @@ public class JwtConfig {
         return new SecretKeySpec(bytes, "HmacSHA256");
     }
 
-    private JwtDecoder decoder(SecretKey key, JwtProperties properties, Clock clock,
-                               String use, String audience, Duration maximumTtl) {
+    private NimbusJwtDecoder decoder(SecretKey key, JwtProperties properties, Clock clock,
+                                    String use, String audience, Duration maximumTtl) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
         JwtTimestampValidator timestamps = new JwtTimestampValidator(Duration.ZERO);
         timestamps.setClock(clock);
@@ -93,6 +114,9 @@ public class JwtConfig {
                         && Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt()).compareTo(maximumTtl) <= 0;
                 if ("access".equals(use)) {
                     valid &= Set.of("CUSTOMER", "PROVIDER", "ADMIN").contains(jwt.getClaimAsString("role"));
+                }
+                if (FIRST_PASSWORD_CHANGE_USE.equals(use)) {
+                    valid &= jwt.getAudience().equals(List.of(audience)) && !jwt.hasClaim("role");
                 }
                 if (valid) return OAuth2TokenValidatorResult.success();
             } catch (RuntimeException ignored) {

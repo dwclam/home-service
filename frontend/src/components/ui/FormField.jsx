@@ -32,7 +32,9 @@ export const FormField = ({
       {React.isValidElement(children)
         ? React.cloneElement(children, {
             id: children.props.id || htmlFor,
-            error: children.props.error ?? hasError,
+            ...(typeof children.type !== 'string'
+              ? { error: children.props.error ?? hasError }
+              : {}),
             'aria-invalid': hasError ? 'true' : undefined,
             'aria-describedby':
               hasError && errorId

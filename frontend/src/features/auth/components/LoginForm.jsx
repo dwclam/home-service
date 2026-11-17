@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 import { loginSchema } from '../schemas'
 import { login } from '../api'
@@ -72,8 +72,14 @@ export const LoginForm = () => {
 
       toast.success('Đăng nhập thành công!')
 
-      // Điều hướng về trang được yêu cầu trước đó hoặc trang chủ
-      const redirectPath = location.state?.from?.pathname || '/'
+      // Điều hướng về trang được yêu cầu trước đó (bao gồm query string) hoặc trang chủ
+      const fromState = location.state?.from
+      const redirectPath =
+        typeof fromState === 'string'
+          ? fromState
+          : fromState?.pathname
+            ? `${fromState.pathname}${fromState.search || ''}`
+            : '/'
       navigate(redirectPath, { replace: true })
     } catch (error) {
       const errorData = error.response?.data
@@ -110,14 +116,6 @@ export const LoginForm = () => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full" noValidate>
-      {/* Thông báo chào mừng sau khi kích hoạt email thành công */}
-      {verifiedEmail && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-700 text-sm flex items-center gap-2 font-sans">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>Tài khoản của bạn đã được kích hoạt. Hãy đăng nhập ngay!</span>
-        </div>
-      )}
-
       {/* Email */}
       <FormField
         label="Địa chỉ email"
@@ -190,6 +188,24 @@ export const LoginForm = () => {
           Đăng ký ngay
         </Link>
       </p>
+
+      <div className="pt-3 border-t border-neutral-100 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-neutral-500 font-sans">
+        <Link
+          to="/provider/login"
+          className="hover:text-primary-600 transition-colors font-medium"
+        >
+          Đăng nhập Đối tác
+        </Link>
+        <span aria-hidden="true" className="text-neutral-300">
+          •
+        </span>
+        <Link
+          to="/admin/login"
+          className="hover:text-primary-600 transition-colors font-medium"
+        >
+          Dành cho Quản trị viên
+        </Link>
+      </div>
     </form>
   )
 }
