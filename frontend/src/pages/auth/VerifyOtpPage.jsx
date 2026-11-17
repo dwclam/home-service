@@ -36,9 +36,6 @@ export const VerifyOtpPage = () => {
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink text-center tracking-tight">
           Xác thực tài khoản
         </h1>
-        <p className="mt-2 text-sm text-neutral-500 font-sans text-center max-w-sm">
-          Vui lòng nhập mã bảo mật 6 số được gửi qua email để kích hoạt tài khoản của bạn.
-        </p>
       </div>
 
       {/* Card Content */}
