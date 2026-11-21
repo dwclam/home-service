@@ -14,6 +14,7 @@ import com.homeservice.booking.repository.BookingViewRepository;
 import com.homeservice.common.dto.PageResponse;
 import com.homeservice.common.exception.ResourceNotFoundException;
 import com.homeservice.payment.repository.PaymentTransactionRepository;
+import com.homeservice.provider.service.ProviderAccountGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,6 +35,7 @@ public class BookingViewService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final BookingMapper bookingMapper;
     private final BookingViewMapper bookingViewMapper;
+    private final ProviderAccountGuard providerAccountGuard;
 
     // ===== UC10: khách =====
 
@@ -57,14 +59,15 @@ public class BookingViewService {
         BookingPaymentSummaryResponse paymentSummary = bookingViewMapper.toPaymentSummary(
                 paymentTransactionRepository.findByBookingId(bookingId));
 
-        return bookingViewMapper.toViewDetail(booking, history, paymentSummary);
-    }
+        return bookingViewMapper.maskForCustomer(
+                bookingViewMapper.toViewDetail(booking, history, paymentSummary));    }
 
     // ===== UC40: NCC =====
 
     // Danh sách đơn được giao cho NCC
     @Transactional(readOnly = true)
     public PageResponse<ProviderBookingListItemResponse> listForProvider(Long providerId, BookingListRequest req) {
+        providerAccountGuard.requireActive(providerId);
         Pageable pageable = toPageable(req);
         Page<Booking> page = (req.getStatus() == null)
                 ? bookingViewRepository.findByProviderAccountId(providerId, pageable)
@@ -75,11 +78,13 @@ public class BookingViewService {
     // Chi tiết đơn được giao; NCC không xem phần tiền thanh toán (paymentSummary để null)
     @Transactional(readOnly = true)
     public BookingViewDetailResponse getForProvider(Long providerId, Long bookingId) {
+        providerAccountGuard.requireActive(providerId);
         Booking booking = bookingViewRepository.findByIdAndProviderAccountId(bookingId, providerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn đặt lịch"));
 
         List<BookingStatusHistory> history = historyRepository.findByBookingIdOrderByCreatedAtAsc(bookingId);
-        return bookingViewMapper.toViewDetail(booking, history, null);
+        return bookingViewMapper.maskForProvider(
+                bookingViewMapper.toViewDetail(booking, history, null));
     }
 
     // ===== Hàm dùng chung =====

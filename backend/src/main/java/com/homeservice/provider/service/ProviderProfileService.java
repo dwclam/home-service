@@ -6,6 +6,7 @@ import com.homeservice.provider.dto.response.ProviderProfileResponse;
 import com.homeservice.provider.entity.ProviderProfile;
 import com.homeservice.provider.mapper.ProviderProfileMapper;
 import com.homeservice.provider.repository.ProviderProfileRepository;
+import com.homeservice.provider.service.ProviderAccountGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,10 +17,12 @@ public class ProviderProfileService {
 
     private final ProviderProfileRepository repository;
     private final ProviderProfileMapper mapper;
+    private final ProviderAccountGuard providerAccountGuard;
 
     // Xem hồ sơ của chính NCC đang đăng nhập
     @Transactional(readOnly = true)
     public ProviderProfileResponse getMine(Long accountId) {
+        providerAccountGuard.requireActive(accountId);
         return mapper.toResponse(find(accountId));
     }
 
@@ -27,6 +30,7 @@ public class ProviderProfileService {
     // không đụng cột ngân hàng, isVisible, application của Lâm
     @Transactional
     public ProviderProfileResponse updateMine(Long accountId, UpdateProviderProfileRequest req) {
+        providerAccountGuard.requireActive(accountId);
         ProviderProfile profile = find(accountId);
         profile.setBusinessName(req.getBusinessName());
         profile.setBio(req.getBio());
@@ -37,6 +41,7 @@ public class ProviderProfileService {
     }
 
     private ProviderProfile find(Long accountId) {
+
         return repository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ nhà cung cấp"));
     }

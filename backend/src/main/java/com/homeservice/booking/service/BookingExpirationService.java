@@ -33,7 +33,8 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
-public class BookingExpirationService {
+public class
+BookingExpirationService {
 
     private final BookingRepository bookingRepository;
     private final BookingStatusHistoryRepository historyRepository;

@@ -13,6 +13,8 @@ import com.homeservice.catalog.entity.ServiceOffering;
 import com.homeservice.catalog.enums.ServiceStatus;
 import com.homeservice.service.mapper.ServiceMapper;
 import com.homeservice.service.repository.ServiceRepository;
+import com.homeservice.provider.service.ProviderAccountGuard;
+import com.homeservice.common.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,10 +29,12 @@ public class ServiceService {
     private final CategoryRepository categoryRepository;
     private final ProviderProfileRepository providerProfileRepository;
     private final ServiceMapper serviceMapper;
+    private final ProviderAccountGuard providerAccountGuard;
 
     // Tạo dịch vụ mới (luôn là DRAFT)
     @Transactional
     public ServiceResponse create(Long providerId, CreateServiceRequest req) {
+        providerAccountGuard.requireActive(providerId);
         ProviderProfile provider = providerProfileRepository.findById(providerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ nhà cung cấp"));
         Category category = getActiveCategory(req.getCategoryId());
@@ -42,6 +46,7 @@ public class ServiceService {
     // Sửa dịch vụ của chính NCC
     @Transactional
     public ServiceResponse update(Long providerId, Long id, UpdateServiceRequest req) {
+        providerAccountGuard.requireActive(providerId);
         ServiceOffering s = getOwned(providerId, id);
 
         // Chỉ bắt buộc danh mục đang bật khi NCC đổi sang danh mục khác
@@ -56,21 +61,26 @@ public class ServiceService {
     // Xem chi tiết 1 dịch vụ của mình
     @Transactional(readOnly = true)
     public ServiceResponse getMine(Long providerId, Long id) {
+        providerAccountGuard.requireActive(providerId);
         return serviceMapper.toResponse(getOwned(providerId, id));
     }
 
     // Danh sách dịch vụ của mình, lọc theo trạng thái nếu có
     @Transactional(readOnly = true)
-    public Page<ServiceResponse> listMine(Long providerId, ServiceStatus status, Pageable pageable) {
+    public PageResponse<ServiceResponse> listMine(Long providerId, ServiceStatus status, Pageable pageable) {
+        // providerAccountGuard.requireActive(providerId);  // bỏ dấu // nếu đã làm 7.2
         Page<ServiceOffering> page = (status == null)
                 ? serviceRepository.findByProviderAccountId(providerId, pageable)
                 : serviceRepository.findByProviderAccountIdAndStatus(providerId, status, pageable);
-        return page.map(serviceMapper::toResponse);
+        Page<ServiceResponse> mapped = page.map(serviceMapper::toResponse);
+        return new PageResponse<>(mapped.getContent(), mapped.getNumber(), mapped.getSize(),
+                mapped.getTotalElements(), mapped.getTotalPages());
     }
 
     // Đổi trạng thái: công khai hoặc lưu trữ (không cho quay về DRAFT)
     @Transactional
     public ServiceResponse changeStatus(Long providerId, Long id, ServiceStatus target) {
+        providerAccountGuard.requireActive(providerId);
         ServiceOffering s = getOwned(providerId, id);
 
         if (target == ServiceStatus.DRAFT) {

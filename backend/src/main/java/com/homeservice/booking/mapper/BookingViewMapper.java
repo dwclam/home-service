@@ -102,4 +102,30 @@ public class BookingViewMapper {
         r.setHistory(history.stream().map(this::toHistoryItem).toList());
         return r;
     }
+
+    // Che các trường nội bộ không nên lộ cho khách và NCC
+    public BookingViewDetailResponse maskForCustomer(BookingViewDetailResponse r) {
+        r.setClientRequestKey(null);
+        r.setPlatformFeePercent(null);
+        r.setSettlementStatus(null);
+        r.setTerminatedByAccountId(null);
+        return r;
+    }
+
+    // NCC chỉ thấy tổng giá trị đơn, không thấy cọc, phần còn lại, tỷ lệ hoàn và phí
+    public BookingViewDetailResponse maskForProvider(BookingViewDetailResponse r) {
+        maskForCustomer(r);
+        r.setAddressId(null);
+        r.setDepositPercent(null);
+        r.setDepositAmountVnd(null);
+        r.setBalanceAmountVnd(null);
+        r.setCancelCutoffMinutes(null);
+        r.setEarlyRefundPercent(null);
+        r.setLateRefundPercent(null);
+        r.setProviderRefundPercent(null);
+        r.setSystemRefundPercent(null);
+        r.setRefundPercent(null);
+        r.setEstimatedRefundAmountVnd(null);
+        return r;
+    }
 }
