@@ -15,8 +15,10 @@ import com.homeservice.common.dto.PageResponse;
 import com.homeservice.common.exception.BusinessException;
 import com.homeservice.common.exception.DataConflictException;
 import com.homeservice.common.exception.ResourceNotFoundException;
+import com.homeservice.support.dto.request.AdminComplaintSearchFilter;
 import com.homeservice.support.dto.request.CreateComplaintRequest;
 import com.homeservice.support.dto.request.CustomerComplaintFilter;
+import com.homeservice.support.dto.response.AdminComplaintSummaryResponse;
 import com.homeservice.support.dto.response.CustomerComplaintDetailResponse;
 import com.homeservice.support.dto.response.CustomerComplaintSummaryResponse;
 import com.homeservice.support.entity.Complaint;
@@ -36,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -49,6 +52,10 @@ public class ComplaintService {
     public static final List<ComplaintStatus> UNRESOLVED_STATUSES = List.of(
             ComplaintStatus.OPEN,
             ComplaintStatus.IN_REVIEW
+    );
+
+    private static final Set<String> ADMIN_ALLOWED_SORT_FIELDS = Set.of(
+            "createdAt", "updatedAt", "status", "id"
     );
 
     private final ComplaintRepository complaintRepository;
@@ -241,6 +248,73 @@ public class ComplaintService {
 
         Conversation conversation = conversationRepository.findByComplaintId(complaintId).orElse(null);
         return complaintMapper.toCustomerDetailResponse(complaint, conversation);
+    }
+
+    /**
+     * UC 33 — Admin tra cứu danh sách khiếu nại toàn hệ thống kèm lọc đa tiêu chí, sắp xếp whitelist và phân trang.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<AdminComplaintSummaryResponse> getAdminComplaints(AdminComplaintSearchFilter filter) {
+        if (filter == null) {
+            filter = new AdminComplaintSearchFilter();
+        }
+
+        int page = (filter.getPage() != null && filter.getPage() >= 0) ? filter.getPage() : 0;
+        int size = (filter.getSize() != null && filter.getSize() > 0) ? Math.min(filter.getSize(), 100) : 20;
+
+        String sortBy = filter.getSortBy();
+        if (sortBy == null || !ADMIN_ALLOWED_SORT_FIELDS.contains(sortBy)) {
+            sortBy = "createdAt";
+        }
+        Sort.Direction direction = "ASC".equalsIgnoreCase(filter.getSortDir()) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+        Page<Complaint> complaintPage = complaintRepository.findAll(
+                ComplaintSpecification.forAdmin(filter),
+                pageable
+        );
+
+        List<Complaint> complaints = complaintPage.getContent();
+        if (complaints.isEmpty()) {
+            return new PageResponse<>(
+                    List.of(),
+                    complaintPage.getNumber(),
+                    complaintPage.getSize(),
+                    complaintPage.getTotalElements(),
+                    complaintPage.getTotalPages()
+            );
+        }
+
+        // Batch query conversations & latest messages để tránh N+1
+        List<Long> complaintIds = complaints.stream().map(Complaint::getId).toList();
+        Map<Long, Conversation> convByComplaintId = conversationRepository.findByComplaintIdIn(complaintIds)
+                .stream()
+                .filter(c -> c.getComplaint() != null)
+                .collect(Collectors.toMap(c -> c.getComplaint().getId(), Function.identity(), (a, b) -> a));
+
+        List<Long> conversationIds = convByComplaintId.values().stream().map(Conversation::getId).toList();
+        Map<Long, Message> latestMsgByConvId = conversationIds.isEmpty()
+                ? Map.of()
+                : messageRepository.findLatestByConversationIdIn(conversationIds)
+                        .stream()
+                        .filter(m -> m.getConversation() != null)
+                        .collect(Collectors.toMap(m -> m.getConversation().getId(), Function.identity(), (a, b) -> a));
+
+        List<AdminComplaintSummaryResponse> items = complaints.stream()
+                .map(c -> {
+                    Conversation conv = convByComplaintId.get(c.getId());
+                    Message latestMsg = conv != null ? latestMsgByConvId.get(conv.getId()) : null;
+                    return complaintMapper.toAdminSummaryResponse(c, conv, latestMsg);
+                })
+                .toList();
+
+        return new PageResponse<>(
+                items,
+                complaintPage.getNumber(),
+                complaintPage.getSize(),
+                complaintPage.getTotalElements(),
+                complaintPage.getTotalPages()
+        );
     }
 
     /**

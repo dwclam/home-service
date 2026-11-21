@@ -1,8 +1,10 @@
 package com.homeservice.support.mapper;
 
+import com.homeservice.account.entity.Account;
 import com.homeservice.booking.entity.Booking;
 import com.homeservice.chat.entity.Conversation;
 import com.homeservice.chat.entity.Message;
+import com.homeservice.support.dto.response.AdminComplaintSummaryResponse;
 import com.homeservice.support.dto.response.CustomerComplaintDetailResponse;
 import com.homeservice.support.dto.response.CustomerComplaintSummaryResponse;
 import com.homeservice.support.entity.Complaint;
@@ -86,6 +88,63 @@ public class ComplaintMapper {
                 .assignedAdminName(assignedAdminName)
                 .conversationId(conversation != null ? conversation.getId() : null)
                 .lastMessageAt(conversation != null ? conversation.getUpdatedAt() : null)
+                .createdAt(complaint.getCreatedAt())
+                .updatedAt(complaint.getUpdatedAt())
+                .build();
+    }
+
+    public AdminComplaintSummaryResponse toAdminSummaryResponse(
+            Complaint complaint,
+            Conversation conversation,
+            Message latestMessage
+    ) {
+        if (complaint == null) {
+            return null;
+        }
+
+        Account customer = complaint.getCustomer();
+        AdminComplaintSummaryResponse.CustomerSummary customerSummary = customer == null ? null :
+                AdminComplaintSummaryResponse.CustomerSummary.builder()
+                        .id(customer.getId())
+                        .displayName(customer.getDisplayName())
+                        .email(customer.getEmail())
+                        .phone(customer.getPhone())
+                        .build();
+
+        Booking booking = complaint.getBooking();
+        AdminComplaintSummaryResponse.BookingSummary bookingSummary = booking == null ? null :
+                AdminComplaintSummaryResponse.BookingSummary.builder()
+                        .id(booking.getId())
+                        .bookingCode(booking.getBookingCode())
+                        .status(booking.getStatus())
+                        .settlementStatus(booking.getSettlementStatus())
+                        .build();
+
+        Account assignedAdmin = complaint.getAssignedAdmin();
+        AdminComplaintSummaryResponse.AdminSummary adminSummary = assignedAdmin == null ? null :
+                AdminComplaintSummaryResponse.AdminSummary.builder()
+                        .id(assignedAdmin.getId())
+                        .displayName(assignedAdmin.getDisplayName())
+                        .email(assignedAdmin.getEmail())
+                        .build();
+
+        String rawPreview = latestMessage != null ? latestMessage.getBody() : complaint.getDescription();
+        Instant lastMessageAt = latestMessage != null
+                ? latestMessage.getCreatedAt()
+                : (conversation != null ? conversation.getUpdatedAt() : complaint.getUpdatedAt());
+
+        return AdminComplaintSummaryResponse.builder()
+                .id(complaint.getId())
+                .category(complaint.getCategory())
+                .subject(complaint.getSubject())
+                .status(complaint.getStatus())
+                .customer(customerSummary)
+                .booking(bookingSummary)
+                .assignedAdmin(adminSummary)
+                .conversationId(conversation != null ? conversation.getId() : null)
+                .lastMessagePreview(truncatePreview(rawPreview))
+                .lastMessageAt(lastMessageAt)
+                .resolvedAt(complaint.getResolvedAt())
                 .createdAt(complaint.getCreatedAt())
                 .updatedAt(complaint.getUpdatedAt())
                 .build();
