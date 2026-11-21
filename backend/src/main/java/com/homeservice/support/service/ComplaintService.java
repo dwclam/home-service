@@ -11,22 +11,33 @@ import com.homeservice.chat.entity.Message;
 import com.homeservice.chat.enums.ConversationType;
 import com.homeservice.chat.repository.ConversationRepository;
 import com.homeservice.chat.repository.MessageRepository;
+import com.homeservice.common.dto.PageResponse;
 import com.homeservice.common.exception.BusinessException;
 import com.homeservice.common.exception.DataConflictException;
 import com.homeservice.common.exception.ResourceNotFoundException;
 import com.homeservice.support.dto.request.CreateComplaintRequest;
+import com.homeservice.support.dto.request.CustomerComplaintFilter;
 import com.homeservice.support.dto.response.CustomerComplaintDetailResponse;
+import com.homeservice.support.dto.response.CustomerComplaintSummaryResponse;
 import com.homeservice.support.entity.Complaint;
 import com.homeservice.support.enums.ComplaintStatus;
 import com.homeservice.support.mapper.ComplaintMapper;
 import com.homeservice.support.repository.ComplaintRepository;
+import com.homeservice.support.repository.specification.ComplaintSpecification;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Service xử lý nghiệp vụ Hỗ trợ & Khiếu nại (UC 39 & UC 33).
@@ -135,6 +146,101 @@ public class ComplaintService {
         messageRepository.saveAndFlush(initialMessage);
 
         return complaintMapper.toCustomerDetailResponse(savedComplaint, savedConversation);
+    }
+
+    /**
+     * UC 39 — Khách hàng xem danh sách yêu cầu hỗ trợ / khiếu nại của chính mình (lọc động, phân trang, tránh N+1).
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<CustomerComplaintSummaryResponse> getCustomerComplaints(
+            Long customerId,
+            CustomerComplaintFilter filter
+    ) {
+        if (customerId == null) {
+            throw new AccessDeniedException("Không xác định được tài khoản Khách hàng.");
+        }
+        if (filter == null) {
+            filter = new CustomerComplaintFilter();
+        }
+
+        int page = (filter.getPage() != null && filter.getPage() >= 0) ? filter.getPage() : 0;
+        int size = (filter.getSize() != null && filter.getSize() > 0) ? Math.min(filter.getSize(), 50) : 20;
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id"))
+        );
+
+        Page<Complaint> complaintPage = complaintRepository.findAll(
+                ComplaintSpecification.forCustomer(customerId, filter),
+                pageable
+        );
+
+        List<Complaint> complaints = complaintPage.getContent();
+        if (complaints.isEmpty()) {
+            return new PageResponse<>(
+                    List.of(),
+                    complaintPage.getNumber(),
+                    complaintPage.getSize(),
+                    complaintPage.getTotalElements(),
+                    complaintPage.getTotalPages()
+            );
+        }
+
+        // Batch query conversations & latest messages để tránh N+1
+        List<Long> complaintIds = complaints.stream().map(Complaint::getId).toList();
+        Map<Long, Conversation> convByComplaintId = conversationRepository.findByComplaintIdIn(complaintIds)
+                .stream()
+                .filter(c -> c.getComplaint() != null)
+                .collect(Collectors.toMap(c -> c.getComplaint().getId(), Function.identity(), (a, b) -> a));
+
+        List<Long> conversationIds = convByComplaintId.values().stream().map(Conversation::getId).toList();
+        Map<Long, Message> latestMsgByConvId = conversationIds.isEmpty()
+                ? Map.of()
+                : messageRepository.findLatestByConversationIdIn(conversationIds)
+                        .stream()
+                        .filter(m -> m.getConversation() != null)
+                        .collect(Collectors.toMap(m -> m.getConversation().getId(), Function.identity(), (a, b) -> a));
+
+        List<CustomerComplaintSummaryResponse> items = complaints.stream()
+                .map(c -> {
+                    Conversation conv = convByComplaintId.get(c.getId());
+                    Message latestMsg = conv != null ? latestMsgByConvId.get(conv.getId()) : null;
+                    return complaintMapper.toCustomerSummaryResponse(c, conv, latestMsg);
+                })
+                .toList();
+
+        return new PageResponse<>(
+                items,
+                complaintPage.getNumber(),
+                complaintPage.getSize(),
+                complaintPage.getTotalElements(),
+                complaintPage.getTotalPages()
+        );
+    }
+
+    /**
+     * UC 39 — Khách hàng xem chi tiết 1 yêu cầu hỗ trợ / khiếu nại của chính mình (kiểm tra IDOR chặt chẽ).
+     */
+    @Transactional(readOnly = true)
+    public CustomerComplaintDetailResponse getCustomerComplaintDetail(Long customerId, Long complaintId) {
+        if (customerId == null) {
+            throw new AccessDeniedException("Không xác định được tài khoản Khách hàng.");
+        }
+        if (complaintId == null) {
+            throw new ResourceNotFoundException("ID yêu cầu hỗ trợ không hợp lệ");
+        }
+
+        Complaint complaint = complaintRepository.findByIdWithDetails(complaintId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy yêu cầu hỗ trợ với ID: " + complaintId));
+
+        if (complaint.getCustomer() == null || !complaint.getCustomer().getId().equals(customerId)) {
+            throw new AccessDeniedException("Bạn không có quyền xem yêu cầu hỗ trợ của khách hàng khác.");
+        }
+
+        Conversation conversation = conversationRepository.findByComplaintId(complaintId).orElse(null);
+        return complaintMapper.toCustomerDetailResponse(complaint, conversation);
     }
 
     /**

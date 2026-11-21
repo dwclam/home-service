@@ -3,11 +3,14 @@ package com.homeservice.support.controller;
 import com.homeservice.account.entity.Account;
 import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
+import com.homeservice.common.dto.PageResponse;
 import com.homeservice.common.dto.StandardResponse;
 import com.homeservice.common.exception.ResourceNotFoundException;
 import com.homeservice.security.CurrentAccount;
 import com.homeservice.support.dto.request.CreateComplaintRequest;
+import com.homeservice.support.dto.request.CustomerComplaintFilter;
 import com.homeservice.support.dto.response.CustomerComplaintDetailResponse;
+import com.homeservice.support.dto.response.CustomerComplaintSummaryResponse;
 import com.homeservice.support.service.ComplaintService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +18,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,6 +51,36 @@ public class CustomerComplaintController {
         Long customerId = resolveCustomerId(authentication);
         CustomerComplaintDetailResponse response = complaintService.createComplaintByCustomer(customerId, request);
         return StandardResponse.success("Gửi yêu cầu hỗ trợ thành công", response);
+    }
+
+    /**
+     * Xem danh sách yêu cầu hỗ trợ / khiếu nại của chính khách hàng (lọc động & phân trang).
+     * Yêu cầu quyền ROLE_CUSTOMER.
+     */
+    @GetMapping
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public StandardResponse<PageResponse<CustomerComplaintSummaryResponse>> getMyComplaints(
+            Authentication authentication,
+            @Valid CustomerComplaintFilter filter
+    ) {
+        Long customerId = resolveCustomerId(authentication);
+        PageResponse<CustomerComplaintSummaryResponse> response = complaintService.getCustomerComplaints(customerId, filter);
+        return StandardResponse.success("Lấy danh sách yêu cầu hỗ trợ thành công", response);
+    }
+
+    /**
+     * Xem chi tiết 1 yêu cầu hỗ trợ / khiếu nại của chính khách hàng (kiểm tra IDOR).
+     * Yêu cầu quyền ROLE_CUSTOMER.
+     */
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public StandardResponse<CustomerComplaintDetailResponse> getMyComplaintDetail(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId
+    ) {
+        Long customerId = resolveCustomerId(authentication);
+        CustomerComplaintDetailResponse response = complaintService.getCustomerComplaintDetail(customerId, complaintId);
+        return StandardResponse.success("Lấy chi tiết yêu cầu hỗ trợ thành công", response);
     }
 
     private Long resolveCustomerId(Authentication authentication) {
