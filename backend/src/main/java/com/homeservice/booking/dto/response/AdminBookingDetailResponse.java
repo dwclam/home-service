@@ -220,7 +220,7 @@ public class AdminBookingDetailResponse {
         private String adminDisplayName;
         private String action;
         private String reason;
-        private String changes;
+        private Object changes;
         private Instant createdAt;
     }
 }
