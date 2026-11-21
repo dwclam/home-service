@@ -92,3 +92,7 @@ app:
       request-expire-minutes: 30
       deposit-due-minutes: 15
       balance-due-hours: 24
+
+springdoc:
+  swagger-ui:
+    persist-authorization: true

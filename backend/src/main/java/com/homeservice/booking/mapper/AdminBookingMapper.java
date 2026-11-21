@@ -11,6 +11,7 @@ import com.homeservice.payment.entity.PaymentTransaction;
 import com.homeservice.payment.enums.PaymentKind;
 import com.homeservice.payment.enums.PaymentStatus;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
@@ -19,6 +20,8 @@ import java.util.List;
  */
 @Component
 public class AdminBookingMapper {
+
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     public AdminBookingSummaryResponse toSummaryResponse(Booking booking) {
         if (booking == null) {
@@ -265,7 +268,7 @@ public class AdminBookingMapper {
                             .adminDisplayName(adminName)
                             .action(a.getAction())
                             .reason(a.getReason())
-                            .changes(a.getChanges())
+                            .changes(parseChangesJson(a.getChanges()))
                             .createdAt(a.getCreatedAt())
                             .build();
                 }).toList();
@@ -314,5 +317,16 @@ public class AdminBookingMapper {
                 .paymentTransactions(txnResponses)
                 .adminAuditLogs(auditResponses)
                 .build();
+    }
+
+    private Object parseChangesJson(String rawChanges) {
+        if (rawChanges == null || rawChanges.isBlank()) {
+            return null;
+        }
+        try {
+            return JSON_MAPPER.readTree(rawChanges);
+        } catch (Exception ex) {
+            return rawChanges;
+        }
     }
 }

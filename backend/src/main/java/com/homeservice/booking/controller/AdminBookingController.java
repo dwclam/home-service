@@ -4,6 +4,9 @@ import com.homeservice.account.entity.Account;
 import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.booking.dto.request.AdminBookingSearchFilter;
+import com.homeservice.booking.dto.request.AdminCancelBookingRequest;
+import com.homeservice.booking.dto.request.AdminHoldSettlementRequest;
+import com.homeservice.booking.dto.request.AdminReleaseSettlementRequest;
 import com.homeservice.booking.dto.response.AdminBookingDetailResponse;
 import com.homeservice.booking.dto.response.AdminBookingSummaryResponse;
 import com.homeservice.booking.dto.response.BookingExpirationResult;
@@ -21,6 +24,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -64,6 +68,55 @@ public class AdminBookingController {
         resolveAdminId(authentication);
         AdminBookingDetailResponse response = adminBookingService.getBookingDetail(bookingId);
         return StandardResponse.success("Lấy chi tiết đơn đặt lịch thành công", response);
+    }
+
+    /**
+     * Admin can thiệp hủy đơn cưỡng chế (UC 31 - Nhóm B).
+     * Chỉ hỗ trợ PROVIDER_UNABLE_TO_CONTINUE (đang làm) hoặc SYSTEM_CANCEL (trước khi làm).
+     * Yêu cầu quyền ROLE_ADMIN + CSRF token.
+     */
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<AdminBookingDetailResponse> cancelBooking(
+            Authentication authentication,
+            @PathVariable("id") Long bookingId,
+            @Valid @RequestBody AdminCancelBookingRequest request
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        AdminBookingDetailResponse response = adminBookingService.cancelBookingByAdmin(adminId, bookingId, request);
+        return StandardResponse.success("Can thiệp hủy đơn đặt lịch thành công", response);
+    }
+
+    /**
+     * Admin tạm giữ đối soát đơn đặt lịch (settlement_status -> ON_HOLD) khi có khiếu nại/sai lệch (UC 31 - Nhóm B).
+     * Yêu cầu quyền ROLE_ADMIN + CSRF token.
+     */
+    @PostMapping("/{id}/hold-settlement")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<AdminBookingDetailResponse> holdSettlement(
+            Authentication authentication,
+            @PathVariable("id") Long bookingId,
+            @Valid @RequestBody AdminHoldSettlementRequest request
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        AdminBookingDetailResponse response = adminBookingService.holdSettlementByAdmin(adminId, bookingId, request);
+        return StandardResponse.success("Đã tạm giữ đối soát đơn đặt lịch thành công", response);
+    }
+
+    /**
+     * Admin mở lại đối soát đơn đặt lịch (settlement_status -> DRAFT) sau khi khiếu nại được xử lý (UC 31 - Nhóm B).
+     * Yêu cầu quyền ROLE_ADMIN + CSRF token.
+     */
+    @PostMapping("/{id}/release-settlement")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<AdminBookingDetailResponse> releaseSettlement(
+            Authentication authentication,
+            @PathVariable("id") Long bookingId,
+            @Valid @RequestBody AdminReleaseSettlementRequest request
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        AdminBookingDetailResponse response = adminBookingService.releaseSettlementByAdmin(adminId, bookingId, request);
+        return StandardResponse.success("Đã mở lại đối soát đơn đặt lịch thành công", response);
     }
 
     /**
