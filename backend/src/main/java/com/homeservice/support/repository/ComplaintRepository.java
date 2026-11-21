@@ -3,12 +3,14 @@ package com.homeservice.support.repository;
 import com.homeservice.support.entity.Complaint;
 import com.homeservice.support.enums.ComplaintCategory;
 import com.homeservice.support.enums.ComplaintStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.lang.Nullable;
@@ -30,6 +32,10 @@ public interface ComplaintRepository extends JpaRepository<Complaint, Long>, Jpa
            "LEFT JOIN FETCH c.assignedAdmin " +
            "WHERE c.id = :id")
     Optional<Complaint> findByIdWithDetails(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Complaint c WHERE c.id = :id")
+    Optional<Complaint> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * Kiểm tra khách hàng đã có khiếu nại chưa kết thúc cùng danh mục trên cùng đơn hàng hay chưa (chống spam trùng).

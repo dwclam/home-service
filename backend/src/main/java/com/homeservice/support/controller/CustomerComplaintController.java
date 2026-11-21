@@ -3,6 +3,9 @@ package com.homeservice.support.controller;
 import com.homeservice.account.entity.Account;
 import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
+import com.homeservice.chat.dto.request.SendMessageRequest;
+import com.homeservice.chat.dto.response.MessagePageResponse;
+import com.homeservice.chat.dto.response.MessageResponse;
 import com.homeservice.common.dto.PageResponse;
 import com.homeservice.common.dto.StandardResponse;
 import com.homeservice.common.exception.ResourceNotFoundException;
@@ -12,6 +15,7 @@ import com.homeservice.support.dto.request.CustomerComplaintFilter;
 import com.homeservice.support.dto.response.CustomerComplaintDetailResponse;
 import com.homeservice.support.dto.response.CustomerComplaintSummaryResponse;
 import com.homeservice.support.service.ComplaintService;
+import com.homeservice.support.service.SupportChatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,11 +27,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controller dành cho Khách hàng gửi và theo dõi yêu cầu hỗ trợ / khiếu nại (UC 39).
+ * Controller dành cho Khách hàng gửi, theo dõi yêu cầu hỗ trợ / khiếu nại và trao đổi chat hỗ trợ (UC 39).
  */
 @RestController
 @RequestMapping({"/api/v1/customer/complaints", "/api/customer/complaints"})
@@ -35,6 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerComplaintController {
 
     private final ComplaintService complaintService;
+    private final SupportChatService supportChatService;
     private final AccountRepository accountRepository;
 
     /**
@@ -81,6 +87,41 @@ public class CustomerComplaintController {
         Long customerId = resolveCustomerId(authentication);
         CustomerComplaintDetailResponse response = complaintService.getCustomerComplaintDetail(customerId, complaintId);
         return StandardResponse.success("Lấy chi tiết yêu cầu hỗ trợ thành công", response);
+    }
+
+    /**
+     * Lấy lịch sử tin nhắn hỗ trợ (hỗ trợ cursor beforeId tải ngược và polling afterId lấy tin mới).
+     * Yêu cầu quyền ROLE_CUSTOMER và là chính chủ khiếu nại.
+     */
+    @GetMapping("/{id}/messages")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public StandardResponse<MessagePageResponse> getMyComplaintMessages(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId,
+            @RequestParam(value = "beforeId", required = false) Long beforeId,
+            @RequestParam(value = "afterId", required = false) Long afterId,
+            @RequestParam(value = "limit", required = false) Integer limit
+    ) {
+        Long customerId = resolveCustomerId(authentication);
+        MessagePageResponse response = supportChatService.getCustomerMessages(customerId, complaintId, beforeId, afterId, limit);
+        return StandardResponse.success("Lấy lịch sử tin nhắn hỗ trợ thành công", response);
+    }
+
+    /**
+     * Khách hàng gửi tin nhắn mới trong cuộc trò chuyện hỗ trợ (chỉ khi OPEN hoặc IN_REVIEW).
+     * Yêu cầu quyền ROLE_CUSTOMER và là chính chủ khiếu nại.
+     */
+    @PostMapping("/{id}/messages")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public StandardResponse<MessageResponse> sendMyComplaintMessage(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId,
+            @Valid @RequestBody SendMessageRequest request
+    ) {
+        Long customerId = resolveCustomerId(authentication);
+        MessageResponse response = supportChatService.sendCustomerMessage(customerId, complaintId, request);
+        return StandardResponse.success("Gửi tin nhắn hỗ trợ thành công", response);
     }
 
     private Long resolveCustomerId(Authentication authentication) {
