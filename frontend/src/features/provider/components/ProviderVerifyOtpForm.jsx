@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { RotateCw, ArrowLeft, Mail, CheckCircle2, Building, ShieldCheck, Clock } from 'lucide-react'
+import { RotateCw, ArrowLeft, Mail, CheckCircle2 } from 'lucide-react'
 
 import { verifyProviderEmail, resendProviderVerification } from '../api'
 import { Button } from '../../../components/ui/Button'
@@ -259,55 +259,46 @@ export const ProviderVerifyOtpForm = ({ initialData }) => {
     }
   }
 
-  // Màn hình thông báo hồ sơ đang chờ duyệt trang trọng khi xác thực email thành công
+  // Màn hình thông báo hồ sơ đang chờ duyệt sau khi xác thực email thành công
   if (isPendingReview) {
     return (
-      <div className="flex flex-col items-center text-center space-y-6 font-sans">
-        <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-          <CheckCircle2 className="w-9 h-9" />
-        </div>
-
+      <div className="space-y-5 font-sans">
         <div className="space-y-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <Clock className="w-3.5 h-3.5" />
-            Chờ Quản trị viên xét duyệt
-          </span>
-          <h2 className="text-2xl font-display font-bold text-ink">
-            Xác thực email thành công!
-          </h2>
-          <p className="text-sm text-neutral-600 max-w-md">
-            Hồ sơ đăng ký đối tác của bạn đã được tiếp nhận và đang chờ Quản trị viên xét duyệt. Kết quả và thông tin kích hoạt tài khoản sẽ được gửi về email{' '}
-            <strong className="text-ink">{email}</strong>.
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" aria-hidden="true" />
+            <h2 className="text-lg font-display font-bold text-ink">
+              Hồ sơ đang chờ xét duyệt
+            </h2>
+          </div>
+          <p className="text-sm text-neutral-600 leading-relaxed">
+            Kết quả xét duyệt và thông tin đăng nhập sẽ được gửi tới email{' '}
+            <strong className="text-ink break-all">{email}</strong>.
           </p>
         </div>
 
-        {/* Bảng tóm tắt thông tin hồ sơ */}
-        <div className="w-full bg-neutral-50 rounded-md border border-neutral-200 p-4 text-left space-y-2.5 text-sm">
+        <dl className="divide-y divide-neutral-100 border-t border-b border-neutral-100 text-sm">
           {businessName && (
-            <div className="flex items-center gap-2 text-neutral-700">
-              <Building className="w-4 h-4 text-neutral-400 shrink-0" />
-              <span className="text-neutral-500">Cơ sở kinh doanh:</span>
-              <span className="font-semibold text-ink truncate">{businessName}</span>
+            <div className="py-3 flex items-center justify-between gap-4">
+              <dt className="text-neutral-500 shrink-0">Cơ sở kinh doanh</dt>
+              <dd className="font-medium text-ink text-right truncate">
+                {businessName}
+              </dd>
             </div>
           )}
-          <div className="flex items-center gap-2 text-neutral-700">
-            <Mail className="w-4 h-4 text-neutral-400 shrink-0" />
-            <span className="text-neutral-500">Email liên hệ:</span>
-            <span className="font-semibold text-ink truncate">{email}</span>
+          <div className="py-3 flex items-center justify-between gap-4">
+            <dt className="text-neutral-500 shrink-0">Email liên hệ</dt>
+            <dd className="font-medium text-ink text-right break-all">
+              {email}
+            </dd>
           </div>
-          <div className="flex items-center gap-2 text-neutral-700">
-            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span className="text-neutral-500">Trạng thái:</span>
-            <span className="font-semibold text-emerald-600">Chờ Quản trị viên xét duyệt</span>
-          </div>
-        </div>
+        </dl>
 
-        {/* Nút quay về trang chủ */}
-        <div className="w-full pt-2">
-          <Link to="/" className="w-full block">
-            <Button variant="primary" size="lg" fullWidth>
-              Quay về Trang chủ
-            </Button>
+        <div className="pt-1">
+          <Link
+            to="/"
+            className="w-full h-12 inline-flex items-center justify-center rounded-md bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20"
+          >
+            Quay về Trang chủ
           </Link>
         </div>
       </div>
@@ -345,7 +336,7 @@ export const ProviderVerifyOtpForm = ({ initialData }) => {
               handlePaste(e)
             }}
             aria-label={`Số thứ ${index + 1}`}
-            className={`w-11 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-md border outline-none transition-all duration-150 ${
+            className={`w-11 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold rounded-md border outline-none transition-colors duration-150 ${
               isOtpError
                 ? 'border-red-500 bg-red-50/30 text-red-600 focus:ring-2 focus:ring-red-500/20'
                 : 'border-neutral-200 bg-white text-ink focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'

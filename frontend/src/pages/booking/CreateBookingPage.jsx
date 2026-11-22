@@ -9,7 +9,6 @@ import {
   MapPin,
   User,
   Phone,
-  ShieldAlert,
   Info,
   ArrowLeft,
 } from 'lucide-react'
@@ -239,14 +238,9 @@ export const CreateBookingPage = () => {
             <div className="lg:col-span-7 space-y-6">
               {/* Bước 1: Chọn gói dịch vụ */}
               <div className="bg-white p-6 rounded-md border border-neutral-200 shadow-xs space-y-4">
-                <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
-                  <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center">
-                    1
-                  </span>
-                  <h2 className="font-display font-bold text-lg text-ink">
-                    Chọn gói dịch vụ
-                  </h2>
-                </div>
+                <h2 className="font-display font-bold text-lg text-ink border-b border-neutral-100 pb-3">
+                  Chọn gói dịch vụ
+                </h2>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {standardBookingServices.map((service) => {
@@ -256,7 +250,7 @@ export const CreateBookingPage = () => {
                         key={service.serviceId}
                         type="button"
                         onClick={() => setSelectedServiceId(service.serviceId)}
-                        className={`flex gap-3 p-3 text-left rounded-md border transition-all cursor-pointer ${
+                        className={`flex gap-3 p-3 text-left rounded-md border transition-colors cursor-pointer ${
                           isSelected
                             ? 'border-primary-500 bg-primary-50/40 ring-1 ring-primary-500 shadow-xs'
                             : 'border-neutral-200 hover:border-neutral-300 bg-white'
@@ -277,7 +271,7 @@ export const CreateBookingPage = () => {
                           <p className="text-[11px] text-neutral-500 mt-0.5">
                             {service.providerName}
                           </p>
-                          <p className="text-xs font-bold text-primary-600 mt-1">
+                          <p className="text-xs font-bold text-primary-600 mt-1 tabular-nums">
                             {formatVnd(service.basePriceVnd)}
                           </p>
                         </div>
@@ -289,14 +283,9 @@ export const CreateBookingPage = () => {
 
               {/* Bước 2: Chọn Ngày & Giờ hẹn */}
               <div className="bg-white p-6 rounded-md border border-neutral-200 shadow-xs space-y-5">
-                <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
-                  <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center">
-                    2
-                  </span>
-                  <h2 className="font-display font-bold text-lg text-ink">
-                    Chọn ngày & khung giờ hẹn
-                  </h2>
-                </div>
+                <h2 className="font-display font-bold text-lg text-ink border-b border-neutral-100 pb-3">
+                  Chọn ngày & khung giờ hẹn
+                </h2>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
@@ -377,14 +366,9 @@ export const CreateBookingPage = () => {
 
               {/* Bước 3: Địa chỉ & Người nhận trực tiếp */}
               <div className="bg-white p-6 rounded-md border border-neutral-200 shadow-xs space-y-4">
-                <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
-                  <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-bold flex items-center justify-center">
-                    3
-                  </span>
-                  <h2 className="font-display font-bold text-lg text-ink">
-                    Địa chỉ & Thông tin liên hệ
-                  </h2>
-                </div>
+                <h2 className="font-display font-bold text-lg text-ink border-b border-neutral-100 pb-3">
+                  Địa chỉ & Thông tin liên hệ
+                </h2>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
@@ -530,7 +514,7 @@ export const CreateBookingPage = () => {
                 <div className="border-t border-neutral-100 pt-4 space-y-2.5 text-sm">
                   <div className="flex items-center justify-between text-neutral-600">
                     <span>Tổng giá dịch vụ:</span>
-                    <span className="font-semibold text-ink text-base">
+                    <span className="font-semibold text-ink text-base tabular-nums">
                       {formatVnd(pricing.total)}
                     </span>
                   </div>
@@ -540,33 +524,32 @@ export const CreateBookingPage = () => {
                       <span>Tiền cọc giữ lịch (30%):</span>
                       <Info className="w-3.5 h-3.5 text-neutral-400" />
                     </span>
-                    <span className="font-bold text-amber-600">
+                    <span className="font-bold text-amber-600 tabular-nums">
                       {formatVnd(pricing.deposit)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between text-neutral-600">
                     <span>Thanh toán khi hoàn thành (70%):</span>
-                    <span className="font-semibold text-ink">
+                    <span className="font-semibold text-ink tabular-nums">
                       {formatVnd(pricing.balance)}
                     </span>
                   </div>
                 </div>
 
                 {/* Deposit Refund Policy Note */}
-                <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-md text-xs text-amber-900 leading-relaxed space-y-1">
-                  <p className="font-semibold flex items-center gap-1">
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Chính sách đặt cọc minh bạch:</span>
+                <div className="border-t border-neutral-100 pt-4 text-xs text-neutral-500 leading-relaxed space-y-1">
+                  <p className="font-medium text-neutral-700">
+                    Chính sách đặt cọc
                   </p>
-                  <p className="text-[11px] text-amber-800">
-                    - Sau khi thợ chấp nhận đơn, bạn sẽ tiến hành đặt cọc 30% ({formatVnd(pricing.deposit)}).
+                  <p>
+                    • Sau khi thợ chấp nhận đơn, đặt cọc 30% (<span className="tabular-nums">{formatVnd(pricing.deposit)}</span>).
                   </p>
-                  <p className="text-[11px] text-amber-800">
-                    - Nếu thợ từ chối đơn: Hoàn 100% tiền cọc ngay lập tức.
+                  <p>
+                    • Thợ từ chối đơn: hoàn 100% tiền cọc ngay lập tức.
                   </p>
-                  <p className="text-[11px] text-amber-800">
-                    - Nếu bạn hủy trước giờ hẹn 30 phút: Hoàn 50% tiền cọc.
+                  <p>
+                    • Hủy trước giờ hẹn 30 phút: hoàn 50% tiền cọc.
                   </p>
                 </div>
 

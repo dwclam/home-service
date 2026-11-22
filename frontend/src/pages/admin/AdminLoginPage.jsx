@@ -144,7 +144,7 @@ export const AdminLoginPage = () => {
 
       {/* Login Card */}
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 sm:px-8 shadow-xl border border-neutral-200 rounded-md">
+        <div className="bg-white py-8 px-6 sm:px-8 shadow-sm border border-neutral-200 rounded-md">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full" noValidate>
             {/* Email */}
             <FormField

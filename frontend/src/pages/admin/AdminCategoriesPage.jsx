@@ -7,8 +7,8 @@ import {
   Search,
   Plus,
   Edit2,
-  CheckCircle,
-  XCircle,
+  CheckCircle2,
+  MinusCircle,
   Eye,
   EyeOff,
   Zap,
@@ -39,6 +39,7 @@ import {
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { FormField } from '../../components/ui/FormField'
+import { StatusText } from '../../components/ui/StatusText'
 
 // Bản đồ icon trực quan
 const ICON_COMPONENTS = {
@@ -125,6 +126,20 @@ export const AdminCategoriesPage = () => {
     }
   }, [])
 
+  // Đóng Modal bằng phím Escape khi không đang gửi form
+  useEffect(() => {
+    if (!modalOpen) return
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && !isSubmitting) {
+        setModalOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [modalOpen, isSubmitting])
+
   // Mở modal tạo mới
   const handleOpenCreateModal = () => {
     setEditingCategory(null)
@@ -208,7 +223,7 @@ export const AdminCategoriesPage = () => {
     }
   }
 
-  // Thống kê nhanh
+  // Thống kê nhanh dùng cho nút lọc trạng thái
   const stats = useMemo(() => {
     const total = categories.length
     const active = categories.filter((c) => c.active).length
@@ -216,12 +231,19 @@ export const AdminCategoriesPage = () => {
     return { total, active, inactive }
   }, [categories])
 
+  // Map tra cứu danh mục cha theo id
+  const categoryById = useMemo(() => {
+    return new Map(categories.map((c) => [c.id, c]))
+  }, [categories])
+
   // Lọc danh mục theo tìm kiếm và trạng thái
   const filteredCategories = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
     return categories.filter((cat) => {
       const matchSearch =
-        cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cat.slug.toLowerCase().includes(searchTerm.toLowerCase())
+        !query ||
+        cat.name.toLowerCase().includes(query) ||
+        cat.slug.toLowerCase().includes(query)
 
       if (!matchSearch) return false
 
@@ -231,248 +253,267 @@ export const AdminCategoriesPage = () => {
     })
   }, [categories, searchTerm, statusFilter])
 
+  // Sắp xếp danh mục theo đúng phân cấp Cha -> Con (nếu cha không khớp bộ lọc, con vẫn hiển thị ở cấp gốc)
+  const orderedCategories = useMemo(() => {
+    const sortByOrder = (a, b) => {
+      const orderDiff = (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      if (orderDiff !== 0) return orderDiff
+      return (a.id ?? 0) - (b.id ?? 0)
+    }
+
+    const visibleIds = new Set(filteredCategories.map((c) => c.id))
+    const childrenMap = new Map()
+    const roots = []
+
+    filteredCategories.forEach((cat) => {
+      if (cat.parentId && visibleIds.has(cat.parentId)) {
+        const list = childrenMap.get(cat.parentId) || []
+        list.push(cat)
+        childrenMap.set(cat.parentId, list)
+      } else {
+        roots.push(cat)
+      }
+    })
+
+    roots.sort(sortByOrder)
+    childrenMap.forEach((list) => list.sort(sortByOrder))
+
+    const result = []
+    const visited = new Set()
+
+    const traverse = (node, depth) => {
+      if (visited.has(node.id)) return
+      visited.add(node.id)
+      result.push({ category: node, depth })
+      const children = childrenMap.get(node.id) || []
+      children.forEach((child) => traverse(child, depth + 1))
+    }
+
+    roots.forEach((root) => traverse(root, 0))
+
+    filteredCategories.forEach((cat) => {
+      if (!visited.has(cat.id)) {
+        result.push({ category: cat, depth: 0 })
+      }
+    })
+
+    return result
+  }, [filteredCategories])
+
   // Render Icon linh hoạt
   const renderIcon = (iconName, className = 'w-4 h-4') => {
     const IconComponent = ICON_COMPONENTS[iconName] || Layers
-    return <IconComponent className={className} />
+    return <IconComponent className={className} aria-hidden="true" />
   }
+
+  const filterTabs = [
+    { key: 'ALL', label: `Tất cả (${stats.total})` },
+    { key: 'ACTIVE', label: `Hoạt động (${stats.active})` },
+    { key: 'INACTIVE', label: `Tạm ẩn (${stats.inactive})` },
+  ]
 
   return (
     <>
       <div className="space-y-6 font-sans">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-display font-bold text-ink">
-              Quản Lý Danh Mục Dịch Vụ
-            </h1>
-          </div>
+          <h1 className="text-2xl font-display font-bold text-ink">
+            Quản Lý Danh Mục Dịch Vụ
+          </h1>
 
-        <div className="flex items-center gap-2.5">
-          <Button
-            type="button"
-            variant="secondary"
-            size="md"
-            onClick={loadCategories}
-            isLoading={isLoading}
-            leftIcon={<RotateCw className="w-4 h-4" />}
-          >
-            Làm mới
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={handleOpenCreateModal}
-            leftIcon={<Plus className="w-4 h-4" />}
-          >
-            Thêm danh mục
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-md border border-neutral-200 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-              Tổng số danh mục
-            </p>
-            <p className="text-2xl font-bold font-display text-ink mt-1">
-              {stats.total}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-md bg-neutral-100 flex items-center justify-center text-neutral-600">
-            <Layers className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-md border border-neutral-200 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">
-              Đang hoạt động
-            </p>
-            <p className="text-2xl font-bold font-display text-ink mt-1">
-              {stats.active}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-md bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <CheckCircle className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-md border border-neutral-200 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
-              Đang tạm ẩn
-            </p>
-            <p className="text-2xl font-bold font-display text-ink mt-1">
-              {stats.inactive}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-md bg-neutral-100 flex items-center justify-center text-neutral-400">
-            <XCircle className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Filter & Search Bar */}
-      <div className="bg-white p-4 rounded-md border border-neutral-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="w-full sm:w-80">
-          <Input
-            placeholder="Tìm theo tên hoặc slug..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            leftIcon={<Search className="w-4 h-4 text-neutral-400" />}
-          />
-        </div>
-
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 w-full sm:w-auto">
-          {[
-            { key: 'ALL', label: 'Tất cả' },
-            { key: 'ACTIVE', label: 'Hoạt động' },
-            { key: 'INACTIVE', label: 'Tạm ẩn' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
+          <div className="flex items-center gap-2.5">
+            <Button
               type="button"
-              onClick={() => setStatusFilter(tab.key)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                statusFilter === tab.key
-                  ? 'bg-neutral-900 text-white font-semibold'
-                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-              }`}
+              variant="secondary"
+              size="md"
+              onClick={loadCategories}
+              isLoading={isLoading}
+              leftIcon={<RotateCw className="w-4 h-4" />}
             >
-              {tab.label}
-            </button>
-          ))}
+              Làm mới
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={handleOpenCreateModal}
+              leftIcon={<Plus className="w-4 h-4" />}
+            >
+              Thêm danh mục
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Categories Table */}
-      <div className="bg-white rounded-md border border-neutral-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-neutral-200 bg-neutral-50/70 text-neutral-500 text-xs font-semibold uppercase tracking-wider">
-                <th className="py-3 px-4 w-16 text-center">STT</th>
-                <th className="py-3 px-4">Tên danh mục & Icon</th>
-                <th className="py-3 px-4">Slug định danh</th>
-                <th className="py-3 px-4">Danh mục cha</th>
-                <th className="py-3 px-4 text-center">Trạng thái</th>
-                <th className="py-3 px-4 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100 text-sm">
-              {filteredCategories.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-10 text-center text-neutral-400">
-                    Không tìm thấy danh mục phù hợp.
-                  </td>
+        {/* Filter & Search Bar */}
+        <div className="bg-white p-4 rounded-md border border-neutral-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="w-full sm:w-80">
+            <Input
+              placeholder="Tìm theo tên hoặc slug..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              leftIcon={<Search className="w-4 h-4 text-neutral-400" />}
+            />
+          </div>
+
+          {/* Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+            {filterTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setStatusFilter(tab.key)}
+                className={`px-3 py-1.5 rounded-md text-xs tabular-nums transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20 ${
+                  statusFilter === tab.key
+                    ? 'bg-primary-50 text-primary-700 font-semibold'
+                    : 'font-medium text-neutral-600 hover:bg-neutral-100'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Categories Table */}
+        <div className="bg-white rounded-md border border-neutral-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-neutral-200 bg-neutral-50/70 text-neutral-500 text-xs font-semibold uppercase tracking-wider">
+                  <th className="py-3 px-4 w-20 text-center">Thứ tự</th>
+                  <th className="py-3 px-4">Tên danh mục</th>
+                  <th className="py-3 px-4">Slug</th>
+                  <th className="py-3 px-4">Danh mục cha</th>
+                  <th className="py-3 px-4">Trạng thái</th>
+                  <th className="py-3 px-4 text-right">Thao tác</th>
                 </tr>
-              ) : (
-                filteredCategories.map((cat) => {
-                  const parent = categories.find((p) => p.id === cat.parentId)
-                  return (
-                    <tr
-                      key={cat.id}
-                      className="hover:bg-neutral-50/60 transition-colors"
-                    >
-                      <td className="py-3 px-4 text-center font-mono text-xs text-neutral-400">
-                        {cat.sortOrder ?? 0}
-                      </td>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 text-sm">
+                {orderedCategories.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-neutral-400">
+                      Không tìm thấy danh mục phù hợp.
+                    </td>
+                  </tr>
+                ) : (
+                  orderedCategories.map(({ category: cat, depth }) => {
+                    const parent = cat.parentId ? categoryById.get(cat.parentId) : null
+                    return (
+                      <tr
+                        key={cat.id}
+                        className="hover:bg-neutral-50/60 transition-colors"
+                      >
+                        <td className="py-3 px-4 text-center text-xs text-neutral-500 tabular-nums">
+                          {cat.sortOrder ?? 0}
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-md bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
-                            {renderIcon(cat.iconName)}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-ink">{cat.name}</p>
-                            {cat.description && (
-                              <p className="text-xs text-neutral-500 line-clamp-1 max-w-xs">
-                                {cat.description}
+                        <td className="py-3 px-4">
+                          <div
+                            className={`flex items-center gap-2.5 ${depth > 0 ? 'pl-6' : ''}`}
+                          >
+                            {depth > 0 && (
+                              <span
+                                aria-hidden="true"
+                                className="w-2.5 h-2.5 border-l border-b border-neutral-300 rounded-bl-[2px] -mt-1.5 shrink-0"
+                              />
+                            )}
+                            {renderIcon(cat.iconName, 'w-4 h-4 text-neutral-400 shrink-0')}
+                            <div className="min-w-0">
+                              <p
+                                className={
+                                  depth > 0
+                                    ? 'font-medium text-neutral-700'
+                                    : 'font-semibold text-ink'
+                                }
+                              >
+                                {cat.name}
                               </p>
-                            )}
+                              {cat.description && (
+                                <p className="text-xs text-neutral-500 line-clamp-1 max-w-xs">
+                                  {cat.description}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <span className="font-mono text-xs bg-neutral-100 text-neutral-700 px-2 py-0.5 rounded border border-neutral-200">
-                          {cat.slug}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4 text-neutral-600 text-xs">
-                        {parent ? (
-                          <span className="inline-flex items-center gap-1 text-primary-600 font-medium">
-                            {renderIcon(parent.iconName, 'w-3 h-3')}
-                            <span>{parent.name}</span>
+                        <td className="py-3 px-4">
+                          <span className="text-xs text-neutral-500">
+                            {cat.slug}
                           </span>
-                        ) : (
-                          <span className="text-neutral-400">— Gốc —</span>
-                        )}
-                      </td>
+                        </td>
 
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            cat.active
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              cat.active ? 'bg-emerald-500' : 'bg-neutral-400'
-                            }`}
-                          />
-                          {cat.active ? 'Hoạt động' : 'Tạm ẩn'}
-                        </span>
-                      </td>
+                        <td className="py-3 px-4 text-xs">
+                          {parent ? (
+                            <span className="text-neutral-700 font-medium">
+                              {parent.name}
+                            </span>
+                          ) : (
+                            <span className="text-neutral-400">Danh mục gốc</span>
+                          )}
+                        </td>
 
-                      <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-1.5">
-                          {/* Toggle Active Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleActive(cat)}
-                            title={cat.active ? 'Tạm ẩn danh mục' : 'Kích hoạt danh mục'}
-                            className={`p-1.5 rounded-md border text-xs transition-colors cursor-pointer ${
-                              cat.active
-                                ? 'border-neutral-200 text-neutral-500 hover:bg-neutral-100'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                            }`}
-                          >
-                            {cat.active ? (
-                              <EyeOff className="w-3.5 h-3.5" />
-                            ) : (
-                              <Eye className="w-3.5 h-3.5" />
-                            )}
-                          </button>
+                        <td className="py-3 px-4">
+                          {cat.active ? (
+                            <StatusText
+                              icon={CheckCircle2}
+                              label="Hoạt động"
+                              tone="success"
+                            />
+                          ) : (
+                            <StatusText
+                              icon={MinusCircle}
+                              label="Tạm ẩn"
+                              tone="neutral"
+                            />
+                          )}
+                        </td>
 
-                          {/* Edit Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(cat)}
-                            title="Chỉnh sửa danh mục"
-                            className="p-1.5 rounded-md border border-neutral-200 text-neutral-700 hover:bg-neutral-100 hover:text-primary-600 transition-colors cursor-pointer"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                        <td className="py-3 px-4 text-right">
+                          <div className="inline-flex items-center gap-1.5">
+                            {/* Toggle Active Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleActive(cat)}
+                              title={cat.active ? 'Tạm ẩn danh mục' : 'Kích hoạt danh mục'}
+                              aria-label={
+                                cat.active
+                                  ? `Tạm ẩn danh mục ${cat.name}`
+                                  : `Kích hoạt danh mục ${cat.name}`
+                              }
+                              className={`p-1.5 rounded-md border text-xs transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20 ${
+                                cat.active
+                                  ? 'border-neutral-200 text-neutral-500 hover:bg-neutral-100'
+                                  : 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                              }`}
+                            >
+                              {cat.active ? (
+                                <EyeOff className="w-3.5 h-3.5" />
+                              ) : (
+                                <Eye className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+
+                            {/* Edit Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(cat)}
+                              title="Chỉnh sửa danh mục"
+                              aria-label={`Chỉnh sửa danh mục ${cat.name}`}
+                              className="p-1.5 rounded-md border border-neutral-200 text-neutral-700 hover:bg-neutral-100 hover:text-primary-600 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-
       </div>
 
       {/* Modal Tạo mới & Chỉnh sửa Danh mục */}
@@ -486,8 +527,10 @@ export const AdminCategoriesPage = () => {
               </h2>
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() => setModalOpen(false)}
-                className="text-neutral-400 hover:text-ink cursor-pointer"
+                aria-label="Đóng cửa sổ"
+                className="text-neutral-400 hover:text-ink cursor-pointer disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20 rounded"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -551,7 +594,7 @@ export const AdminCategoriesPage = () => {
                     id="parentId"
                     className="w-full h-10 px-3 text-[14px] font-sans text-ink bg-white rounded-md border border-neutral-200 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                   >
-                    <option value="">— Không có (Danh mục gốc cấp 1) —</option>
+                    <option value="">Không có (Danh mục gốc cấp 1)</option>
                     {categories
                       .filter((c) => !editingCategory || c.id !== editingCategory.id)
                       .map((c) => (
@@ -582,6 +625,7 @@ export const AdminCategoriesPage = () => {
                             : 'bg-white text-neutral-600 hover:bg-neutral-100 border border-neutral-200'
                         }`}
                         title={iconKey}
+                        aria-label={`Chọn biểu tượng ${iconKey}`}
                       >
                         {renderIcon(iconKey, 'w-4 h-4')}
                       </button>
@@ -611,6 +655,7 @@ export const AdminCategoriesPage = () => {
                   type="button"
                   variant="secondary"
                   size="md"
+                  disabled={isSubmitting}
                   onClick={() => setModalOpen(false)}
                 >
                   Hủy bỏ

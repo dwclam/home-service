@@ -1,26 +1,30 @@
 import { useState, useEffect } from 'react'
-import { Mail, Phone, ShieldCheck, CalendarCheck, User } from 'lucide-react'
+import { CheckCircle2, XCircle, Clock } from 'lucide-react'
 
 import { useAuthStore } from '../../features/auth/authStore'
 import { getMe } from '../../features/auth/api'
+import { StatusText } from '../../components/ui/StatusText'
 
-const ACCOUNT_STATUS_LABELS = {
+const ACCOUNT_STATUS_META = {
   ACTIVE: {
     label: 'Đang hoạt động',
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    tone: 'success',
+    icon: CheckCircle2,
   },
   SUSPENDED: {
     label: 'Tạm khóa',
-    className: 'bg-red-50 text-red-600 border-red-200',
+    tone: 'danger',
+    icon: XCircle,
   },
   PENDING_VERIFICATION: {
     label: 'Chờ xác thực',
-    className: 'bg-amber-50 text-amber-700 border-amber-200',
+    tone: 'warning',
+    icon: Clock,
   },
 }
 
 const formatDateTime = (isoStr) => {
-  if (!isoStr) return '—'
+  if (!isoStr) return '-'
   try {
     return new Date(isoStr).toLocaleString('vi-VN', {
       hour: '2-digit',
@@ -30,7 +34,7 @@ const formatDateTime = (isoStr) => {
       year: 'numeric',
     })
   } catch {
-    return '—'
+    return '-'
   }
 }
 
@@ -57,88 +61,62 @@ export const ProviderDashboardPage = () => {
   }, [])
 
   const currentAccount = profile || account
-  const statusInfo = ACCOUNT_STATUS_LABELS[currentAccount?.status] || {
+  const statusInfo = ACCOUNT_STATUS_META[currentAccount?.status] || {
     label: 'Đang cập nhật',
-    className: 'bg-neutral-100 text-neutral-700 border-neutral-200',
+    tone: 'neutral',
+    icon: Clock,
   }
 
   return (
     <div className="space-y-6 font-sans">
-      <div>
-        <h1 className="text-2xl font-display font-bold text-ink">
-          Tổng quan Đối tác
-        </h1>
-      </div>
+      <h1 className="text-2xl font-display font-bold text-ink">
+        Tổng quan Đối tác
+      </h1>
 
       {/* Thông tin tài khoản đối tác */}
-      <div className="bg-white rounded-md border border-neutral-200 shadow-xs p-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-primary-500 text-white font-display font-bold text-lg flex items-center justify-center shrink-0">
-              {(currentAccount?.displayName || currentAccount?.email || 'P')
-                .trim()
-                .charAt(0)
-                .toUpperCase()}
-            </div>
-            <div>
-              <h2 className="text-lg font-display font-bold text-ink">
-                {currentAccount?.displayName || 'Tài khoản Đối tác'}
-              </h2>
-              <p className="text-xs text-neutral-500">{currentAccount?.email}</p>
-            </div>
-          </div>
-
-          <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border self-start sm:self-center ${statusInfo.className}`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            {statusInfo.label}
-          </span>
+      <div className="bg-white rounded-md border border-neutral-200 shadow-xs p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-4">
+          <h2 className="text-base font-display font-bold text-ink">
+            Thông tin tài khoản
+          </h2>
+          <StatusText
+            icon={statusInfo.icon}
+            label={statusInfo.label}
+            tone={statusInfo.tone}
+          />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-          <div className="p-3.5 rounded-md bg-neutral-50 border border-neutral-100 space-y-1">
-            <p className="text-xs text-neutral-500 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Tên hiển thị</span>
-            </p>
-            <p className="font-semibold text-ink">
-              {currentAccount?.displayName || '—'}
-            </p>
+        <dl className="divide-y divide-neutral-100 text-sm">
+          <div className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4">
+            <dt className="text-neutral-500">Tên hiển thị</dt>
+            <dd className="font-medium text-ink">
+              {currentAccount?.displayName || '-'}
+            </dd>
           </div>
 
-          <div className="p-3.5 rounded-md bg-neutral-50 border border-neutral-100 space-y-1">
-            <p className="text-xs text-neutral-500 flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Email đăng nhập</span>
-            </p>
-            <p className="font-semibold text-ink truncate">
-              {currentAccount?.email || '—'}
-            </p>
+          <div className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4">
+            <dt className="text-neutral-500">Email đăng nhập</dt>
+            <dd className="font-medium text-ink break-all">
+              {currentAccount?.email || '-'}
+            </dd>
           </div>
 
-          <div className="p-3.5 rounded-md bg-neutral-50 border border-neutral-100 space-y-1">
-            <p className="text-xs text-neutral-500 flex items-center gap-1.5">
-              <Phone className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Số điện thoại</span>
-            </p>
-            <p className="font-semibold text-ink">
+          <div className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4">
+            <dt className="text-neutral-500">Số điện thoại</dt>
+            <dd className="font-medium text-ink tabular-nums">
               {currentAccount?.phone || 'Chưa cập nhật'}
-            </p>
+            </dd>
           </div>
-        </div>
 
-        {currentAccount?.emailVerifiedAt && (
-          <div className="flex items-center gap-2 text-xs text-neutral-500 pt-1">
-            <CalendarCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
-              Đã xác thực email lúc:{' '}
-              <strong className="text-ink">
-                {formatDateTime(currentAccount.emailVerifiedAt)}
-              </strong>
-            </span>
+          <div className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4">
+            <dt className="text-neutral-500">Ngày xác thực email</dt>
+            <dd className="font-medium text-ink tabular-nums">
+              {currentAccount?.emailVerifiedAt
+                ? formatDateTime(currentAccount.emailVerifiedAt)
+                : 'Chưa xác thực'}
+            </dd>
           </div>
-        )}
+        </dl>
       </div>
     </div>
   )

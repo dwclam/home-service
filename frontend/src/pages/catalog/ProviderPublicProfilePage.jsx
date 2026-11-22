@@ -5,7 +5,6 @@ import {
   ShieldCheck,
   Clock,
   ArrowLeft,
-  CheckCircle2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -14,6 +13,7 @@ import {
   searchCustomerServices,
 } from '../../features/catalog/customerCatalogApi'
 import { Button } from '../../components/ui/Button'
+import { StatusText } from '../../components/ui/StatusText'
 
 const formatVnd = (amount) => {
   return new Intl.NumberFormat('vi-VN').format(amount || 0) + ' đ'
@@ -96,23 +96,24 @@ export const ProviderPublicProfilePage = () => {
         </div>
 
         {/* Provider Profile Header Card */}
-        <div className="bg-white p-6 sm:p-8 rounded-md border border-neutral-200 shadow-xs space-y-6">
+        <div className="bg-white p-6 sm:p-8 rounded-md border border-neutral-200 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
             {/* Avatar / Logo */}
-            <div className="w-20 h-20 rounded-full bg-primary-500 text-white font-display font-bold text-3xl flex items-center justify-center shrink-0 shadow-xs border-4 border-primary-50">
+            <div className="w-20 h-20 rounded-full bg-primary-500 text-white font-display font-bold text-3xl flex items-center justify-center shrink-0">
               {initialLetter}
             </div>
 
             {/* Provider Basic Info */}
             <div className="space-y-1.5 flex-1 min-w-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl sm:text-3xl font-display font-bold text-ink">
                   {provider.businessName}
                 </h1>
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Đối tác Nestify chính thức
-                </span>
+                <StatusText
+                  icon={ShieldCheck}
+                  label="Đối tác Nestify chính thức"
+                  tone="success"
+                />
               </div>
 
               {provider.address && (
@@ -127,29 +128,10 @@ export const ProviderPublicProfilePage = () => {
 
           {/* Bio / Giới thiệu năng lực */}
           {provider.bio && (
-            <div className="p-4 bg-neutral-50 rounded-md border border-neutral-100 text-sm text-neutral-700 leading-relaxed">
-              <p className="font-semibold text-ink text-xs uppercase tracking-wider mb-1">
-                Giới thiệu đơn vị:
-              </p>
+            <div className="border-t border-neutral-100 pt-4 text-sm text-neutral-700 leading-relaxed whitespace-pre-line">
               <p>{provider.bio}</p>
             </div>
           )}
-
-          {/* Cam kết đối tác */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs text-neutral-600 border-t border-neutral-100">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Đã xác minh hồ sơ năng lực</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Cam kết minh bạch giá dịch vụ</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Bảo hành chất lượng dịch vụ</span>
-            </div>
-          </div>
         </div>
 
         {/* Danh sách các gói dịch vụ của NCC này */}
@@ -203,7 +185,7 @@ export const ProviderPublicProfilePage = () => {
                       <div className="pt-3 border-t border-neutral-100 flex items-center justify-between gap-2">
                         <div>
                           <p className="text-[11px] text-neutral-400 font-medium">Đơn giá</p>
-                          <p className="text-base font-bold text-primary-600 font-display">
+                          <p className="text-base font-bold text-primary-600 font-display tabular-nums">
                             {formatVnd(service.basePriceVnd)}
                           </p>
                         </div>

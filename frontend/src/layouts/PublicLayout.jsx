@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, LogOut, ChevronDown, Shield, Briefcase } from 'lucide-react'
+import { Menu, X, LogOut, Shield, Briefcase } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 import { useAuthStore } from '../features/auth/authStore'
@@ -8,6 +8,7 @@ import { logout } from '../features/auth/api'
 import { clearCsrfToken } from '../lib/http'
 import { Button } from '../components/ui/Button'
 import { BrandLogo } from '../components/ui/BrandLogo'
+import { AccountMenu } from '../components/layout/AccountMenu'
 
 const navLinks = [
   { label: 'Dịch vụ', to: '/services' },
@@ -18,30 +19,18 @@ const navLinks = [
 
 const footerGroups = [
   {
-    title: 'Sản phẩm',
+    title: 'Dịch vụ',
     links: [
       { label: 'Khám phá dịch vụ', to: '/services' },
-      { label: 'Dịch vụ nổi bật', href: '/#featured' },
-      { label: 'Nhà cung cấp', href: '/#providers' },
-      { label: 'Bảng giá', href: '/#featured' },
+      { label: 'Danh mục', href: '/#categories' },
+      { label: 'Cách hoạt động', href: '/#how-it-works' },
     ],
   },
   {
-    title: 'Công ty',
+    title: 'Đối tác',
     links: [
-      { label: 'Về chúng tôi', href: '/#footer' },
-      { label: 'Tuyển dụng', href: '/#provider' },
-      { label: 'Blog', href: '/#footer' },
-      { label: 'Liên hệ', href: '/#footer' },
-    ],
-  },
-  {
-    title: 'Hỗ trợ',
-    links: [
-      { label: 'Trung tâm trợ giúp', href: '/#footer' },
-      { label: 'Điều khoản', href: '/#footer' },
-      { label: 'Bảo mật', href: '/#footer' },
-      { label: 'Hoàn tiền', href: '/#footer' },
+      { label: 'Đăng ký làm Đối tác', to: '/provider/apply' },
+      { label: 'Đăng nhập Đối tác', to: '/provider/login' },
     ],
   },
 ]
@@ -49,24 +38,10 @@ const footerGroups = [
 function Header() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
-  const dropdownRef = useRef(null)
 
   const { isAuthenticated, account, clearAuth } = useAuthStore()
 
-  // Đóng dropdown khi click ra ngoài
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setUserDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
   const handleLogout = async () => {
-    setUserDropdownOpen(false)
     setMenuOpen(false)
     try {
       await logout()
@@ -80,11 +55,27 @@ function Header() {
     }
   }
 
-  // Lấy chữ cái đầu cho Avatar
+  // Lấy chữ cái đầu cho Avatar (Mobile drawer)
   const initialLetter = (account?.displayName || account?.email || 'U')
     .trim()
     .charAt(0)
     .toUpperCase()
+
+  const accountMenuLinks = []
+  if (account?.accountType === 'ADMIN') {
+    accountMenuLinks.push({
+      label: 'Quản trị hệ thống',
+      to: '/admin/categories',
+      icon: Shield,
+    })
+  }
+  if (account?.accountType === 'PROVIDER') {
+    accountMenuLinks.push({
+      label: 'Kênh Nhà cung cấp',
+      to: '/provider',
+      icon: Briefcase,
+    })
+  }
 
   return (
     <header id="top" className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur">
@@ -141,75 +132,19 @@ function Header() {
                 </Link>
               </>
             ) : (
-              /* User Profile & Dropdown */
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2.5 p-1.5 pl-2.5 rounded-full hover:bg-neutral-100 border border-neutral-200 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20"
-                  aria-expanded={userDropdownOpen}
-                  aria-haspopup="true"
-                >
-                  <div className="w-7 h-7 rounded-full bg-primary-500 text-white font-semibold text-xs flex items-center justify-center shrink-0">
-                    {initialLetter}
-                  </div>
-                  <span className="text-sm font-medium text-ink max-w-[140px] truncate">
-                    {account?.displayName || 'Tài khoản'}
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-neutral-400 mr-1" />
-                </button>
-
-                {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-md bg-white border border-neutral-200 shadow-md py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="px-4 py-2 border-b border-neutral-100">
-                      <p className="text-sm font-semibold text-ink truncate">
-                        {account?.displayName || 'Khách hàng'}
-                      </p>
-                      <p className="text-xs text-neutral-500 truncate">{account?.email}</p>
-                    </div>
-
-                    <div className="py-1">
-                      {account?.accountType === 'ADMIN' && (
-                        <Link
-                          to="/admin/categories"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
-                        >
-                          <Shield className="w-4 h-4 text-primary-600" />
-                          <span>Quản trị hệ thống</span>
-                        </Link>
-                      )}
-
-                      {account?.accountType === 'PROVIDER' && (
-                        <Link
-                          to="/provider"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
-                        >
-                          <Briefcase className="w-4 h-4 text-primary-600" />
-                          <span>Kênh Nhà cung cấp</span>
-                        </Link>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors text-left cursor-pointer"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Đăng xuất</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AccountMenu
+                account={account}
+                fallbackName="Khách hàng"
+                menuLinks={accountMenuLinks}
+                onLogout={handleLogout}
+              />
             )}
           </div>
 
           {/* Nút Hamburger menu Mobile */}
           <button
             type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 lg:hidden cursor-pointer"
+            className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 lg:hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20"
             aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen(!menuOpen)}
@@ -327,7 +262,7 @@ function Footer() {
   return (
     <footer id="footer" className="border-t border-neutral-200 bg-neutral-50 font-sans">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           <div className="col-span-2">
             <BrandLogo size="md" />
             <p className="mb-5 mt-4 max-w-xs text-sm leading-relaxed text-neutral-500">
@@ -363,19 +298,8 @@ function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-neutral-200 pt-8 sm:flex-row">
+        <div className="mt-12 border-t border-neutral-200 pt-8">
           <p className="text-sm text-neutral-500">© 2026 Nestify. Bảo lưu mọi quyền.</p>
-          <div className="flex items-center gap-6">
-            {['Điều khoản', 'Bảo mật', 'Cookie'].map((label) => (
-              <a
-                key={label}
-                href="#footer"
-                className="text-sm text-neutral-500 hover:text-primary-600 transition-colors"
-              >
-                {label}
-              </a>
-            ))}
-          </div>
         </div>
       </div>
     </footer>

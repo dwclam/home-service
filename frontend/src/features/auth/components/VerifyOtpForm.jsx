@@ -240,14 +240,14 @@ export const VerifyOtpForm = ({ initialData }) => {
   return (
     <div className="w-full flex flex-col items-center">
       {/* Thông tin người nhận email */}
-      <div className="w-full p-4 mb-6 bg-neutral-100 rounded-md border border-neutral-200 flex items-start gap-3">
-        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center shrink-0 mt-0.5">
-          <Mail className="w-4 h-4" />
-        </div>
-        <div className="text-sm font-sans">
-          <p className="text-neutral-500">Mã xác nhận 6 số đã được gửi tới:</p>
-          <p className="font-semibold text-ink break-all">{email || 'Địa chỉ email của bạn'}</p>
-        </div>
+      <div className="text-center mb-6 font-sans">
+        <p className="text-sm text-neutral-600">
+          Mã xác thực gồm 6 chữ số đã được gửi đến email:
+        </p>
+        <p className="font-semibold text-ink text-base mt-1 flex items-center justify-center gap-1.5 break-all">
+          <Mail className="w-4 h-4 text-primary-500 shrink-0" aria-hidden="true" />
+          <span>{email || 'Địa chỉ email của bạn'}</span>
+        </p>
       </div>
 
       {/* Form nhập 6 ô OTP */}

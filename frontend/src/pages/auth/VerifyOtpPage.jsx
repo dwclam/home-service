@@ -1,5 +1,4 @@
 import { useLocation, Link } from 'react-router-dom'
-import { ShieldCheck } from 'lucide-react'
 import { BrandLogo } from '../../components/ui/BrandLogo'
 import { VerifyOtpForm } from '../../features/auth/components/VerifyOtpForm'
 import { Button } from '../../components/ui/Button'
@@ -28,10 +27,6 @@ export const VerifyOtpPage = () => {
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
         <BrandLogo size="lg" className="mb-4" />
-
-        <div className="w-12 h-12 rounded-full bg-primary-50 border border-primary-200 flex items-center justify-center mb-3">
-          <ShieldCheck className="w-6 h-6 text-primary-600" />
-        </div>
 
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink text-center tracking-tight">
           Xác thực tài khoản

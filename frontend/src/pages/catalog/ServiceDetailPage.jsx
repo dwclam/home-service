@@ -17,6 +17,7 @@ import {
   getCustomerServiceAvailableSlots,
 } from '../../features/catalog/customerCatalogApi'
 import { Button } from '../../components/ui/Button'
+import { StatusText } from '../../components/ui/StatusText'
 
 const formatVnd = (amount) => {
   return new Intl.NumberFormat('vi-VN').format(amount || 0) + ' đ'
@@ -230,7 +231,8 @@ export const ServiceDetailPage = () => {
                       key={img.id || idx}
                       type="button"
                       onClick={() => setSelectedImageIndex(idx)}
-                      className={`relative w-20 h-16 rounded-md overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
+                      aria-label={`Xem ảnh ${idx + 1}`}
+                      className={`relative w-20 h-16 rounded-md overflow-hidden border-2 transition-opacity transition-colors shrink-0 cursor-pointer ${
                         selectedImageIndex === idx
                           ? 'border-primary-500 shadow-xs'
                           : 'border-transparent opacity-70 hover:opacity-100'
@@ -257,7 +259,7 @@ export const ServiceDetailPage = () => {
                   <span>•</span>
                   <span className="inline-flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>Thời lượng ước tính: <strong className="text-ink">~{service.durationMinutes} phút</strong></span>
+                    <span>Thời lượng ước tính: <strong className="text-ink tabular-nums">~{service.durationMinutes} phút</strong></span>
                   </span>
                 </div>
               </div>
@@ -271,27 +273,6 @@ export const ServiceDetailPage = () => {
                   {service.description}
                 </p>
               </div>
-
-              {/* Quy trình tiêu chuẩn */}
-              <div className="border-t border-neutral-100 pt-4 space-y-3">
-                <h3 className="font-display font-bold text-sm text-ink">
-                  Quy trình phục vụ chuẩn Nestify
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-neutral-600">
-                  <div className="p-3 bg-neutral-50 rounded-md border border-neutral-100 space-y-1">
-                    <span className="font-bold text-primary-600">1. Tiếp nhận & Kiểm tra</span>
-                    <p className="text-[11px] text-neutral-500">Thợ đến đúng giờ hẹn, kiểm tra thực tế và xác nhận tình trạng.</p>
-                  </div>
-                  <div className="p-3 bg-neutral-50 rounded-md border border-neutral-100 space-y-1">
-                    <span className="font-bold text-primary-600">2. Thực hiện chuyên nghiệp</span>
-                    <p className="text-[11px] text-neutral-500">Áp dụng đúng quy trình kỹ thuật, trang thiết bị chuyên dụng.</p>
-                  </div>
-                  <div className="p-3 bg-neutral-50 rounded-md border border-neutral-100 space-y-1">
-                    <span className="font-bold text-primary-600">3. Nghiệm thu & Bảo hành</span>
-                    <p className="text-[11px] text-neutral-500">Khách hàng nghiệm thu hài lòng mới thanh toán phần còn lại.</p>
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Thẻ Hồ sơ Nhà cung cấp công khai (UC07 link) */}
@@ -301,10 +282,7 @@ export const ServiceDetailPage = () => {
                   <Building className="w-4 h-4 text-primary-600" />
                   <span>Đơn vị cung cấp dịch vụ</span>
                 </h3>
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Đối tác xác thực
-                </span>
+                <StatusText icon={ShieldCheck} label="Đối tác xác thực" tone="success" />
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -336,11 +314,11 @@ export const ServiceDetailPage = () => {
             <div className="bg-white p-6 rounded-md border border-neutral-200 shadow-xs space-y-5">
               {/* Bảng giá dịch vụ */}
               <div className="border-b border-neutral-100 pb-4 space-y-1">
-                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
-                  Giá dịch vụ trọn gói
+                <p className="text-sm font-medium text-neutral-500">
+                  Giá dịch vụ
                 </p>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-display font-bold text-primary-600">
+                  <span className="text-3xl font-display font-bold text-primary-600 tabular-nums">
                     {formatVnd(pricing.total)}
                   </span>
                   <span className="text-xs text-neutral-500">/ gói</span>
@@ -350,11 +328,11 @@ export const ServiceDetailPage = () => {
                 <div className="pt-2 text-xs text-neutral-500 space-y-1">
                   <div className="flex justify-between">
                     <span>Đặt cọc giữ chỗ (30%):</span>
-                    <strong className="text-amber-700">{formatVnd(pricing.deposit)}</strong>
+                    <strong className="text-amber-700 tabular-nums">{formatVnd(pricing.deposit)}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Thanh toán khi hoàn thành (70%):</span>
-                    <strong className="text-ink">{formatVnd(pricing.balance)}</strong>
+                    <strong className="text-ink tabular-nums">{formatVnd(pricing.balance)}</strong>
                   </div>
                 </div>
               </div>

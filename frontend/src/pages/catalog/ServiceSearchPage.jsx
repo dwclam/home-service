@@ -214,6 +214,7 @@ export const ServiceSearchPage = () => {
                       onClick={handleClearKeyword}
                       className="text-neutral-400 hover:text-ink cursor-pointer"
                       title="Xóa từ khóa"
+                      aria-label="Xóa từ khóa tìm kiếm"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -325,6 +326,7 @@ export const ServiceSearchPage = () => {
                     type="button"
                     onClick={() => updateParams({ keyword: '', page: 0 })}
                     className="hover:text-primary-900 cursor-pointer"
+                    aria-label="Xóa bộ lọc từ khóa"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -337,6 +339,7 @@ export const ServiceSearchPage = () => {
                     type="button"
                     onClick={() => updateParams({ categoryId: '', page: 0 })}
                     className="hover:text-primary-900 cursor-pointer"
+                    aria-label="Xóa bộ lọc danh mục"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -349,18 +352,20 @@ export const ServiceSearchPage = () => {
                     type="button"
                     onClick={() => updateParams({ city: '', page: 0 })}
                     className="hover:text-primary-900 cursor-pointer"
+                    aria-label="Xóa bộ lọc khu vực"
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </span>
               )}
               {(minPriceParam || maxPriceParam) && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-50 text-primary-700 font-medium">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-50 text-primary-700 font-medium tabular-nums">
                   Giá: {minPriceParam ? formatVnd(minPriceParam) : '0'} - {maxPriceParam ? formatVnd(maxPriceParam) : 'Max'}
                   <button
                     type="button"
                     onClick={() => updateParams({ minPrice: '', maxPrice: '', page: 0 })}
                     className="hover:text-primary-900 cursor-pointer"
+                    aria-label="Xóa bộ lọc khoảng giá"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -380,7 +385,7 @@ export const ServiceSearchPage = () => {
         </div>
 
         {/* Results Info */}
-        <div className="flex items-center justify-between text-xs text-neutral-500 px-1">
+        <div className="flex items-center justify-between text-xs text-neutral-500 px-1 tabular-nums">
           <span>
             Tìm thấy <strong className="text-ink font-semibold">{servicesData.totalElements}</strong> dịch vụ phù hợp
           </span>
@@ -407,9 +412,7 @@ export const ServiceSearchPage = () => {
           </div>
         ) : servicesData.items.length === 0 ? (
           <div className="bg-white p-12 rounded-md border border-neutral-200 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-neutral-100 text-neutral-400 flex items-center justify-center mx-auto">
-              <Search className="w-8 h-8" />
-            </div>
+            <Search className="w-8 h-8 text-neutral-300 mx-auto" aria-hidden="true" />
             <h2 className="text-lg font-bold font-display text-ink">
               Không tìm thấy dịch vụ phù hợp
             </h2>
@@ -432,7 +435,7 @@ export const ServiceSearchPage = () => {
               return (
                 <article
                   key={serviceId}
-                  className="group bg-white rounded-md border border-neutral-200 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden"
+                  className="group bg-white rounded-md border border-neutral-200 shadow-xs hover:shadow-md transition-shadow duration-200 flex flex-col overflow-hidden"
                 >
                   {/* Service Image & Category Badge */}
                   <div className="relative h-48 overflow-hidden bg-neutral-100 shrink-0">
@@ -485,7 +488,7 @@ export const ServiceSearchPage = () => {
                     <div className="pt-4 border-t border-neutral-100 flex items-center justify-between gap-2">
                       <div>
                         <p className="text-[11px] text-neutral-400 font-medium">Đơn giá từ</p>
-                        <p className="text-base font-bold text-primary-600 font-display">
+                        <p className="text-base font-bold text-primary-600 font-display tabular-nums">
                           {formatVnd(service.basePriceVnd)}
                         </p>
                       </div>
@@ -524,7 +527,7 @@ export const ServiceSearchPage = () => {
               Trang trước
             </Button>
 
-            <span className="text-xs font-semibold px-3 py-1.5 bg-white border border-neutral-200 rounded-md text-ink">
+            <span className="text-xs font-semibold px-3 py-1.5 bg-white border border-neutral-200 rounded-md text-ink tabular-nums">
               {servicesData.page + 1} / {servicesData.totalPages}
             </span>
 

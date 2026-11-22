@@ -7,6 +7,9 @@ import {
   ExternalLink,
   CheckCircle2,
   XCircle,
+  Clock,
+  Mail,
+  MailCheck,
   MailWarning,
   RefreshCw,
   Loader2,
@@ -21,6 +24,7 @@ import {
 } from '../../features/admin/providerApplicationApi'
 import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
+import { StatusText } from '../../components/ui/StatusText'
 
 const PAGE_SIZE = 10
 
@@ -31,42 +35,49 @@ const STATUS_TABS = [
   { key: 'REJECTED', label: 'Đã từ chối' },
 ]
 
-const APPLICATION_STATUS_BADGE = {
+const APPLICATION_STATUS_META = {
   PENDING_REVIEW: {
     label: 'Chờ xét duyệt',
-    className: 'bg-amber-50 text-amber-700 border-amber-200',
+    tone: 'warning',
+    icon: Clock,
   },
   PENDING_EMAIL: {
     label: 'Chờ xác thực email',
-    className: 'bg-blue-50 text-blue-700 border-blue-200',
+    tone: 'info',
+    icon: Mail,
   },
   APPROVED: {
     label: 'Đã phê duyệt',
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    tone: 'success',
+    icon: CheckCircle2,
   },
   REJECTED: {
     label: 'Đã từ chối',
-    className: 'bg-red-50 text-red-600 border-red-200',
+    tone: 'danger',
+    icon: XCircle,
   },
 }
 
-const CREDENTIAL_EMAIL_STATUS_BADGE = {
+const CREDENTIAL_EMAIL_STATUS_META = {
   SENT: {
     label: 'Đã gửi',
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    tone: 'success',
+    icon: MailCheck,
   },
   FAILED: {
     label: 'Gửi thất bại',
-    className: 'bg-red-50 text-red-600 border-red-200',
+    tone: 'danger',
+    icon: MailWarning,
   },
   UNCONFIRMED: {
     label: 'Chưa xác nhận',
-    className: 'bg-amber-50 text-amber-700 border-amber-200',
+    tone: 'warning',
+    icon: Clock,
   },
 }
 
 const formatDateTime = (isoStr) => {
-  if (!isoStr) return '—'
+  if (!isoStr) return '-'
   try {
     return new Date(isoStr).toLocaleString('vi-VN', {
       hour: '2-digit',
@@ -76,7 +87,7 @@ const formatDateTime = (isoStr) => {
       year: 'numeric',
     })
   } catch {
-    return '—'
+    return '-'
   }
 }
 
@@ -139,6 +150,25 @@ export const AdminProviderApplicationsPage = () => {
       isMounted = false
     }
   }, [statusFilter, page])
+
+  // Đóng Modal Từ chối hoặc Modal Chi tiết bằng phím Escape (nếu không đang submit)
+  useEffect(() => {
+    if (!detailModalOpen && !rejectModalOpen) return
+
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return
+      if (rejectModalOpen) {
+        if (!isRejecting) setRejectModalOpen(false)
+        return
+      }
+      if (detailModalOpen && !isApproving && !isReissuing && !isRejecting) {
+        setDetailModalOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [detailModalOpen, rejectModalOpen, isApproving, isReissuing, isRejecting])
 
   const reloadApplications = async (
     targetStatus = statusFilter,
@@ -353,11 +383,11 @@ export const AdminProviderApplicationsPage = () => {
       selectedDetail?.credentialsEmailStatus === 'UNCONFIRMED')
 
   const safeDocUrl = getSafeHttpUrl(selectedDetail?.documentUrl)
-  const detailStatusBadge = selectedDetail
-    ? APPLICATION_STATUS_BADGE[selectedDetail.status]
+  const detailStatusMeta = selectedDetail
+    ? APPLICATION_STATUS_META[selectedDetail.status]
     : null
-  const detailEmailBadge = selectedDetail?.credentialsEmailStatus
-    ? CREDENTIAL_EMAIL_STATUS_BADGE[selectedDetail.credentialsEmailStatus]
+  const detailEmailMeta = selectedDetail?.credentialsEmailStatus
+    ? CREDENTIAL_EMAIL_STATUS_META[selectedDetail.credentialsEmailStatus]
     : null
 
   return (
@@ -389,10 +419,10 @@ export const AdminProviderApplicationsPage = () => {
                 key={tab.key}
                 type="button"
                 onClick={() => handleSelectTab(tab.key)}
-                className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-md text-xs transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20 ${
                   statusFilter === tab.key
-                    ? 'bg-neutral-900 text-white font-semibold'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    ? 'bg-primary-50 text-primary-700 font-semibold'
+                    : 'font-medium text-neutral-600 hover:bg-neutral-100'
                 }`}
               >
                 {tab.label}
@@ -400,7 +430,7 @@ export const AdminProviderApplicationsPage = () => {
             ))}
           </div>
 
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-neutral-500 tabular-nums">
             Tổng: <strong className="text-ink">{totalElements}</strong> hồ sơ
           </span>
         </div>
@@ -415,9 +445,9 @@ export const AdminProviderApplicationsPage = () => {
                   <th className="py-3 px-4">Cơ sở kinh doanh</th>
                   <th className="py-3 px-4">Email liên hệ</th>
                   <th className="py-3 px-4">Khu vực</th>
-                  <th className="py-3 px-4 text-center">Trạng thái</th>
+                  <th className="py-3 px-4">Trạng thái</th>
                   {statusFilter === 'APPROVED' && (
-                    <th className="py-3 px-4 text-center">Gửi mật khẩu</th>
+                    <th className="py-3 px-4">Gửi mật khẩu</th>
                   )}
                   <th className="py-3 px-4">Thời gian nộp</th>
                   <th className="py-3 px-4 text-right">Thao tác</th>
@@ -447,12 +477,13 @@ export const AdminProviderApplicationsPage = () => {
                   </tr>
                 ) : (
                   items.map((item, index) => {
-                    const statusBadge = APPLICATION_STATUS_BADGE[item.status] || {
+                    const statusMeta = APPLICATION_STATUS_META[item.status] || {
                       label: 'Đang cập nhật',
-                      className: 'bg-neutral-100 text-neutral-600 border-neutral-200',
+                      tone: 'neutral',
+                      icon: Clock,
                     }
-                    const emailBadge = item.credentialsEmailStatus
-                      ? CREDENTIAL_EMAIL_STATUS_BADGE[item.credentialsEmailStatus]
+                    const emailMeta = item.credentialsEmailStatus
+                      ? CREDENTIAL_EMAIL_STATUS_META[item.credentialsEmailStatus]
                       : null
 
                     return (
@@ -460,7 +491,7 @@ export const AdminProviderApplicationsPage = () => {
                         key={item.id}
                         className="hover:bg-neutral-50/60 transition-colors"
                       >
-                        <td className="py-3 px-4 text-center font-mono text-xs text-neutral-400">
+                        <td className="py-3 px-4 text-center text-xs text-neutral-500 tabular-nums">
                           {page * PAGE_SIZE + index + 1}
                         </td>
 
@@ -478,32 +509,32 @@ export const AdminProviderApplicationsPage = () => {
                         </td>
 
                         <td className="py-3 px-4 text-neutral-600 text-xs">
-                          {item.city || '—'}
+                          {item.city || '-'}
                         </td>
 
-                        <td className="py-3 px-4 text-center">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusBadge.className}`}
-                          >
-                            {statusBadge.label}
-                          </span>
+                        <td className="py-3 px-4">
+                          <StatusText
+                            icon={statusMeta.icon}
+                            label={statusMeta.label}
+                            tone={statusMeta.tone}
+                          />
                         </td>
 
                         {statusFilter === 'APPROVED' && (
-                          <td className="py-3 px-4 text-center">
-                            {emailBadge ? (
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${emailBadge.className}`}
-                              >
-                                {emailBadge.label}
-                              </span>
+                          <td className="py-3 px-4">
+                            {emailMeta ? (
+                              <StatusText
+                                icon={emailMeta.icon}
+                                label={emailMeta.label}
+                                tone={emailMeta.tone}
+                              />
                             ) : (
-                              <span className="text-xs text-neutral-400">—</span>
+                              <span className="text-xs text-neutral-400">-</span>
                             )}
                           </td>
                         )}
 
-                        <td className="py-3 px-4 text-xs text-neutral-600">
+                        <td className="py-3 px-4 text-xs text-neutral-600 tabular-nums">
                           <p>{formatDateTime(item.createdAt)}</p>
                           {item.emailVerifiedAt && (
                             <p className="text-[11px] text-neutral-400 mt-0.5">
@@ -534,7 +565,7 @@ export const AdminProviderApplicationsPage = () => {
           {/* Pagination */}
           {totalPages > 0 && (
             <div className="px-4 py-3 border-t border-neutral-200 bg-neutral-50/50 flex items-center justify-between text-xs text-neutral-600">
-              <span>
+              <span className="tabular-nums">
                 Trang <strong className="text-ink">{page + 1}</strong> /{' '}
                 <strong className="text-ink">{totalPages}</strong>
               </span>
@@ -573,21 +604,20 @@ export const AdminProviderApplicationsPage = () => {
                 <h2 className="font-display font-bold text-lg text-ink truncate">
                   {selectedDetail?.businessName || 'Chi tiết hồ sơ nhà cung cấp'}
                 </h2>
-                {detailStatusBadge && (
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border shrink-0 ${detailStatusBadge.className}`}
-                  >
-                    {detailStatusBadge.label}
-                  </span>
+                {detailStatusMeta && (
+                  <StatusText
+                    icon={detailStatusMeta.icon}
+                    label={detailStatusMeta.label}
+                    tone={detailStatusMeta.tone}
+                    className="shrink-0"
+                  />
                 )}
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  if (isApproving || isReissuing || isRejecting) return
-                  setDetailModalOpen(false)
-                }}
-                className="text-neutral-400 hover:text-ink cursor-pointer ml-3"
+                disabled={isApproving || isReissuing || isRejecting}
+                onClick={() => setDetailModalOpen(false)}
+                className="text-neutral-400 hover:text-ink cursor-pointer ml-3 disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20 rounded"
                 aria-label="Đóng chi tiết"
               >
                 <X className="w-5 h-5" />
@@ -603,61 +633,61 @@ export const AdminProviderApplicationsPage = () => {
                 </div>
               ) : selectedDetail ? (
                 <>
-                  {/* Thông tin cơ bản */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-neutral-50 p-4 rounded-md border border-neutral-200">
+                  {/* Thông tin cơ bản dạng <dl> 2 cột phẳng */}
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
                     <div>
-                      <p className="text-xs text-neutral-500">Người đại diện</p>
-                      <p className="font-semibold text-ink mt-0.5">
-                        {selectedDetail.applicantName || '—'}
-                      </p>
+                      <dt className="text-xs text-neutral-500">Người đại diện</dt>
+                      <dd className="font-medium text-ink mt-0.5">
+                        {selectedDetail.applicantName || '-'}
+                      </dd>
                     </div>
                     <div>
-                      <p className="text-xs text-neutral-500">Số điện thoại</p>
-                      <p className="font-semibold text-ink mt-0.5">
-                        {selectedDetail.phone || '—'}
-                      </p>
+                      <dt className="text-xs text-neutral-500">Số điện thoại</dt>
+                      <dd className="font-medium text-ink mt-0.5 tabular-nums">
+                        {selectedDetail.phone || '-'}
+                      </dd>
                     </div>
                     <div>
-                      <p className="text-xs text-neutral-500">Email liên hệ</p>
-                      <p className="font-semibold text-ink mt-0.5 break-all">
-                        {selectedDetail.email || '—'}
-                      </p>
+                      <dt className="text-xs text-neutral-500">Email liên hệ</dt>
+                      <dd className="font-medium text-ink mt-0.5 break-all">
+                        {selectedDetail.email || '-'}
+                      </dd>
                     </div>
                     <div>
-                      <p className="text-xs text-neutral-500">Khu vực hoạt động</p>
-                      <p className="font-semibold text-ink mt-0.5">
-                        {selectedDetail.city || '—'}
-                      </p>
+                      <dt className="text-xs text-neutral-500">Khu vực hoạt động</dt>
+                      <dd className="font-medium text-ink mt-0.5">
+                        {selectedDetail.city || '-'}
+                      </dd>
                     </div>
                     <div>
-                      <p className="text-xs text-neutral-500">Thời gian nộp hồ sơ</p>
-                      <p className="text-ink mt-0.5">
+                      <dt className="text-xs text-neutral-500">Thời gian nộp hồ sơ</dt>
+                      <dd className="text-ink mt-0.5 tabular-nums">
                         {formatDateTime(selectedDetail.createdAt)}
-                      </p>
+                      </dd>
                     </div>
                     <div>
-                      <p className="text-xs text-neutral-500">Xác thực email</p>
-                      <p className="text-ink mt-0.5">
+                      <dt className="text-xs text-neutral-500">Xác thực email</dt>
+                      <dd className="text-ink mt-0.5 tabular-nums">
                         {selectedDetail.emailVerifiedAt
                           ? formatDateTime(selectedDetail.emailVerifiedAt)
                           : 'Chưa xác thực'}
-                      </p>
+                      </dd>
                     </div>
                     {selectedDetail.decidedAt && (
                       <div className="sm:col-span-2">
-                        <p className="text-xs text-neutral-500">Thời điểm xét duyệt</p>
-                        <p className="text-ink mt-0.5">
+                        <dt className="text-xs text-neutral-500">Thời điểm xét duyệt</dt>
+                        <dd className="text-ink mt-0.5 tabular-nums">
                           {formatDateTime(selectedDetail.decidedAt)}
-                        </p>
+                        </dd>
                       </div>
                     )}
-                  </div>
+                  </dl>
 
                   {/* Link tài liệu năng lực */}
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                  <div className="border-t border-neutral-100 pt-4 space-y-1.5">
+                    <h3 className="text-sm font-semibold text-ink">
                       Tài liệu năng lực
-                    </p>
+                    </h3>
                     {safeDocUrl ? (
                       <a
                         href={safeDocUrl}
@@ -676,23 +706,23 @@ export const AdminProviderApplicationsPage = () => {
                   </div>
 
                   {/* Mô tả dịch vụ & năng lực */}
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                      Mô tả dịch vụ & năng lực chuyên môn
+                  <div className="border-t border-neutral-100 pt-4 space-y-1.5">
+                    <h3 className="text-sm font-semibold text-ink">
+                      Mô tả dịch vụ và năng lực chuyên môn
+                    </h3>
+                    <p className="text-sm text-neutral-700 whitespace-pre-line leading-relaxed">
+                      {selectedDetail.description || '-'}
                     </p>
-                    <div className="p-3.5 rounded-md border border-neutral-200 bg-white text-sm text-neutral-700 whitespace-pre-line leading-relaxed">
-                      {selectedDetail.description || '—'}
-                    </div>
                   </div>
 
                   {/* Lý do từ chối nếu REJECTED */}
                   {selectedDetail.status === 'REJECTED' &&
                     selectedDetail.rejectionReason && (
-                      <div className="p-4 rounded-md border border-red-200 bg-red-50 space-y-1">
-                        <p className="text-xs font-semibold text-red-700">
+                      <div className="border-t border-neutral-100 pt-4 space-y-1.5">
+                        <h3 className="text-sm font-semibold text-red-600">
                           Lý do từ chối
-                        </p>
-                        <p className="text-sm text-red-900 whitespace-pre-line">
+                        </h3>
+                        <p className="text-sm text-neutral-700 whitespace-pre-line leading-relaxed">
                           {selectedDetail.rejectionReason}
                         </p>
                       </div>
@@ -700,21 +730,18 @@ export const AdminProviderApplicationsPage = () => {
 
                   {/* Trạng thái gửi email mật khẩu tạm nếu APPROVED */}
                   {selectedDetail.status === 'APPROVED' && (
-                    <div className="p-4 rounded-md border border-neutral-200 bg-neutral-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <p className="text-xs font-semibold text-neutral-600">
+                    <div className="border-t border-neutral-100 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1.5">
+                        <h3 className="text-sm font-semibold text-ink">
                           Trạng thái gửi email mật khẩu tạm
-                        </p>
-                        <div className="flex items-center gap-2">
-                          {detailEmailBadge ? (
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${detailEmailBadge.className}`}
-                            >
-                              {selectedDetail.credentialsEmailStatus !== 'SENT' && (
-                                <MailWarning className="w-3.5 h-3.5" />
-                              )}
-                              {detailEmailBadge.label}
-                            </span>
+                        </h3>
+                        <div>
+                          {detailEmailMeta ? (
+                            <StatusText
+                              icon={detailEmailMeta.icon}
+                              label={detailEmailMeta.label}
+                              tone={detailEmailMeta.tone}
+                            />
                           ) : (
                             <span className="text-xs text-neutral-500">
                               Chưa có thông tin gửi thư
@@ -727,7 +754,7 @@ export const AdminProviderApplicationsPage = () => {
                         type="button"
                         onClick={() => loadDetailById(selectedDetail.id)}
                         disabled={isDetailLoading}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-ink cursor-pointer disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-ink cursor-pointer disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20 rounded"
                       >
                         <RefreshCw
                           className={`w-3.5 h-3.5 ${
@@ -812,7 +839,7 @@ export const AdminProviderApplicationsPage = () => {
                 type="button"
                 disabled={isRejecting}
                 onClick={() => setRejectModalOpen(false)}
-                className="text-neutral-400 hover:text-ink cursor-pointer disabled:opacity-50"
+                className="text-neutral-400 hover:text-ink cursor-pointer disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20 rounded"
                 aria-label="Đóng"
               >
                 <X className="w-5 h-5" />
