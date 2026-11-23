@@ -3,25 +3,24 @@ import { AVAILABILITY_STATE } from '../../constants/status'
 
 /**
  * Schema cập nhật hồ sơ công khai của Nhà cung cấp (UC18).
- * Khớp với bảng provider_profiles:
- * - business_name: NOT NULL, tối đa 200 ký tự
- * - city: NOT NULL, tối đa 150 ký tự
- * - bio, address, logo_url: TEXT (tùy chọn)
- * - is_visible: BOOLEAN
- * Không cho phép tự chỉnh sửa trạng thái xét duyệt hoặc ngân hàng qua form này.
+ * Khớp chính xác UpdateProviderProfileRequest.java của Cường:
+ * - businessName: @NotBlank, @Size(max = 200)
+ * - city: @NotBlank, @Size(max = 150)
+ * - bio, address, logoUrl: tùy chọn
+ * Không bao gồm trường ngân hàng hay isVisible/visible trong request sửa.
  */
 export const providerProfileSchema = z.object({
   businessName: z
     .string()
     .trim()
-    .min(2, 'Tên đơn vị / cửa hàng phải có ít nhất 2 ký tự')
-    .max(200, 'Tên đơn vị / cửa hàng tối đa 200 ký tự'),
+    .min(1, 'Tên cơ sở không được để trống')
+    .max(200, 'Tên cơ sở tối đa 200 ký tự'),
 
   city: z
     .string()
     .trim()
-    .min(2, 'Vui lòng nhập Tỉnh / Thành phố hoạt động')
-    .max(150, 'Tên Tỉnh / Thành phố tối đa 150 ký tự'),
+    .min(1, 'Thành phố không được để trống')
+    .max(150, 'Thành phố tối đa 150 ký tự'),
 
   address: z
     .string()
@@ -46,14 +45,12 @@ export const providerProfileSchema = z.object({
       (val) => !val || /^https?:\/\/.+/i.test(val),
       'Đường dẫn ảnh đại diện phải bắt đầu bằng http:// hoặc https://'
     ),
-
-  isVisible: z.boolean().default(true),
 })
 
 /**
  * Schema tạo/cập nhật khoảng lịch rảnh của Nhà cung cấp (UC20).
- * Khớp với bảng provider_availability:
- * - Khoảng thời gian nửa mở [startsAt, endsAt): endsAt phải lớn hơn startsAt ít nhất 30 phút.
+ * Khớp với CreateAvailabilitySlotRequest.java & UpdateAvailabilitySlotRequest.java:
+ * - Khoảng thời gian nửa mở [startsAt, endsAt): startsAt < endsAt và endsAt ở tương lai.
  * - state: AVAILABLE | BLOCKED.
  */
 export const providerAvailabilitySchema = z
@@ -81,7 +78,7 @@ export const providerAvailabilitySchema = z
     },
     {
       message:
-        'Giờ kết thúc phải sau giờ bắt đầu ít nhất 30 phút theo quy ước khoảng [bắt đầu, kết thúc)',
+        'Giờ kết thúc phải lớn hơn giờ bắt đầu ít nhất 30 phút theo quy ước khoảng [bắt đầu, kết thúc)',
       path: ['endTime'],
     }
   )

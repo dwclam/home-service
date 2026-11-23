@@ -6,7 +6,6 @@ export const FormField = ({
   htmlFor,
   required = false,
   error = '',
-  hint = '',
   className = '',
   children,
 }) => {
@@ -49,12 +48,6 @@ export const FormField = ({
         >
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           <span>{error}</span>
-        </p>
-      )}
-
-      {!hasError && hint && (
-        <p className="text-xs text-neutral-500 font-sans mt-1.5 leading-tight">
-          {hint}
         </p>
       )}
     </div>

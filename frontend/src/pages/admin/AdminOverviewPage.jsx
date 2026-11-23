@@ -1,7 +1,12 @@
-import { ClipboardList, Wallet, ShieldCheck, Activity } from 'lucide-react'
+import { useState } from 'react'
+import { TimerOff, CheckCircle2 } from 'lucide-react'
+import toast from 'react-hot-toast'
+
 import { BOOKING_STATUS } from '../../constants/status'
+import { triggerAdminExpireOverdueBookings } from '../../features/booking/api'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/DataTable'
+import { Button } from '../../components/ui/Button'
 
 const SAMPLE_OPERATIONAL_BOOKINGS = [
   {
@@ -64,6 +69,30 @@ const formatVnd = (val) =>
   new Intl.NumberFormat('vi-VN').format(Number(val || 0)) + ' đ'
 
 export const AdminOverviewPage = () => {
+  const [isExpiringOverdue, setIsExpiringOverdue] = useState(false)
+  const [lastExpirationReport, setLastExpirationReport] = useState(null)
+
+  const handleTriggerExpireOverdue = async () => {
+    setIsExpiringOverdue(true)
+    try {
+      const res = await triggerAdminExpireOverdueBookings()
+      setLastExpirationReport({
+        ...res.data,
+        executedAt: new Date().toISOString(),
+      })
+      toast.success(res.message || 'Đã quét đơn quá hạn.')
+    } catch (error) {
+      const apiErr = error?.response?.data
+      toast.error(
+        apiErr?.message ||
+          error?.message ||
+          'Không thể quét đơn quá hạn.'
+      )
+    } finally {
+      setIsExpiringOverdue(false)
+    }
+  }
+
   const columns = [
     {
       key: 'code',
@@ -74,17 +103,16 @@ export const AdminOverviewPage = () => {
     },
     {
       key: 'serviceTitle',
-      title: 'Gói dịch vụ',
+      title: 'Dịch vụ',
       render: (row) => (
-        <div>
-          <p className="font-medium text-ink line-clamp-1">
-            {row.serviceTitle}
-          </p>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            NCC: {row.providerName}
-          </p>
-        </div>
+        <span className="font-medium text-ink line-clamp-1">
+          {row.serviceTitle}
+        </span>
       ),
+    },
+    {
+      key: 'providerName',
+      title: 'Nhà cung cấp',
     },
     {
       key: 'customerName',
@@ -102,84 +130,74 @@ export const AdminOverviewPage = () => {
     },
     {
       key: 'status',
-      title: 'Trạng thái đơn',
+      title: 'Trạng thái',
       render: (row) => <StatusBadge status={row.status} />,
     },
   ]
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 className="font-display text-2xl font-bold text-ink">
-          Khung Quản trị Vận hành (Admin)
+          Tổng quan vận hành
         </h2>
-        <p className="text-sm text-neutral-500 mt-1">
-          Khung giao diện Dashboard Admin vận hành của Minh (Tuần 1) — Đối chiếu chuẩn StatusBadge và DataTable dùng chung.
-        </p>
+
+        <Button
+          type="button"
+          variant="secondary"
+          size="md"
+          isLoading={isExpiringOverdue}
+          onClick={handleTriggerExpireOverdue}
+          leftIcon={<TimerOff className="w-4 h-4" />}
+        >
+          Quét đơn quá hạn
+        </Button>
       </div>
 
-      {/* Thẻ chỉ số khung */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-neutral-200 rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-neutral-500 uppercase">
-              Đơn đang theo dõi
+      {lastExpirationReport && (
+        <div className="bg-white border border-neutral-200 rounded-lg p-4 shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="font-semibold text-emerald-700 inline-flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Kết quả lần quét gần nhất
             </span>
-            <ClipboardList className="w-4 h-4 text-primary-600" />
-          </div>
-          <p className="text-2xl font-bold text-ink">06</p>
-          <p className="text-xs text-neutral-500 mt-1">Dữ liệu mẫu khung P0</p>
-        </div>
-
-        <div className="bg-white border border-neutral-200 rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-neutral-500 uppercase">
-              Trạng thái thực hiện
+            <span className="text-neutral-500">
+              {new Intl.DateTimeFormat('vi-VN', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+              }).format(new Date(lastExpirationReport.executedAt))}
             </span>
-            <Activity className="w-4 h-4 text-primary-600" />
           </div>
-          <div className="mt-1">
-            <StatusBadge status={BOOKING_STATUS.IN_PROGRESS} />
-          </div>
-          <p className="text-xs text-neutral-500 mt-2">
-            Chuẩn badge không nền/viền
-          </p>
-        </div>
 
-        <div className="bg-white border border-neutral-200 rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-neutral-500 uppercase">
-              Tỷ lệ cọc / Hoa hồng
-            </span>
-            <Wallet className="w-4 h-4 text-primary-600" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 rounded-md bg-neutral-50 border border-neutral-200">
+              <p className="text-neutral-500">Quá hạn phản hồi</p>
+              <p className="text-lg font-bold text-ink mt-0.5">
+                {lastExpirationReport.providerExpiredCount ?? 0}
+              </p>
+            </div>
+            <div className="p-3 rounded-md bg-neutral-50 border border-neutral-200">
+              <p className="text-neutral-500">Quá hạn đặt cọc</p>
+              <p className="text-lg font-bold text-ink mt-0.5">
+                {lastExpirationReport.depositExpiredCount ?? 0}
+              </p>
+            </div>
+            <div className="p-3 rounded-md bg-neutral-50 border border-neutral-200">
+              <p className="text-neutral-500">Tổng đơn đã đóng</p>
+              <p className="text-lg font-bold text-primary-600 mt-0.5">
+                {lastExpirationReport.totalExpiredCount ?? 0}
+              </p>
+            </div>
           </div>
-          <p className="text-2xl font-bold text-ink">30% / 20%</p>
-          <p className="text-xs text-neutral-500 mt-1">
-            Làm tròn ROUND_HALF_UP
-          </p>
         </div>
+      )}
 
-        <div className="bg-white border border-neutral-200 rounded-lg p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-neutral-500 uppercase">
-              Phân quyền Route
-            </span>
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          </div>
-          <p className="text-2xl font-bold text-ink">RBAC</p>
-          <p className="text-xs text-neutral-500 mt-1">
-            Kiểm tra vai trò ADMIN
-          </p>
-        </div>
-      </div>
-
-      {/* Bảng đối chiếu 6 trạng thái đơn trong FE-guideline-lite */}
-      <div className="space-y-3">
-        <h3 className="text-[17px] font-semibold text-ink">
-          Bảng dữ liệu mẫu vận hành đơn & Hệ thống Badge trạng thái
-        </h3>
-        <DataTable columns={columns} data={SAMPLE_OPERATIONAL_BOOKINGS} />
-      </div>
+      <DataTable columns={columns} data={SAMPLE_OPERATIONAL_BOOKINGS} />
     </div>
   )
 }

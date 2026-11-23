@@ -8,7 +8,6 @@ import {
   Ban,
   Timer,
   CheckCircle2,
-  Info,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -24,9 +23,12 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { CancelBookingModal } from '../../features/booking/components/CancelBookingModal'
 
 const STATUS_TABS = [
-  { key: 'ALL', label: 'Tất cả đơn' },
+  { key: 'ALL', label: 'Tất cả' },
   { key: BOOKING_STATUS.PENDING_PROVIDER, label: 'Chờ xác nhận' },
+  { key: BOOKING_STATUS.PENDING_DEPOSIT, label: 'Chờ đặt cọc' },
   { key: BOOKING_STATUS.CONFIRMED, label: 'Đã xác nhận' },
+  { key: BOOKING_STATUS.IN_PROGRESS, label: 'Đang thực hiện' },
+  { key: BOOKING_STATUS.COMPLETED, label: 'Hoàn thành' },
   { key: BOOKING_STATUS.CANCELLED, label: 'Đã hủy' },
 ]
 
@@ -51,7 +53,7 @@ const formatCountdown = (targetIso, nowMs) => {
   if (diffSec <= 0) return 'Đã hết hạn phản hồi'
   const mins = Math.floor(diffSec / 60)
   const secs = diffSec % 60
-  return `Còn ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} để NCC phản hồi`
+  return `Còn ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} để phản hồi`
 }
 
 export const CustomerBookingsPage = () => {
@@ -98,15 +100,13 @@ export const CustomerBookingsPage = () => {
         prev.map((item) => (item.id === bookingId ? result.data : item))
       )
       setCancellingBooking(null)
-      toast.success(
-        `${result.message} (${result.data.bookingCode})`
-      )
+      toast.success(result.message || 'Đã hủy đơn đặt lịch.')
     } catch (error) {
       const apiErr = error?.response?.data
       const code = apiErr?.code || error?.code
       if (code === 'DATA_CONFLICT' || error?.response?.status === 409) {
         toast.error(
-          'Thông tin đơn đã được cập nhật bởi thao tác khác (409 DATA_CONFLICT). Đang tải lại dữ liệu...'
+          'Thông tin đơn đã được cập nhật. Đang tải lại dữ liệu...'
         )
         const res = await getMyCustomerBookings()
         setBookings(res.items || [])
@@ -127,16 +127,10 @@ export const CustomerBookingsPage = () => {
   return (
     <div className="bg-neutral-50 min-h-[calc(100vh-64px)] py-8 sm:py-10 font-sans">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink">
-              Đơn đặt dịch vụ của tôi (UC08 & UC11)
-            </h1>
-            <p className="text-sm text-neutral-500 mt-1">
-              Theo dõi trạng thái đơn, thời hạn phản hồi của Nhà cung cấp và thực hiện hủy đơn theo chính sách hoàn cọc.
-            </p>
-          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink">
+            Đơn đặt của tôi
+          </h1>
 
           <Link to="/customer/bookings/new">
             <Button
@@ -144,12 +138,11 @@ export const CustomerBookingsPage = () => {
               size="md"
               leftIcon={<Plus className="w-4 h-4" />}
             >
-              Đặt lịch dịch vụ mới
+              Đặt lịch mới
             </Button>
           </Link>
         </div>
 
-        {/* Bộ lọc tab */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {STATUS_TABS.map((tab) => {
             const active = statusFilter === tab.key
@@ -158,10 +151,10 @@ export const CustomerBookingsPage = () => {
                 key={tab.key}
                 type="button"
                 onClick={() => setStatusFilter(tab.key)}
-                className={`h-9 px-4 rounded-full text-xs font-semibold transition-colors duration-150 shrink-0 cursor-pointer ${
+                className={`h-9 px-3.5 rounded-md text-xs font-medium transition-colors duration-150 shrink-0 cursor-pointer ${
                   active
                     ? 'bg-primary-500 text-white'
-                    : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+                    : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-ink'
                 }`}
               >
                 {tab.label}
@@ -170,7 +163,6 @@ export const CustomerBookingsPage = () => {
           })}
         </div>
 
-        {/* Danh sách đơn */}
         {isLoading ? (
           <div className="bg-white border border-neutral-200 rounded-lg p-12 text-center text-sm text-neutral-500">
             Đang tải danh sách đơn đặt lịch...
@@ -179,7 +171,6 @@ export const CustomerBookingsPage = () => {
           <div className="bg-white border border-neutral-200 rounded-lg">
             <EmptyState
               title="Chưa có đơn đặt dịch vụ nào"
-              description="Bạn chưa có đơn đặt lịch nào ở trạng thái này. Hãy chọn gói dịch vụ và đặt lịch ngay."
               action={
                 <Link to="/customer/bookings/new">
                   <Button
@@ -215,14 +206,10 @@ export const CustomerBookingsPage = () => {
                       : 'border-neutral-200'
                   }`}
                 >
-                  {/* Dòng trên: Mã đơn, version, countdown & StatusBadge */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-neutral-200">
                     <div className="flex flex-wrap items-center gap-2.5">
                       <span className="text-sm font-bold text-ink">
                         {booking.bookingCode}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-neutral-100 text-neutral-600 font-medium">
-                        Version #{booking.version ?? 0}
                       </span>
                       {isHighlighted && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
@@ -243,8 +230,7 @@ export const CustomerBookingsPage = () => {
                     </div>
                   </div>
 
-                  {/* Nội dung chính */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 py-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 pt-4">
                     <div className="lg:col-span-2 space-y-2.5">
                       <h2 className="text-[17px] font-semibold text-ink">
                         {booking.serviceTitle}
@@ -253,8 +239,7 @@ export const CustomerBookingsPage = () => {
                         Nhà cung cấp:{' '}
                         <span className="font-semibold text-neutral-700">
                           {booking.providerName}
-                        </span>{' '}
-                        (ID #{booking.providerId})
+                        </span>
                       </p>
 
                       <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-600 pt-1">
@@ -266,45 +251,38 @@ export const CustomerBookingsPage = () => {
                         <span className="inline-flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5 text-primary-600" />
                           <strong>Kết thúc:</strong>{' '}
-                          {formatDateTimeVi(booking.endsAt)} (
-                          {booking.durationMinutes} phút)
+                          {formatDateTimeVi(booking.endsAt)}
                         </span>
                       </div>
 
                       <div className="flex items-start gap-1.5 text-xs text-neutral-600">
                         <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
                         <span>
-                          <strong>{booking.recipientName}</strong> (
-                          {booking.recipientPhone}) — {booking.addressLine}
+                          <strong>{booking.recipientName}</strong> •{' '}
+                          {booking.recipientPhone} — {booking.addressLine}
                           {booking.ward ? `, ${booking.ward}` : ''},{' '}
                           {booking.city}
                         </span>
                       </div>
 
                       {booking.customerNote && (
-                        <p className="text-xs text-neutral-500 italic">
-                          Ghi chú khách hàng: &ldquo;{booking.customerNote}&rdquo;
+                        <p className="text-xs text-neutral-500">
+                          Ghi chú: {booking.customerNote}
                         </p>
                       )}
 
                       {booking.status === BOOKING_STATUS.CANCELLED && (
                         <div className="mt-2 p-3 rounded-md bg-neutral-50 border border-neutral-200 text-xs text-neutral-600 space-y-1">
-                          <p className="font-semibold text-ink">
-                            Thông tin kết thúc đơn (Snapshot hủy UC11):
-                          </p>
+                          {booking.terminationReason && (
+                            <p>
+                              Lý do hủy:{' '}
+                              <span className="font-medium text-ink">
+                                {booking.terminationReason}
+                              </span>
+                            </p>
+                          )}
                           <p>
-                            Lý do hủy:{' '}
-                            <span className="font-medium text-ink">
-                              {booking.terminationReason ||
-                                'Khách hàng hủy đơn (không ghi lý do)'}
-                            </span>
-                          </p>
-                          <p>
-                            Tỷ lệ hoàn cọc áp dụng:{' '}
-                            <strong className="text-ink">
-                              {booking.refundPercent ?? 0}%
-                            </strong>{' '}
-                            • Số tiền cọc hoàn dự kiến:{' '}
+                            Hoàn cọc dự kiến:{' '}
                             <strong className="text-primary-600">
                               {formatVnd(booking.estimatedRefundAmountVnd ?? 0)}
                             </strong>
@@ -313,7 +291,6 @@ export const CustomerBookingsPage = () => {
                       )}
                     </div>
 
-                    {/* Cột phải: Snapshot tiền & nút Hủy đơn UC11 */}
                     <div className="bg-neutral-50 border border-neutral-200 rounded-md p-4 flex flex-col justify-between gap-4">
                       <dl className="space-y-1.5 text-xs">
                         <div className="flex items-center justify-between">
@@ -323,45 +300,32 @@ export const CustomerBookingsPage = () => {
                           </dd>
                         </div>
                         <div className="flex items-center justify-between">
-                          <dt className="text-neutral-500">
-                            Cọc ({booking.depositPercent || 30}%):
-                          </dt>
+                          <dt className="text-neutral-500">Tiền cọc:</dt>
                           <dd className="font-semibold text-primary-600">
                             {formatVnd(booking.depositAmountVnd)}
                           </dd>
                         </div>
                         <div className="flex items-center justify-between">
-                          <dt className="text-neutral-500">Còn lại (70%):</dt>
+                          <dt className="text-neutral-500">Còn lại:</dt>
                           <dd className="font-medium text-ink">
                             {formatVnd(booking.balanceAmountVnd)}
                           </dd>
                         </div>
                       </dl>
 
-                      {booking.status !== BOOKING_STATUS.CANCELLED &&
-                        booking.status !== BOOKING_STATUS.REJECTED &&
-                        booking.status !== BOOKING_STATUS.EXPIRED && (
-                          <div className="pt-3 border-t border-neutral-200 space-y-2">
-                            <p className="text-[11px] text-neutral-500 flex items-start gap-1">
-                              <Info className="w-3.5 h-3.5 text-primary-600 shrink-0 mt-0.5" />
-                              <span>{evaluation.summaryTitle || evaluation.reasonBlocked}</span>
-                            </p>
-
-                            <Button
-                              variant={
-                                evaluation.canCancel ? 'danger' : 'secondary'
-                              }
-                              size="sm"
-                              fullWidth
-                              onClick={() => setCancellingBooking(booking)}
-                              leftIcon={<Ban className="w-3.5 h-3.5" />}
-                            >
-                              {evaluation.canCancel
-                                ? 'Hủy đơn đặt lịch'
-                                : 'Xem quy định hủy'}
-                            </Button>
-                          </div>
-                        )}
+                      {evaluation.canCancel && (
+                        <div className="pt-3 border-t border-neutral-200">
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            fullWidth
+                            onClick={() => setCancellingBooking(booking)}
+                            leftIcon={<Ban className="w-3.5 h-3.5" />}
+                          >
+                            Hủy đơn
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -371,7 +335,6 @@ export const CustomerBookingsPage = () => {
         )}
       </div>
 
-      {/* Modal xác nhận hủy đơn UC11 */}
       <CancelBookingModal
         isOpen={Boolean(cancellingBooking)}
         booking={cancellingBooking}

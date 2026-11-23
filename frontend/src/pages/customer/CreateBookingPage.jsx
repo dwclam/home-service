@@ -9,9 +9,9 @@ import {
   User,
   Phone,
   FileText,
-  ShieldCheck,
   ArrowLeft,
   Send,
+  CalendarClock,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -20,16 +20,17 @@ import {
   generateClientRequestKey,
   getBookableServices,
   getCustomerSavedAddresses,
+  getServiceAvailableSlots,
   createCustomerBooking,
 } from '../../features/booking/api'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 
 const formatVnd = (amount) =>
   new Intl.NumberFormat('vi-VN').format(Number(amount || 0)) + ' đ'
 
-// Mặc định ngày mai lúc 09:00 để luôn thỏa mãn quy tắc MD01 (>= 60 phút từ hiện tại)
 const getDefaultAppointmentParts = () => {
   const tomorrow = new Date(Date.now() + 24 * 3600 * 1000)
   const yyyy = tomorrow.getFullYear()
@@ -41,6 +42,28 @@ const getDefaultAppointmentParts = () => {
   }
 }
 
+const formatSlotLabelVi = (startsAtIso, endsAtIso) => {
+  if (!startsAtIso || !endsAtIso) return '—'
+  const start = new Date(startsAtIso)
+  const end = new Date(endsAtIso)
+  const datePart = new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(start)
+  const startTime = new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(start)
+  const endTime = new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(end)
+  return `${datePart} • ${startTime} – ${endTime}`
+}
+
 export const CreateBookingPage = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -48,6 +71,8 @@ export const CreateBookingPage = () => {
 
   const [services, setServices] = useState([])
   const [addresses, setAddresses] = useState([])
+  const [availableSlots, setAvailableSlots] = useState([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
   const [clientRequestKey] = useState(() => generateClientRequestKey())
 
   const defaultTimeParts = getDefaultAppointmentParts()
@@ -106,6 +131,29 @@ export const CreateBookingPage = () => {
     }
   }, [preselectedServiceId, setValue])
 
+  useEffect(() => {
+    let isMounted = true
+    const activeId = Number(watchedServiceId)
+    if (!activeId) return
+
+    const loadSlotsForService = async () => {
+      setSlotsLoading(true)
+      try {
+        const res = await getServiceAvailableSlots(activeId)
+        if (!isMounted) return
+        setAvailableSlots(res.availableSlots || res.data?.availableSlots || [])
+      } finally {
+        if (isMounted) {
+          setSlotsLoading(false)
+        }
+      }
+    }
+    loadSlotsForService()
+    return () => {
+      isMounted = false
+    }
+  }, [watchedServiceId])
+
   const selectedService =
     services.find((s) => s.id === Number(watchedServiceId)) || services[0]
 
@@ -116,6 +164,19 @@ export const CreateBookingPage = () => {
     if (found) {
       setValue('providerId', found.providerId, { shouldValidate: true })
     }
+  }
+
+  const handlePickSlot = (slot) => {
+    if (!slot?.startsAt) return
+    const dt = new Date(slot.startsAt)
+    const yyyy = dt.getFullYear()
+    const mm = String(dt.getMonth() + 1).padStart(2, '0')
+    const dd = String(dt.getDate()).padStart(2, '0')
+    const hh = String(dt.getHours()).padStart(2, '0')
+    const mi = String(dt.getMinutes()).padStart(2, '0')
+    setValue('appointmentDate', `${yyyy}-${mm}-${dd}`, { shouldValidate: true })
+    setValue('appointmentTime', `${hh}:${mi}`, { shouldValidate: true })
+    toast.success('Đã chọn khung giờ.')
   }
 
   const totalAmountVnd = selectedService?.basePriceVnd || 350000
@@ -172,21 +233,17 @@ export const CreateBookingPage = () => {
   return (
     <div className="bg-neutral-50 min-h-[calc(100vh-64px)] py-8 sm:py-10 font-sans">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
-        {/* Điều hướng quay lại & tiêu đề */}
         <div>
           <Link
             to="/customer/bookings"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Xem danh sách đơn đặt lịch của tôi</span>
+            <span>Đơn đặt của tôi</span>
           </Link>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink">
-            Đặt lịch dịch vụ tại nhà (UC08)
+            Đặt lịch dịch vụ
           </h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Chọn gói dịch vụ, khung giờ hẹn (cách hiện tại ít nhất 60 phút) và xác nhận địa chỉ phục vụ.
-          </p>
         </div>
 
         <form
@@ -194,17 +251,12 @@ export const CreateBookingPage = () => {
           className="grid grid-cols-1 lg:grid-cols-3 gap-6"
           noValidate
         >
-          {/* Cột trái (2/3): Form chọn dịch vụ, thời gian, địa chỉ */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Bước 1: Chọn gói dịch vụ & thời gian */}
             <div className="bg-white border border-neutral-200 rounded-lg shadow-xs p-5 sm:p-6 space-y-5">
               <div className="pb-3 border-b border-neutral-200">
                 <h2 className="text-[17px] font-semibold text-ink">
-                  1. Gói dịch vụ & Thời gian hẹn
+                  1. Dịch vụ & Thời gian hẹn
                 </h2>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Quy tắc MD01: Thời điểm bắt đầu phải cách hiện tại tối thiểu 60 phút.
-                </p>
               </div>
 
               <FormField
@@ -213,26 +265,23 @@ export const CreateBookingPage = () => {
                 required
                 error={errors.serviceId?.message}
               >
-                <select
+                <Select
                   id="booking-service"
                   value={watchedServiceId}
                   onChange={handleServiceSelectChange}
-                  className="w-full h-10 px-3 text-[15px] font-sans text-ink bg-white rounded-md border border-neutral-200 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                 >
                   {services.map((srv) => (
                     <option key={srv.id} value={srv.id}>
-                      {srv.title} — {formatVnd(srv.basePriceVnd)} (
-                      {srv.durationMinutes} phút)
+                      {srv.title} — {formatVnd(srv.basePriceVnd)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </FormField>
 
               {selectedService && (
                 <div className="p-3.5 rounded-md bg-neutral-50 border border-neutral-200 text-xs text-neutral-600 space-y-1">
                   <p className="font-semibold text-ink">
-                    Nhà cung cấp: {selectedService.providerName} (ID: #
-                    {selectedService.providerId})
+                    Nhà cung cấp: {selectedService.providerName}
                   </p>
                   <p className="leading-relaxed">
                     {selectedService.description}
@@ -240,9 +289,31 @@ export const CreateBookingPage = () => {
                 </div>
               )}
 
+              {!slotsLoading && availableSlots.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-ink flex items-center gap-1.5">
+                    <CalendarClock className="w-4 h-4 text-primary-600" />
+                    <span>Khung giờ trống gợi ý</span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {availableSlots.map((slot, idx) => (
+                      <Button
+                        key={slot.id || idx}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handlePickSlot(slot)}
+                      >
+                        {formatSlotLabelVi(slot.startsAt, slot.endsAt)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <FormField
-                  label="Ngày hẹn làm việc"
+                  label="Ngày hẹn"
                   htmlFor="appointmentDate"
                   required
                   error={errors.appointmentDate?.message}
@@ -256,11 +327,10 @@ export const CreateBookingPage = () => {
                 </FormField>
 
                 <FormField
-                  label="Giờ bắt đầu dự kiến"
+                  label="Giờ bắt đầu"
                   htmlFor="appointmentTime"
                   required
                   error={errors.appointmentTime?.message}
-                  hint={`Thời lượng dự kiến: ${selectedService?.durationMinutes || 60} phút`}
                 >
                   <Input
                     id="appointmentTime"
@@ -272,31 +342,25 @@ export const CreateBookingPage = () => {
               </div>
             </div>
 
-            {/* Bước 2: Địa chỉ thực hiện dịch vụ */}
             <div className="bg-white border border-neutral-200 rounded-lg shadow-xs p-5 sm:p-6 space-y-5">
               <div className="pb-3 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h2 className="text-[17px] font-semibold text-ink">
-                    2. Địa chỉ & Người liên hệ tại nơi làm việc
-                  </h2>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    Thông tin địa chỉ được chụp bất biến (Snapshot) vào đơn khi xác nhận đặt lịch.
-                  </p>
-                </div>
+                <h2 className="text-[17px] font-semibold text-ink">
+                  2. Địa chỉ phục vụ
+                </h2>
 
-                <div className="inline-flex rounded-full bg-neutral-100 p-1 self-start">
+                <div className="inline-flex rounded-md bg-neutral-100 border border-neutral-200 p-1 self-start">
                   <button
                     type="button"
                     onClick={() =>
                       setValue('addressMode', 'SAVED', { shouldValidate: true })
                     }
-                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+                    className={`px-3 h-7 rounded text-xs font-semibold transition-colors cursor-pointer ${
                       watchedAddressMode === 'SAVED'
-                        ? 'bg-primary-500 text-white'
-                        : 'text-neutral-700 hover:text-ink'
+                        ? 'bg-white text-ink shadow-xs'
+                        : 'text-neutral-600 hover:text-ink'
                     }`}
                   >
-                    Sổ địa chỉ đã lưu
+                    Địa chỉ đã lưu
                   </button>
                   <button
                     type="button"
@@ -305,13 +369,13 @@ export const CreateBookingPage = () => {
                         shouldValidate: true,
                       })
                     }
-                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+                    className={`px-3 h-7 rounded text-xs font-semibold transition-colors cursor-pointer ${
                       watchedAddressMode === 'MANUAL'
-                        ? 'bg-primary-500 text-white'
-                        : 'text-neutral-700 hover:text-ink'
+                        ? 'bg-white text-ink shadow-xs'
+                        : 'text-neutral-600 hover:text-ink'
                     }`}
                   >
-                    Nhập địa chỉ mới
+                    Địa chỉ mới
                   </button>
                 </div>
               </div>
@@ -350,18 +414,10 @@ export const CreateBookingPage = () => {
                               <span className="font-medium text-neutral-700">
                                 {addr.recipientPhone}
                               </span>
-                              <span className="text-xs font-semibold text-primary-600">
-                                ({addr.label})
-                              </span>
                             </div>
                             <p className="text-neutral-600 mt-1">
                               {addr.addressLine}, {addr.ward}, {addr.city}
                             </p>
-                            {addr.instructions && (
-                              <p className="text-xs text-neutral-500 mt-1">
-                                Hướng dẫn: {addr.instructions}
-                              </p>
-                            )}
                           </div>
                         </div>
                       </label>
@@ -377,21 +433,21 @@ export const CreateBookingPage = () => {
                 <div className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <FormField
-                      label="Họ tên người liên hệ"
+                      label="Người liên hệ"
                       htmlFor="recipientName"
                       required
                       error={errors.recipientName?.message}
                     >
                       <Input
                         id="recipientName"
-                        placeholder="Ví dụ: Lê Khách Mới"
+                        placeholder="Nguyễn Văn An"
                         leftIcon={<User className="w-4 h-4" />}
                         {...register('recipientName')}
                       />
                     </FormField>
 
                     <FormField
-                      label="Số điện thoại liên hệ"
+                      label="Số điện thoại"
                       htmlFor="recipientPhone"
                       required
                       error={errors.recipientPhone?.message}
@@ -427,14 +483,14 @@ export const CreateBookingPage = () => {
                     >
                       <Input
                         id="ward"
-                        placeholder="Ví dụ: Dịch Vọng, Cầu Giấy"
+                        placeholder="Dịch Vọng, Cầu Giấy"
                         {...register('ward')}
                       />
                     </FormField>
                   </div>
 
                   <FormField
-                    label="Số nhà, ngõ, tên đường chi tiết"
+                    label="Địa chỉ chi tiết"
                     htmlFor="addressLine"
                     required
                     error={errors.addressLine?.message}
@@ -447,13 +503,13 @@ export const CreateBookingPage = () => {
                   </FormField>
 
                   <FormField
-                    label="Hướng dẫn tìm nhà / vào cổng (addressInstructions)"
+                    label="Hướng dẫn tìm nhà"
                     htmlFor="addressInstructions"
                     error={errors.addressInstructions?.message}
                   >
                     <Input
                       id="addressInstructions"
-                      placeholder="Ví dụ: Gửi xe tầng hầm B1, bấm chuông cửa số 2"
+                      placeholder="Gửi xe tầng hầm B1, bấm chuông cửa số 2"
                       {...register('addressInstructions')}
                     />
                   </FormField>
@@ -461,14 +517,14 @@ export const CreateBookingPage = () => {
               )}
 
               <FormField
-                label="Ghi chú công việc cho kỹ thuật viên (customerNote)"
+                label="Ghi chú cho kỹ thuật viên"
                 htmlFor="customerNote"
                 error={errors.customerNote?.message}
               >
                 <textarea
                   id="customerNote"
                   rows={3}
-                  placeholder="Ví dụ: Nhà có trẻ nhỏ ngủ buổi trưa, xin gọi điện trước khi bấm chuông..."
+                  placeholder="Ghi chú thêm về yêu cầu công việc..."
                   className="w-full rounded-md border border-neutral-200 px-3 py-2.5 text-[15px] font-sans text-ink bg-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                   {...register('customerNote')}
                 />
@@ -476,62 +532,37 @@ export const CreateBookingPage = () => {
             </div>
           </div>
 
-          {/* Cột phải (1/3): Snapshot Tài chính & Chính sách + Submit */}
           <div className="space-y-6">
             <div className="bg-white border border-neutral-200 rounded-lg shadow-xs p-5 sm:p-6 space-y-5 sticky top-24">
               <div className="pb-3 border-b border-neutral-200">
                 <h2 className="text-[17px] font-semibold text-ink flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary-600" />
-                  <span>Tóm tắt chi phí & Chính sách</span>
+                  <span>Tóm tắt chi phí</span>
                 </h2>
               </div>
 
               <dl className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <dt className="text-neutral-500">Tổng giá gói cố định:</dt>
+                  <dt className="text-neutral-500">Tổng giá gói:</dt>
                   <dd className="font-bold text-ink text-base">
                     {formatVnd(totalAmountVnd)}
                   </dd>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <dt className="text-neutral-500">
-                    Đặt cọc giữ lịch (30%):
-                  </dt>
+                  <dt className="text-neutral-500">Đặt cọc giữ lịch:</dt>
                   <dd className="font-semibold text-primary-600">
                     {formatVnd(depositAmountVnd)}
                   </dd>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <dt className="text-neutral-500">
-                    Thanh toán sau hoàn thành (70%):
-                  </dt>
+                  <dt className="text-neutral-500">Thanh toán sau hoàn thành:</dt>
                   <dd className="font-medium text-ink">
                     {formatVnd(balanceAmountVnd)}
                   </dd>
                 </div>
               </dl>
-
-              {/* Chính sách hủy snapshot */}
-              <div className="p-3.5 rounded-md bg-neutral-50 border border-neutral-200 space-y-2 text-xs text-neutral-600 leading-relaxed">
-                <p className="font-semibold text-ink flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-primary-600 shrink-0" />
-                  <span>Chính sách giữ lịch & hoàn cọc (UC08 / UC11)</span>
-                </p>
-                <ul className="list-disc pl-4 space-y-1">
-                  <li>
-                    Sau khi gửi yêu cầu, đơn ở trạng thái{' '}
-                    <strong>Chờ xác nhận (PENDING_PROVIDER)</strong> và chưa thu tiền cọc.
-                  </li>
-                  <li>
-                    Khi thợ nhận đơn, bạn có 15–30 phút để thanh toán cọc 30%.
-                  </li>
-                  <li>
-                    Hủy trước giờ hẹn ≥ 30 phút: hoàn <strong>50%</strong> tiền cọc. Hủy sát giờ (&lt; 30 phút): hoàn <strong>0%</strong>.
-                  </li>
-                </ul>
-              </div>
 
               <Button
                 type="submit"

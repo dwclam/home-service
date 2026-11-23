@@ -17,6 +17,21 @@ export const login = async ({ email, password }) => {
 }
 
 /**
+ * Đăng nhập quản trị viên (UC27 — POST /api/auth/login/admin).
+ * Phản hồi 200: { account, accessToken, tokenType, expiresAt } và cookie HttpOnly NESTIFY_REFRESH.
+ * @param {{ email: string, password: string }} payload
+ */
+export const loginAdmin = async ({ email, password }) => {
+  const body = {
+    email: email.trim(),
+    password,
+  }
+
+  const response = await http.post('/auth/login/admin', body)
+  return response.data
+}
+
+/**
  * Đăng xuất khỏi hệ thống: Thu hồi chuỗi refresh token hiện tại và xóa cookie.
  * Phản hồi 204: No Content.
  * @returns {Promise<void>}

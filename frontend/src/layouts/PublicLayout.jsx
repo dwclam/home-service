@@ -8,40 +8,41 @@ import { logout } from '../features/auth/api'
 import { clearCsrfToken } from '../lib/http'
 import { Button } from '../components/ui/Button'
 import { BrandLogo } from '../components/ui/BrandLogo'
+import { ScrollToTop } from '../components/ui/ScrollToTop'
 
 const navLinks = [
-  { label: 'Đặt dịch vụ', href: '#featured' },
-  { label: 'Danh mục', href: '#categories' },
-  { label: 'Cách hoạt động', href: '#how-it-works' },
-  { label: 'Về chúng tôi', href: '#footer' },
+  { label: 'Dịch vụ', to: '/services' },
+  { label: 'Danh mục', to: '/#categories' },
+  { label: 'Cách hoạt động', to: '/#how-it-works' },
+  { label: 'Về chúng tôi', to: '/#footer' },
 ]
 
 const footerGroups = [
   {
     title: 'Sản phẩm',
     links: [
-      { label: 'Dịch vụ', href: '#featured' },
-      { label: 'Nhà cung cấp', href: '#providers' },
-      { label: 'Bảng giá', href: '#featured' },
-      { label: 'Khuyến mãi', href: '#featured' },
+      { label: 'Dịch vụ', to: '/services' },
+      { label: 'Nhà cung cấp', to: '/#providers' },
+      { label: 'Bảng giá', to: '/services' },
+      { label: 'Khuyến mãi', to: '/services' },
     ],
   },
   {
     title: 'Công ty',
     links: [
-      { label: 'Về chúng tôi', href: '#footer' },
-      { label: 'Tuyển dụng', href: '#provider' },
-      { label: 'Blog', href: '#footer' },
-      { label: 'Liên hệ', href: '#footer' },
+      { label: 'Về chúng tôi', to: '/#footer' },
+      { label: 'Tuyển dụng', to: '/#provider' },
+      { label: 'Blog', to: '/#footer' },
+      { label: 'Liên hệ', to: '/#footer' },
     ],
   },
   {
     title: 'Hỗ trợ',
     links: [
-      { label: 'Trung tâm trợ giúp', href: '#footer' },
-      { label: 'Điều khoản', href: '#footer' },
-      { label: 'Bảo mật', href: '#footer' },
-      { label: 'Hoàn tiền', href: '#footer' },
+      { label: 'Trung tâm trợ giúp', to: '/#footer' },
+      { label: 'Điều khoản', to: '/#footer' },
+      { label: 'Bảo mật', to: '/#footer' },
+      { label: 'Hoàn tiền', to: '/#footer' },
     ],
   },
 ]
@@ -54,7 +55,6 @@ function Header() {
 
   const { isAuthenticated, account, clearAuth } = useAuthStore()
 
-  // Đóng dropdown khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -75,12 +75,11 @@ function Header() {
     } finally {
       clearCsrfToken()
       clearAuth()
-      toast.success('Đã đăng xuất tài khoản.')
+      toast.success('Đã đăng xuất.')
       navigate('/')
     }
   }
 
-  // Lấy chữ cái đầu cho Avatar
   const initialLetter = (account?.displayName || account?.email || 'U')
     .trim()
     .charAt(0)
@@ -90,68 +89,63 @@ function Header() {
     <header id="top" className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-3">
-          {/* Logo & Navigation chính */}
           <div className="flex items-center gap-10">
             <BrandLogo size="md" />
             <nav aria-label="Điều hướng chính" className="hidden items-center gap-7 lg:flex">
-              {navLinks.map(({ label, href }) => (
-                <a
+              {navLinks.map(({ label, to }) => (
+                <Link
                   key={label}
-                  href={href}
+                  to={to}
                   className="text-sm font-medium font-sans text-neutral-700 transition-colors hover:text-primary-600"
                 >
                   {label}
-                </a>
+                </Link>
               ))}
             </nav>
           </div>
 
-          {/* Cụm điều hướng Auth bên phải (Desktop) */}
-          <div className="hidden items-center gap-3 sm:flex font-sans">
-            <a
-              href="#provider"
-              className="inline-flex h-9 items-center rounded-full bg-primary-50 px-4 text-xs font-medium text-ink hover:bg-primary-100 transition-colors"
-            >
-              Trở thành nhà cung cấp
-            </a>
+          <div className="hidden items-center gap-2.5 sm:flex font-sans">
+            <Link to="/#provider">
+              <Button variant="secondary" size="sm">
+                Trở thành nhà cung cấp
+              </Button>
+            </Link>
 
             {!isAuthenticated ? (
               <>
-                <Link
-                  to="/login"
-                  className="inline-flex h-10 items-center px-3.5 text-sm font-medium text-neutral-700 hover:text-primary-600 transition-colors"
-                >
-                  Đăng nhập
+                <Link to="/login">
+                  <Button variant="ghost" size="sm">
+                    Đăng nhập
+                  </Button>
                 </Link>
 
                 <Link to="/register">
-                  <Button variant="primary" size="md">
+                  <Button variant="primary" size="sm">
                     Đăng ký
                   </Button>
                 </Link>
               </>
             ) : (
-              /* User Profile & Dropdown */
               <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2.5 p-1.5 pl-2.5 rounded-full hover:bg-neutral-100 border border-neutral-200 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20"
+                  className="inline-flex items-center gap-2 h-9 px-2.5 rounded-md bg-white hover:bg-neutral-50 border border-neutral-200 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20"
                   aria-expanded={userDropdownOpen}
                   aria-haspopup="true"
                 >
-                  <div className="w-7 h-7 rounded-full bg-primary-500 text-white font-semibold text-xs flex items-center justify-center shrink-0">
+                  <div className="w-6 h-6 rounded-full bg-primary-500 text-white font-semibold text-xs flex items-center justify-center shrink-0">
                     {initialLetter}
                   </div>
-                  <span className="text-sm font-medium text-ink max-w-[140px] truncate">
+                  <span className="text-xs font-medium text-ink max-w-[140px] truncate">
                     {account?.displayName || 'Tài khoản'}
                   </span>
-                  <ChevronDown className="w-4 h-4 text-neutral-400 mr-1" />
+                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
                 </button>
 
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-md bg-white border border-neutral-200 shadow-md py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="px-4 py-2 border-b border-neutral-100">
+                  <div className="absolute right-0 mt-1.5 w-52 rounded-md bg-white border border-neutral-200 shadow-md py-1 z-50">
+                    <div className="px-3.5 py-2 border-b border-neutral-100">
                       <p className="text-sm font-semibold text-ink truncate">
                         {account?.displayName || 'Khách hàng'}
                       </p>
@@ -165,16 +159,16 @@ function Header() {
                           <Link
                             to="/customer/bookings/new"
                             onClick={() => setUserDropdownOpen(false)}
-                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                            className="w-full flex items-center gap-2 px-3.5 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
                           >
-                            <span>Đặt lịch dịch vụ mới (UC08)</span>
+                            <span>Đặt lịch dịch vụ</span>
                           </Link>
                           <Link
                             to="/customer/bookings"
                             onClick={() => setUserDropdownOpen(false)}
-                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                            className="w-full flex items-center gap-2 px-3.5 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
                           >
-                            <span>Đơn đặt dịch vụ của tôi (UC11)</span>
+                            <span>Đơn đặt của tôi</span>
                           </Link>
                         </>
                       )}
@@ -183,7 +177,7 @@ function Header() {
                         <Link
                           to="/provider/profile"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                          className="w-full flex items-center gap-2 px-3.5 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
                         >
                           <span>Khu vực Nhà cung cấp</span>
                         </Link>
@@ -193,16 +187,16 @@ function Header() {
                         <Link
                           to="/admin"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
+                          className="w-full flex items-center gap-2 px-3.5 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors text-left"
                         >
-                          <span>Quản trị vận hành</span>
+                          <span>Quản trị hệ thống</span>
                         </Link>
                       )}
 
                       <button
                         type="button"
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors text-left cursor-pointer"
+                        className="w-full flex items-center gap-2 px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors text-left cursor-pointer"
                       >
                         <LogOut className="w-4 h-4" />
                         <span>Đăng xuất</span>
@@ -214,62 +208,56 @@ function Header() {
             )}
           </div>
 
-          {/* Nút Hamburger menu Mobile */}
           <button
             type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 lg:hidden cursor-pointer"
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-neutral-200 lg:hidden cursor-pointer"
             aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen(!menuOpen)}
           >
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            {menuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
 
-        {/* Mobile Navigation Drawer */}
         {menuOpen && (
           <nav aria-label="Điều hướng di động" className="flex flex-col gap-1 border-t border-neutral-200 py-3 lg:hidden font-sans">
-            {navLinks.map(({ label, href }) => (
-              <a
+            {navLinks.map(({ label, to }) => (
+              <Link
                 key={label}
-                href={href}
+                to={to}
                 onClick={() => setMenuOpen(false)}
                 className="rounded-md px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
               >
                 {label}
-              </a>
+              </Link>
             ))}
 
-            <a
-              href="#provider"
+            <Link
+              to="/#provider"
               onClick={() => setMenuOpen(false)}
               className="rounded-md px-3 py-2 text-sm font-medium text-primary-600 hover:bg-neutral-50"
             >
               Trở thành nhà cung cấp
-            </a>
+            </Link>
 
             <div className="pt-2 mt-2 border-t border-neutral-200 flex flex-col gap-2">
               {!isAuthenticated ? (
                 <>
-                  <Link
-                    to="/login"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center justify-center h-10 rounded-md border border-neutral-200 text-sm font-medium text-ink hover:bg-neutral-50"
-                  >
-                    Đăng nhập
+                  <Link to="/login" onClick={() => setMenuOpen(false)}>
+                    <Button variant="secondary" size="md" fullWidth>
+                      Đăng nhập
+                    </Button>
                   </Link>
-                  <Link
-                    to="/register"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center justify-center h-10 rounded-md bg-primary-500 text-sm font-medium text-white hover:bg-primary-600"
-                  >
-                    Đăng ký tài khoản
+                  <Link to="/register" onClick={() => setMenuOpen(false)}>
+                    <Button variant="primary" size="md" fullWidth>
+                      Đăng ký
+                    </Button>
                   </Link>
                 </>
               ) : (
                 <div className="space-y-2">
                   <div className="px-3 py-2 bg-neutral-50 rounded-md flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-primary-500 text-white font-semibold text-xs flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-primary-500 text-white font-semibold text-xs flex items-center justify-center shrink-0">
                       {initialLetter}
                     </div>
                     <div className="truncate">
@@ -280,14 +268,15 @@ function Header() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    fullWidth
                     onClick={handleLogout}
-                    className="w-full flex items-center justify-center gap-2 h-10 rounded-md bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors cursor-pointer"
+                    leftIcon={<LogOut className="w-4 h-4" />}
                   >
-                    <LogOut className="w-4 h-4" />
                     Đăng xuất
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -306,7 +295,7 @@ function Footer() {
           <div className="col-span-2">
             <BrandLogo size="md" />
             <p className="mb-5 mt-4 max-w-xs text-sm leading-relaxed text-neutral-500">
-              Nền tảng kết nối khách hàng với nhà cung cấp dịch vụ gia đình uy tín hàng đầu Việt Nam.
+              Nền tảng kết nối khách hàng với nhà cung cấp dịch vụ gia đình uy tín.
             </p>
           </div>
 
@@ -314,14 +303,14 @@ function Footer() {
             <div key={group.title}>
               <h3 className="mb-4 text-sm font-semibold text-ink">{group.title}</h3>
               <ul className="space-y-3">
-                {group.links.map(({ label, href }) => (
+                {group.links.map(({ label, to }) => (
                   <li key={label}>
-                    <a
-                      href={href}
+                    <Link
+                      to={to}
                       className="text-sm text-neutral-500 hover:text-primary-600 transition-colors"
                     >
                       {label}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -330,16 +319,16 @@ function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-neutral-200 pt-8 sm:flex-row">
-          <p className="text-sm text-neutral-500">© 2026 Nestify. Bảo lưu mọi quyền.</p>
+          <p className="text-sm text-neutral-500">© 2026 Nestify.</p>
           <div className="flex items-center gap-6">
             {['Điều khoản', 'Bảo mật', 'Cookie'].map((label) => (
-              <a
+              <Link
                 key={label}
-                href="#footer"
+                to="/#footer"
                 className="text-sm text-neutral-500 hover:text-primary-600 transition-colors"
               >
                 {label}
-              </a>
+              </Link>
             ))}
           </div>
         </div>
@@ -351,6 +340,7 @@ function Footer() {
 export const PublicLayout = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      <ScrollToTop />
       <Header />
       <main className="flex-1">{children || <Outlet />}</main>
       <Footer />

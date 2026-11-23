@@ -2,6 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '../features/auth/authStore'
 import { ROLE_DEFAULT_ROUTES } from '../constants/roles'
+import { ScrollToTop } from '../components/ui/ScrollToTop'
 
 export const PublicRoute = ({ children }) => {
   const { isAuthenticated, isInitialized, account } = useAuthStore()
@@ -23,7 +24,12 @@ export const PublicRoute = ({ children }) => {
     return <Navigate to={defaultTarget} replace />
   }
 
-  return children || <Outlet />
+  return (
+    <>
+      <ScrollToTop />
+      {children || <Outlet />}
+    </>
+  )
 }
 
 export default PublicRoute

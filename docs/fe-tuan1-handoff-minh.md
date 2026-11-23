@@ -1,12 +1,12 @@
-# Nestify — Tài Liệu Bàn Giao Frontend Tuần 1 (Minh — FE2)
+# Nestify — Tài Liệu Bàn Giao Frontend Tuần 1, 2 & 3 (Minh — FE2)
 
-**Ngày cập nhật:** 31/10/2026  
+**Ngày cập nhật:** 14/11/2026  
 **Người thực hiện:** Minh (FE2 — Khu vực Nhà cung cấp & Admin vận hành)  
 **Đối tượng sử dụng tài liệu:**
-- **TLam (FE1):** Sử dụng các Component UI dùng chung (`DashboardLayout`, `DataTable`, `Pagination`, `StatusBadge`, `EmptyState`, `ProtectedRoute`) và phối hợp luồng Khách hàng (UC08, UC11).
-- **Cường (BE):** Đối chiếu hợp đồng Request/Response cho **UC18 (Hồ sơ NCC)**, **UC19 (Dịch vụ NCC)** và **UC30 (Danh mục hoạt động)**.
-- **Thuỷ (BE):** Đối chiếu hợp đồng Request/Response cho **UC20 (Lịch rảnh NCC)** và nghiệm thu tích hợp **UC08 (Đặt lịch)**, **UC11 (Khách hủy đơn)**.
-- **Lâm & Cả nhóm:** Hướng dẫn chạy demo và kiểm tra phân quyền theo vai trò cuối Tuần 1.
+- **TLam (FE1):** Sử dụng các Component UI dùng chung (`DashboardLayout`, `DataTable`, `Pagination`, `StatusBadge`, `EmptyState`, `ProtectedRoute`), các hàm API trong `features/booking/api.js` và `features/catalog/api.js`, và phối hợp luồng Khách hàng (UC05, UC08, UC11, UC38).
+- **Cường (BE):** Đối chiếu hợp đồng Request/Response đã kết nối cho **UC18 (Hồ sơ NCC)**, **UC19 (Dịch vụ NCC)**, **UC30 (Cây danh mục)**, **UC05 (Tìm kiếm dịch vụ)** và điểm chờ API **UC40 (Danh sách đơn phía NCC)**.
+- **Thuỷ (BE):** Đối chiếu hợp đồng Request/Response đã kết nối cho **UC20 (Lịch rảnh NCC + Batch + Auto-Merge)**, **UC21 (Chấp nhận / Từ chối đơn)**, **UC22 (Bắt đầu / Hoàn thành dịch vụ)**, **UC38 (Lịch rảnh & Giá gói dịch vụ)**, **UC51 (Quét hết hạn đơn & Nhả lịch rảnh)** và **UC08 / UC11**.
+- **Lâm & Cả nhóm:** Đối chiếu cổng đăng nhập Quản trị viên **UC27 (`/api/auth/login/admin`)** và hướng dẫn chạy demo luồng P0 cuối Tuần 2 & Tuần 3.
 
 ---
 
@@ -249,4 +249,63 @@ Khi chạy ở chế độ phát triển (`npm run dev`), tại cuối trang **`
    - `/provider/profile` — Cập nhật hồ sơ công khai & xem trước thẻ hiển thị (UC18).
    - `/provider/services` — Bảng danh sách, bộ lọc trạng thái, tìm kiếm, phân trang và Modal tạo/sửa gói dịch vụ kèm sắp xếp ảnh (UC19).
    - `/provider/availability` — Quản lý khoảng lịch `AVAILABLE` / `BLOCKED` và kiểm tra chống chồng lấn khung giờ (UC20).
-3. **Khu vực Admin:** Vào phiên `ADMIN` tại `/admin` để kiểm tra `DashboardLayout` ở chế độ Quản trị viên và bảng đối chiếu 6 trạng thái `StatusBadge`.
+   - `/provider/bookings` — Quản lý đơn đặt dịch vụ của NCC: nhận đơn / từ chối đơn (UC21), bắt đầu / hoàn thành dịch vụ (UC22), xem chi tiết Snapshot & dòng thời gian (UC40).
+3. **Khu vực Admin:** Vào phiên `ADMIN` tại `/admin` để kiểm tra `DashboardLayout` ở chế độ Quản trị viên, bảng đối chiếu 6 trạng thái `StatusBadge` và nút kích hoạt quét đơn quá hạn theo yêu cầu (UC51).
+
+---
+
+## 5. Tổng Quan Bàn Giao Nối Tiếp Tuần 2 & Tuần 3 (Minh — FE2)
+
+### 5.1. Bảng ánh xạ Use Case ↔ API Backend thật ↔ File Frontend đã kết nối
+
+| Use Case | Đầu mối BE | Endpoint Backend đã tích hợp | File Frontend xử lý | Trạng thái |
+| :--- | :--- | :--- | :--- | :--- |
+| **UC18** — Hồ sơ Nhà cung cấp | Cường | `GET /api/provider/profile`<br/>`PUT /api/provider/profile` | `frontend/src/features/provider/api.js`<br/>`frontend/src/features/provider/schemas.js`<br/>`frontend/src/pages/provider/ProviderProfilePage.jsx` | Đã nối khớp 100% với `ProviderProfileController` (5 trường `businessName`, `city`, `address`, `bio`, `logoUrl` + trạng thái `visible` chỉ đọc). |
+| **UC19 & UC30** — Dịch vụ NCC & Cây danh mục | Cường | `GET /api/public/categories/tree`<br/>`GET /api/provider/services`<br/>`POST /api/provider/services`<br/>`PUT /api/provider/services/{id}`<br/>`PATCH /api/provider/services/{id}/publish`<br/>`PATCH /api/provider/services/{id}/archive` | `frontend/src/features/catalog/api.js`<br/>`frontend/src/pages/provider/ProviderServicesPage.jsx`<br/>`frontend/src/features/catalog/components/ServiceFormModal.jsx` | Đã nối khớp `ProviderServiceController` & `CategoryPublicController`: tự làm phẳng cây danh mục cha-con, đọc `Page<ServiceResponse>` của Spring, và tự động gọi chuỗi `PATCH /publish` hoặc `/archive`. |
+| **UC20** — Quản lý lịch rảnh NCC | Thuỷ | `GET /api/v1/provider/availability`<br/>`POST /api/v1/provider/availability`<br/>`POST /api/v1/provider/availability/batch`<br/>`DELETE /api/v1/provider/availability/{id}` | `frontend/src/features/provider/api.js`<br/>`frontend/src/pages/provider/ProviderAvailabilityPage.jsx`<br/>`frontend/src/features/provider/components/AvailabilityFormModal.jsx` | Đã nối khớp `ProviderAvailabilityController`: hỗ trợ mở ca đơn, mở ca hàng loạt 3 ngày tới (`BatchAvailabilityRequest`), Auto-Merge (`BR-UC20-05`) và cảnh báo `409 DATA_CONFLICT` (`BR-UC20-03`). |
+| **UC21** — Chấp nhận / Từ chối đơn | Thuỷ | `POST /api/v1/provider/bookings/{id}/accept`<br/>`POST /api/v1/provider/bookings/{id}/reject` | `frontend/src/features/booking/api.js`<br/>`frontend/src/features/booking/components/RejectBookingModal.jsx`<br/>`frontend/src/pages/provider/ProviderBookingsPage.jsx` | Đã nối khớp `ProviderBookingController`: gửi kèm `version` (Optimistic Lock), bắt buộc nhập `reason` (`@NotBlank`, tối đa 500 ký tự) khi từ chối, đếm ngược `requestExpiresAt` và tự reload khi gặp `409 DATA_CONFLICT`. |
+| **UC22** — Bắt đầu / Hoàn thành dịch vụ | Thuỷ | `POST /api/v1/provider/bookings/{id}/start`<br/>`POST /api/v1/provider/bookings/{id}/complete` | `frontend/src/features/booking/api.js`<br/>`frontend/src/features/booking/components/ServiceActionModal.jsx`<br/>`frontend/src/pages/provider/ProviderBookingsPage.jsx` | Đã nối khớp `ProviderBookingController`: khóa nút Bắt đầu nếu `now < startsAt` (`BR-UC22-01`), hỗ trợ nhập `note` nghiệm thu (tối đa 500 ký tự), hiển thị `startedAt`, `completedAt`, `balanceDueAt (+24h)`. |
+| **UC40** — Danh sách & Chi tiết đơn phía NCC | Cường | `GET /api/v1/provider/bookings` *(đang chờ BE mở endpoint GET)* | `frontend/src/pages/provider/ProviderBookingsPage.jsx`<br/>`frontend/src/features/booking/components/ProviderBookingDetailModal.jsx` | FE đã gọi sẵn `/v1/provider/bookings` (và `/provider/bookings`), có bộ lọc 7 tab trạng thái, tìm kiếm từ khóa, Modal chi tiết Snapshot + Thanh **Thao tác nhanh theo ID đơn** để test trực tiếp đơn thật trong DB. |
+| **UC38** — Xem lịch rảnh & giá gói dịch vụ | Thuỷ | `GET /api/v1/customer/services/{serviceId}/available-slots` | `frontend/src/features/booking/api.js`<br/>`frontend/src/pages/customer/CreateBookingPage.jsx` | Khi khách chọn gói dịch vụ tại `/customer/bookings/new`, FE tự động gọi UC38 để hiển thị các khung giờ rảnh khả dụng của NCC; bấm vào ca rảnh sẽ tự điền ngày & giờ hẹn. |
+| **UC51** — Quét hết hạn đơn & Nhả lịch rảnh | Thuỷ | `POST /api/v1/admin/bookings/expire-overdue` | `frontend/src/features/booking/api.js`<br/>`frontend/src/pages/admin/AdminOverviewPage.jsx` | Trang `/admin` có nút **"Chạy quét đơn quá hạn (UC51)"** gọi trực tiếp `AdminBookingController` và hiển thị 4 chỉ số kết quả: `providerExpiredCount`, `depositExpiredCount`, `totalExpiredCount`, `totalErrors`. |
+| **UC27** — Đăng nhập Quản trị viên | Lâm | `POST /api/auth/login/admin` | `frontend/src/features/auth/api.js`<br/>`frontend/src/features/auth/components/LoginForm.jsx` | Bổ sung công tắc chọn cổng **Khách hàng / Đối tác (UC02)** hoặc **Quản trị viên (UC27)** ngay trên biểu mẫu `/login`. |
+
+---
+
+## 6. Ghi Chú Phối Hợp Dành Cho TLam (FE1), Cường (BE2) & Thuỷ (BE3) Ở Tuần 2–3
+
+### 6.1. Dành cho TLam (FE1 — Khu vực Khách hàng & Admin cơ bản)
+1. **Hàm API đã có sẵn để tái sử dụng**:
+   - `getServiceAvailableSlots(serviceId, { from, to })` trong `frontend/src/features/booking/api.js` (UC38).
+   - `getBookableServices()` trong `frontend/src/features/booking/api.js` đã kết nối với `GET /api/customer/services` (UC05 của Cường).
+   - `getActiveCategories()` trong `frontend/src/features/catalog/api.js` đã kết nối với `GET /api/public/categories/tree` (UC30 của Cường).
+2. **Đồng bộ hiển thị vòng đời đơn hàng**:
+   - Trang `/customer/bookings` (`CustomerBookingsPage.jsx`) đã được bổ sung đủ 7 tab trạng thái (`ALL`, `PENDING_PROVIDER`, `PENDING_DEPOSIT`, `CONFIRMED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`) và hiển thị đồng bộ các mốc `acceptedAt`, `depositDueAt`, `startedAt`, `completedAt`, `balanceDueAt` khớp với màn hình Nhà cung cấp.
+
+### 6.2. Dành cho Cường (BE2) & Thuỷ (BE3)
+1. **Điểm lưu ý về tiền tố URL (`/api/...` vs `/api/v1/...`)**:
+   - Các Controller của Thuỷ (`CustomerBookingController`, `ProviderBookingController`, `AdminBookingController`, `ProviderAvailabilityController`, `CustomerServiceAvailabilityController`) đều đã hỗ trợ song song cả `/api/v1/...` và `/api/...`.
+   - Các Controller của Cường (`ProviderProfileController`, `ProviderServiceController`) hiện dùng `/api/provider/profile` và `/api/provider/services`. Frontend của Minh đã cập nhật khớp chính xác với các đường dẫn này.
+2. **Endpoint danh sách đơn của NCC (UC40)**:
+   - Hiện tại `ProviderBookingController` đã có đủ 4 API hành động (`POST accept`, `POST reject`, `POST start`, `POST complete`). Khi Cường hoặc Thuỷ bổ sung thêm `GET /api/v1/provider/bookings` (trả `PageResponse<BookingResponse>` hoặc `List<BookingResponse>`), trang `/provider/bookings` của Minh sẽ tự động hiển thị danh sách đơn từ Database mà không cần chỉnh sửa lại FE.
+   - Trong thời gian chờ API `GET` danh sách, mọi người có thể dùng ngay khung **"Thao tác nhanh theo ID đơn"** ở đầu trang `/provider/bookings`: chỉ cần nhập `bookingId` (ví dụ đơn vừa tạo từ phía Khách hàng) và bấm `Accept` / `Reject` / `Start` / `Complete` để gọi thẳng xuống Backend thật.
+
+---
+
+## 7. Kịch Bản Diễn Tập Thông Luồng P0 (Khách → NCC → Admin)
+
+1. **Bước 1 — Nhà cung cấp mở lịch rảnh (UC20)**:
+   - Đăng nhập quyền Nhà cung cấp (hoặc bấm nút **Khu vực NCC** tại `/login`) → vào `/provider/availability`.
+   - Bấm **"Mở ca nhanh 3 ngày tới (Batch)"** hoặc **"+ Thêm khoảng lịch"** để mở ca rảnh cho ngày mai.
+2. **Bước 2 — Khách hàng xem lịch rảnh & đặt lịch (UC38 & UC08)**:
+   - Chuyển sang quyền Khách hàng → vào `/customer/bookings/new`.
+   - Chọn gói dịch vụ, bấm vào một **Khung giờ rảnh khả dụng của Nhà cung cấp (UC38)** để điền nhanh ngày giờ, chọn địa chỉ và bấm **"Xác nhận đặt lịch"**. Đơn mới sẽ ở trạng thái `PENDING_PROVIDER` kèm đồng hồ đếm ngược `requestExpiresAt`.
+3. **Bước 3 — Nhà cung cấp Chấp nhận hoặc Từ chối đơn (UC21)**:
+   - Vào `/provider/bookings` → lọc tab **Chờ xác nhận (UC21)**.
+   - Bấm **"Chấp nhận"** để chuyển đơn sang `PENDING_DEPOSIT` (thiết lập `acceptedAt` và `depositDueAt`), hoặc bấm **"Từ chối"** để mở hộp thoại nhập lý do bắt buộc (`RejectBookingModal`) và chuyển đơn sang `REJECTED` (nhả lịch về `AVAILABLE`).
+4. **Bước 4 — Khách hàng đặt cọc 30% & Nhà cung cấp Bắt đầu / Hoàn thành dịch vụ (UC22)**:
+   - Trên thẻ đơn `PENDING_DEPOSIT` tại `/provider/bookings`, có thể bấm nút **"Dev: Mô phỏng khách đã cọc 30%"** để chuyển đơn sang `CONFIRMED`.
+   - Với đơn `CONFIRMED` đã tới giờ hẹn (`now >= startsAt`), bấm **"Bắt đầu dịch vụ (UC22)"** → nhập ghi chú bắt đầu → đơn chuyển sang `IN_PROGRESS` (icon xoay `animate-spin`, ghi nhận `startedAt`).
+   - Khi làm xong, bấm **"Hoàn thành dịch vụ (UC22)"** → nhập biên bản nghiệm thu → đơn chuyển sang `COMPLETED` (ghi nhận `completedAt` và `balanceDueAt = +24 giờ`).
+5. **Bước 5 — Admin quét đóng các đơn quá hạn phản hồi / quá hạn đặt cọc (UC51)**:
+   - Vào `/admin` → tại khối **Quét đóng đơn quá hạn & Nhả lịch rảnh tự động (UC51)**, bấm **"Chạy quét đơn quá hạn (UC51)"** để gọi `POST /api/v1/admin/bookings/expire-overdue` và kiểm tra bảng thống kê số đơn chuyển sang `EXPIRED`.

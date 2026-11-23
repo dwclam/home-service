@@ -5,16 +5,11 @@ import {
   Briefcase,
   CalendarClock,
   ClipboardList,
-  Wallet,
-  MessageSquare,
   LayoutDashboard,
-  ShieldAlert,
-  FileBarChart2,
   Menu,
   X,
   LogOut,
   Home,
-  ChevronRight,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -22,84 +17,39 @@ import { useAuthStore } from '../features/auth/authStore'
 import { logout } from '../features/auth/api'
 import { clearCsrfToken } from '../lib/http'
 import { BrandLogo } from '../components/ui/BrandLogo'
-import { ROLES, ROLE_LABELS } from '../constants/roles'
+import { Button } from '../components/ui/Button'
+import { ScrollToTop } from '../components/ui/ScrollToTop'
+import { ROLES } from '../constants/roles'
 
 const PROVIDER_NAV_ITEMS = [
   {
     label: 'Hồ sơ nhà cung cấp',
     to: '/provider/profile',
     icon: UserCircle,
-    badge: 'UC18',
   },
   {
-    label: 'Gói dịch vụ & Ảnh',
+    label: 'Gói dịch vụ',
     to: '/provider/services',
     icon: Briefcase,
-    badge: 'UC19',
   },
   {
-    label: 'Quản lý lịch rảnh',
+    label: 'Lịch làm việc',
     to: '/provider/availability',
     icon: CalendarClock,
-    badge: 'UC20',
   },
   {
     label: 'Đơn đặt dịch vụ',
     to: '/provider/bookings',
     icon: ClipboardList,
-    disabled: true,
-    hint: 'Tuần 2–3',
-  },
-  {
-    label: 'Thu nhập & Ngân hàng',
-    to: '/provider/finance',
-    icon: Wallet,
-    disabled: true,
-    hint: 'P1/P2',
-  },
-  {
-    label: 'Tin nhắn khách hàng',
-    to: '/provider/chat',
-    icon: MessageSquare,
-    disabled: true,
-    hint: 'P2',
   },
 ]
 
 const ADMIN_NAV_ITEMS = [
   {
-    label: 'Tổng quan vận hành',
+    label: 'Tổng quan',
     to: '/admin',
     end: true,
     icon: LayoutDashboard,
-  },
-  {
-    label: 'Vận hành đơn hàng',
-    to: '/admin/bookings',
-    icon: ClipboardList,
-    disabled: true,
-    hint: 'P1',
-  },
-  {
-    label: 'Giao dịch & Đối soát',
-    to: '/admin/finance',
-    icon: Wallet,
-    disabled: true,
-    hint: 'P1',
-  },
-  {
-    label: 'Khiếu nại & Đánh giá',
-    to: '/admin/complaints',
-    icon: ShieldAlert,
-    disabled: true,
-    hint: 'P1/P2',
-  },
-  {
-    label: 'Báo cáo thống kê',
-    to: '/admin/reports',
-    icon: FileBarChart2,
-    disabled: true,
-    hint: 'P2',
   },
 ]
 
@@ -117,9 +67,7 @@ export const DashboardLayout = ({ role = ROLES.PROVIDER, children }) => {
     activeRole === ROLES.ADMIN ? ADMIN_NAV_ITEMS : PROVIDER_NAV_ITEMS
 
   const areaTitle =
-    activeRole === ROLES.ADMIN
-      ? 'Quản trị vận hành'
-      : 'Khu vực Nhà cung cấp'
+    activeRole === ROLES.ADMIN ? 'Quản trị hệ thống' : 'Khu vực Nhà cung cấp'
 
   const handleLogout = async () => {
     setDrawerOpen(false)
@@ -130,7 +78,7 @@ export const DashboardLayout = ({ role = ROLES.PROVIDER, children }) => {
     } finally {
       clearCsrfToken()
       clearAuth()
-      toast.success('Đã đăng xuất tài khoản.')
+      toast.success('Đã đăng xuất.')
       navigate('/login')
     }
   }
@@ -142,7 +90,6 @@ export const DashboardLayout = ({ role = ROLES.PROVIDER, children }) => {
 
   const renderSidebarContent = (isMobile = false) => (
     <div className="flex flex-col h-full bg-white border-r border-neutral-200 font-sans select-none">
-      {/* Brand header cao 64px */}
       <div className="h-16 px-5 flex items-center justify-between border-b border-neutral-200 shrink-0">
         <BrandLogo size="sm" to="/" />
         {isMobile && (
@@ -157,40 +104,12 @@ export const DashboardLayout = ({ role = ROLES.PROVIDER, children }) => {
         )}
       </div>
 
-      {/* Nhãn phân khu */}
-      <div className="px-4 pt-5 pb-2">
-        <p className="px-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-          {areaTitle}
-        </p>
-      </div>
-
-      {/* Danh sách điều hướng */}
       <nav
         aria-label={areaTitle}
-        className="flex-1 px-3 py-2 space-y-1 overflow-y-auto"
+        className="flex-1 px-3 py-4 space-y-1 overflow-y-auto"
       >
         {navItems.map((item) => {
           const Icon = item.icon
-
-          if (item.disabled) {
-            return (
-              <div
-                key={item.to}
-                title={`Dự kiến triển khai ở ${item.hint}`}
-                className="flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium text-neutral-400 cursor-not-allowed"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Icon className="w-4 h-4 shrink-0 text-neutral-400" />
-                  <span className="truncate">{item.label}</span>
-                </div>
-                {item.hint && (
-                  <span className="text-[11px] font-medium text-neutral-400 shrink-0">
-                    {item.hint}
-                  </span>
-                )}
-              </div>
-            )
-          }
 
           return (
             <NavLink
@@ -199,39 +118,28 @@ export const DashboardLayout = ({ role = ROLES.PROVIDER, children }) => {
               end={item.end}
               onClick={() => isMobile && setDrawerOpen(false)}
               className={({ isActive }) =>
-                `flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-150 ${
+                `flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-150 ${
                   isActive
                     ? 'bg-primary-50 text-primary-600 font-semibold'
                     : 'text-neutral-700 hover:bg-neutral-100 hover:text-ink'
                 }`
               }
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </div>
-              {item.badge && (
-                <span className="text-[11px] font-semibold text-primary-600 shrink-0">
-                  {item.badge}
-                </span>
-              )}
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{item.label}</span>
             </NavLink>
           )
         })}
       </nav>
 
-      {/* Chuyển nhanh khu vực & Về trang chủ */}
-      <div className="p-3 border-t border-neutral-200 space-y-1">
+      <div className="p-3 border-t border-neutral-200">
         <Link
           to="/"
           onClick={() => isMobile && setDrawerOpen(false)}
-          className="flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium text-neutral-600 hover:bg-neutral-100 hover:text-ink transition-colors duration-150"
+          className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-neutral-600 hover:bg-neutral-100 hover:text-ink transition-colors duration-150"
         >
-          <span className="inline-flex items-center gap-2">
-            <Home className="w-3.5 h-3.5" />
-            Về trang chủ khách hàng
-          </span>
-          <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
+          <Home className="w-3.5 h-3.5" />
+          <span>Trang chủ</span>
         </Link>
       </div>
     </div>
@@ -239,12 +147,11 @@ export const DashboardLayout = ({ role = ROLES.PROVIDER, children }) => {
 
   return (
     <div className="min-h-screen flex bg-neutral-50 font-sans text-neutral-700">
-      {/* Sidebar cố định 240px trên Desktop (lg trở lên) */}
+      <ScrollToTop />
       <aside className="hidden lg:block w-[240px] shrink-0 sticky top-0 h-screen">
         {renderSidebarContent(false)}
       </aside>
 
-      {/* Mobile Sidebar Drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex">
           <div
@@ -258,55 +165,46 @@ export const DashboardLayout = ({ role = ROLES.PROVIDER, children }) => {
         </div>
       )}
 
-      {/* Cột phải: Topbar 64px + Nội dung padding 24px */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur border-b border-neutral-200 px-4 sm:px-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
-              className="lg:hidden w-10 h-10 rounded-md border border-neutral-200 flex items-center justify-center text-neutral-700 hover:bg-neutral-100 cursor-pointer"
-              aria-label="Mở menu điều hướng"
+              className="lg:hidden w-9 h-9 rounded-md border border-neutral-200 flex items-center justify-center text-neutral-700 hover:bg-neutral-100 cursor-pointer"
+              aria-label="Mở menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="truncate">
-              <h1 className="text-[17px] font-semibold text-ink truncate">
-                {areaTitle}
-              </h1>
-            </div>
+            <h1 className="text-[17px] font-semibold text-ink truncate">
+              {areaTitle}
+            </h1>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <div className="hidden sm:flex items-center gap-2.5 pl-2 pr-3 py-1 rounded-full border border-neutral-200 bg-neutral-50">
-              <div className="w-7 h-7 rounded-full bg-primary-500 text-white text-xs font-semibold flex items-center justify-center shrink-0">
+            <div className="hidden sm:flex items-center gap-2 px-2.5 h-9 rounded-md border border-neutral-200 bg-neutral-50">
+              <div className="w-6 h-6 rounded-full bg-primary-500 text-white text-xs font-semibold flex items-center justify-center shrink-0">
                 {initialLetter}
               </div>
-              <div className="text-left leading-tight max-w-[160px]">
-                <p className="text-xs font-semibold text-ink truncate">
-                  {account?.displayName || 'Tài khoản phát triển'}
-                </p>
-                <p className="text-[11px] text-neutral-500 truncate">
-                  {ROLE_LABELS[account?.accountType] || ROLE_LABELS[activeRole]}
-                </p>
-              </div>
+              <span className="text-xs font-medium text-ink max-w-[160px] truncate">
+                {account?.displayName || account?.email || 'Tài khoản'}
+              </span>
             </div>
 
             {account ? (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors duration-150 cursor-pointer"
+                leftIcon={<LogOut className="w-3.5 h-3.5" />}
               >
-                <LogOut className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Đăng xuất</span>
-              </button>
+              </Button>
             ) : (
-              <Link
-                to="/login"
-                className="inline-flex items-center h-9 px-3 rounded-md bg-primary-500 text-xs font-medium text-white hover:bg-primary-600 transition-colors duration-150"
-              >
-                Đăng nhập
+              <Link to="/login">
+                <Button variant="primary" size="sm">
+                  Đăng nhập
+                </Button>
               </Link>
             )}
           </div>

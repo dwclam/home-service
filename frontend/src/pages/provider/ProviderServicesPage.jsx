@@ -7,7 +7,6 @@ import {
   Send,
   Clock,
   Image as ImageIcon,
-  Info,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -16,6 +15,8 @@ import {
   getMyServicesPage,
   createProviderService,
   updateProviderService,
+  publishProviderService,
+  archiveProviderService,
 } from '../../features/catalog/api'
 import { SERVICE_STATUS, SERVICE_STATUS_CONFIG } from '../../constants/status'
 import { DataTable } from '../../components/ui/DataTable'
@@ -25,7 +26,7 @@ import { Input } from '../../components/ui/Input'
 import { ServiceFormModal } from '../../features/catalog/components/ServiceFormModal'
 
 const STATUS_TABS = [
-  { key: 'ALL', label: 'Tất cả gói' },
+  { key: 'ALL', label: 'Tất cả' },
   { key: SERVICE_STATUS.PUBLISHED, label: 'Đang công khai' },
   { key: SERVICE_STATUS.DRAFT, label: 'Bản nháp' },
   { key: SERVICE_STATUS.ARCHIVED, label: 'Đã lưu trữ' },
@@ -49,7 +50,6 @@ export const ProviderServicesPage = () => {
   const [reloadTick, setReloadTick] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
-  const [isMockMode, setIsMockMode] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingService, setEditingService] = useState(null)
@@ -85,7 +85,6 @@ export const ProviderServicesPage = () => {
         })
         if (!isMounted) return
         setPageData(res.pageData)
-        setIsMockMode(Boolean(res.isMock))
         setError('')
       } catch (err) {
         if (!isMounted) return
@@ -140,7 +139,11 @@ export const ProviderServicesPage = () => {
   const handleSaveService = async (formValues) => {
     try {
       if (editingService?.id) {
-        await updateProviderService(editingService.id, formValues)
+        await updateProviderService(
+          editingService.id,
+          formValues,
+          editingService.status
+        )
         toast.success('Đã cập nhật gói dịch vụ.')
       } else {
         await createProviderService(formValues)
@@ -160,14 +163,15 @@ export const ProviderServicesPage = () => {
 
   const handleQuickStatusChange = async (service, nextStatus) => {
     try {
-      await updateProviderService(service.id, {
-        ...service,
-        status: nextStatus,
-      })
+      if (nextStatus === SERVICE_STATUS.PUBLISHED) {
+        await publishProviderService(service.id)
+      } else if (nextStatus === SERVICE_STATUS.ARCHIVED) {
+        await archiveProviderService(service.id)
+      }
       toast.success(
         nextStatus === SERVICE_STATUS.PUBLISHED
           ? 'Đã đăng công khai gói dịch vụ.'
-          : 'Đã chuyển gói dịch vụ vào lưu trữ.'
+          : 'Đã lưu trữ gói dịch vụ.'
       )
       triggerReload(currentPage)
     } catch (err) {
@@ -186,23 +190,22 @@ export const ProviderServicesPage = () => {
       render: (row) => {
         const coverImg = row.images?.[0]?.imageUrl
         return (
-          <div className="flex items-start gap-3 max-w-md">
+          <div className="flex items-center gap-3 max-w-md">
             {coverImg ? (
               <img
                 src={coverImg}
                 alt={row.title}
-                className="w-12 h-12 rounded-md object-cover border border-neutral-200 shrink-0 bg-neutral-100"
+                className="w-11 h-11 rounded-md object-cover border border-neutral-200 shrink-0 bg-neutral-100"
               />
             ) : (
-              <div className="w-12 h-12 rounded-md bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-400 shrink-0">
+              <div className="w-11 h-11 rounded-md bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-400 shrink-0">
                 <ImageIcon className="w-5 h-5" />
               </div>
             )}
             <div className="min-w-0">
               <p className="font-semibold text-ink line-clamp-1">{row.title}</p>
               <p className="text-xs text-neutral-500 line-clamp-1 mt-0.5">
-                {row.categoryName || 'Danh mục dịch vụ'} •{' '}
-                {row.images?.length || 0} ảnh
+                {row.categoryName || 'Danh mục dịch vụ'}
               </p>
             </div>
           </div>
@@ -211,7 +214,7 @@ export const ProviderServicesPage = () => {
     },
     {
       key: 'basePriceVnd',
-      title: 'Giá cố định',
+      title: 'Giá niêm yết',
       align: 'right',
       render: (row) => (
         <span className="font-semibold text-ink">
@@ -284,16 +287,10 @@ export const ProviderServicesPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-ink">
-            Quản lý gói dịch vụ & Hình ảnh
-          </h2>
-          <p className="text-sm text-neutral-500 mt-1">
-            UC19 — Tạo nháp, đăng công khai hoặc lưu trữ gói dịch vụ giá cố định.
-          </p>
-        </div>
+        <h2 className="font-display text-2xl font-bold text-ink">
+          Gói dịch vụ
+        </h2>
 
         <Button
           variant="primary"
@@ -305,18 +302,8 @@ export const ProviderServicesPage = () => {
         </Button>
       </div>
 
-      {isMockMode && (
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary-50 border border-primary-200 text-xs font-medium text-primary-700">
-          <Info className="w-4 h-4 shrink-0 text-primary-600" />
-          <span>
-            Đang dùng dữ liệu mẫu theo hợp đồng API (sẵn sàng nối BE UC19 & UC30 của Cường)
-          </span>
-        </div>
-      )}
-
-      {/* Bộ lọc tab trạng thái & Tìm kiếm */}
-      <div className="bg-white border border-neutral-200 rounded-lg p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
           {STATUS_TABS.map((tab) => {
             const active = statusFilter === tab.key
             return (
@@ -324,10 +311,10 @@ export const ProviderServicesPage = () => {
                 key={tab.key}
                 type="button"
                 onClick={() => handleStatusTabChange(tab.key)}
-                className={`h-9 px-3.5 rounded-full text-xs font-semibold transition-colors duration-150 shrink-0 cursor-pointer ${
+                className={`h-9 px-3.5 rounded-md text-xs font-medium transition-colors duration-150 shrink-0 cursor-pointer ${
                   active
                     ? 'bg-primary-500 text-white'
-                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-ink'
                 }`}
               >
                 {tab.label}
@@ -346,7 +333,6 @@ export const ProviderServicesPage = () => {
         </div>
       </div>
 
-      {/* Bảng dữ liệu dùng chung DataTable */}
       <DataTable
         columns={columns}
         data={pageData.items}
@@ -354,7 +340,6 @@ export const ProviderServicesPage = () => {
         error={error}
         onRetry={() => triggerReload(currentPage)}
         emptyTitle="Chưa có gói dịch vụ nào"
-        emptyDescription="Tạo gói dịch vụ đầu tiên với mức giá và thời lượng rõ ràng để khách hàng đặt lịch."
         emptyAction={
           <Button
             variant="primary"
@@ -362,14 +347,13 @@ export const ProviderServicesPage = () => {
             onClick={handleOpenCreate}
             leftIcon={<Plus className="w-4 h-4" />}
           >
-            Tạo gói dịch vụ ngay
+            Tạo gói dịch vụ
           </Button>
         }
         pagination={pageData}
         onPageChange={(nextPage) => triggerReload(nextPage)}
       />
 
-      {/* Modal tạo / sửa */}
       <ServiceFormModal
         isOpen={modalOpen}
         onClose={() => {

@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Plus,
   CalendarClock,
-  Edit3,
+  CalendarRange,
+  Pencil,
   Trash2,
-  ShieldCheck,
-  Info,
+  AlertTriangle,
+  ArrowRight,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 import {
   getMyAvailabilityList,
   createAvailabilitySlot,
+  createBatchAvailabilitySlots,
   updateAvailabilitySlot,
   deleteAvailabilitySlot,
 } from '../../features/provider/api'
@@ -25,9 +28,9 @@ import { Button } from '../../components/ui/Button'
 import { AvailabilityFormModal } from '../../features/provider/components/AvailabilityFormModal'
 
 const STATE_FILTERS = [
-  { key: 'ALL', label: 'Tất cả khung lịch' },
-  { key: AVAILABILITY_STATE.AVAILABLE, label: 'Mở nhận việc (AVAILABLE)' },
-  { key: AVAILABILITY_STATE.BLOCKED, label: 'Khóa lịch (BLOCKED)' },
+  { key: 'ALL', label: 'Tất cả' },
+  { key: AVAILABILITY_STATE.AVAILABLE, label: 'Mở nhận việc' },
+  { key: AVAILABILITY_STATE.BLOCKED, label: 'Khóa lịch' },
 ]
 
 const formatDateVi = (isoStr) => {
@@ -49,9 +52,13 @@ const formatTimeVi = (isoStr) => {
   }).format(new Date(isoStr))
 }
 
-const calcDurationMinutes = (startsAt, endsAt) => {
+const formatDurationLabel = (startsAt, endsAt) => {
   const diffMs = new Date(endsAt).getTime() - new Date(startsAt).getTime()
-  return Math.max(0, Math.round(diffMs / 60000))
+  const mins = Math.max(0, Math.round(diffMs / 60000))
+  if (mins >= 60 && mins % 60 === 0) {
+    return `${mins / 60} giờ`
+  }
+  return `${mins} phút`
 }
 
 export const ProviderAvailabilityPage = () => {
@@ -59,8 +66,9 @@ export const ProviderAvailabilityPage = () => {
   const [stateFilter, setStateFilter] = useState('ALL')
   const [reloadTick, setReloadTick] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [isBatchCreating, setIsBatchCreating] = useState(false)
   const [error, setError] = useState('')
-  const [isMockMode, setIsMockMode] = useState(false)
+  const [conflictAlert, setConflictAlert] = useState('')
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingSlot, setEditingSlot] = useState(null)
@@ -73,14 +81,13 @@ export const ProviderAvailabilityPage = () => {
         const res = await getMyAvailabilityList({ state: stateFilter })
         if (!isMounted) return
         setSlots(res.items || [])
-        setIsMockMode(Boolean(res.isMock))
         setError('')
       } catch (err) {
         if (!isMounted) return
         setError(
           err?.response?.data?.message ||
             err?.message ||
-            'Không thể tải danh sách lịch rảnh.'
+            'Không thể tải danh sách lịch làm việc.'
         )
       } finally {
         if (isMounted) {
@@ -108,20 +115,23 @@ export const ProviderAvailabilityPage = () => {
   }
 
   const handleOpenCreate = () => {
+    setConflictAlert('')
     setEditingSlot(null)
     setModalOpen(true)
   }
 
   const handleOpenEdit = (slot) => {
+    setConflictAlert('')
     setEditingSlot(slot)
     setModalOpen(true)
   }
 
   const handleSaveSlot = async (payload) => {
     try {
+      setConflictAlert('')
       if (editingSlot?.id) {
         await updateAvailabilitySlot(editingSlot.id, payload)
-        toast.success('Đã cập nhật khung lịch thành công.')
+        toast.success('Đã cập nhật khung lịch.')
       } else {
         await createAvailabilitySlot(payload)
         toast.success('Đã thêm khung lịch mới.')
@@ -130,32 +140,110 @@ export const ProviderAvailabilityPage = () => {
       setEditingSlot(null)
       triggerReload()
     } catch (err) {
-      toast.error(
+      const code = err?.response?.data?.code || err?.code
+      const msg =
         err?.response?.data?.message ||
-          err?.message ||
-          'Không thể lưu khung lịch.'
-      )
+        err?.message ||
+        'Không thể lưu khung lịch.'
+
+      if (code === 'DATA_CONFLICT' || err?.response?.status === 409) {
+        setConflictAlert(msg)
+      }
+      toast.error(msg)
+    }
+  }
+
+  const handleQuickBatchNext3Days = async () => {
+    setIsBatchCreating(true)
+    setConflictAlert('')
+    try {
+      const batchSlots = []
+      for (let d = 1; d <= 3; d++) {
+        const base = new Date(Date.now() + d * 24 * 3600 * 1000)
+        const morningStart = new Date(
+          base.getFullYear(),
+          base.getMonth(),
+          base.getDate(),
+          8,
+          0,
+          0,
+          0
+        )
+        const morningEnd = new Date(
+          base.getFullYear(),
+          base.getMonth(),
+          base.getDate(),
+          12,
+          0,
+          0,
+          0
+        )
+        const afternoonStart = new Date(
+          base.getFullYear(),
+          base.getMonth(),
+          base.getDate(),
+          13,
+          0,
+          0,
+          0
+        )
+        const afternoonEnd = new Date(
+          base.getFullYear(),
+          base.getMonth(),
+          base.getDate(),
+          17,
+          0,
+          0,
+          0
+        )
+
+        batchSlots.push({
+          startsAt: morningStart.toISOString(),
+          endsAt: morningEnd.toISOString(),
+          state: AVAILABILITY_STATE.AVAILABLE,
+        })
+        batchSlots.push({
+          startsAt: afternoonStart.toISOString(),
+          endsAt: afternoonEnd.toISOString(),
+          state: AVAILABILITY_STATE.AVAILABLE,
+        })
+      }
+
+      await createBatchAvailabilitySlots(batchSlots)
+      toast.success('Đã mở lịch cho 3 ngày tới.')
+      triggerReload()
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Không thể mở lịch nhanh.'
+      setConflictAlert(msg)
+      toast.error(msg)
+    } finally {
+      setIsBatchCreating(false)
     }
   }
 
   const handleDeleteSlot = async (slot) => {
     try {
+      setConflictAlert('')
       await deleteAvailabilitySlot(slot.id)
       toast.success('Đã xóa khung lịch.')
       triggerReload()
     } catch (err) {
-      toast.error(
+      const msg =
         err?.response?.data?.message ||
-          err?.message ||
-          'Không thể xóa khung lịch đang có đơn chiếm chỗ.'
-      )
+        err?.message ||
+        'Không thể xóa khung lịch đang có đơn đặt.'
+      setConflictAlert(msg)
+      toast.error(msg)
     }
   }
 
   const columns = [
     {
       key: 'date',
-      title: 'Ngày áp dụng',
+      title: 'Ngày',
       render: (row) => (
         <div className="flex items-center gap-2.5">
           <CalendarClock className="w-4 h-4 text-primary-600 shrink-0" />
@@ -167,7 +255,7 @@ export const ProviderAvailabilityPage = () => {
     },
     {
       key: 'interval',
-      title: 'Khoảng thời gian [bắt đầu, kết thúc)',
+      title: 'Khung giờ',
       render: (row) => (
         <span className="font-medium text-ink">
           {formatTimeVi(row.startsAt)} – {formatTimeVi(row.endsAt)}
@@ -176,17 +264,13 @@ export const ProviderAvailabilityPage = () => {
     },
     {
       key: 'duration',
-      title: 'Tổng thời lượng',
+      title: 'Thời lượng',
       align: 'center',
-      render: (row) => {
-        const mins = calcDurationMinutes(row.startsAt, row.endsAt)
-        const hours = (mins / 60).toFixed(1).replace(/\.0$/, '')
-        return (
-          <span className="text-xs font-medium text-neutral-600">
-            {mins} phút ({hours} giờ)
-          </span>
-        )
-      },
+      render: (row) => (
+        <span className="text-xs font-medium text-neutral-600">
+          {formatDurationLabel(row.startsAt, row.endsAt)}
+        </span>
+      ),
     },
     {
       key: 'state',
@@ -203,23 +287,23 @@ export const ProviderAvailabilityPage = () => {
       title: 'Thao tác',
       align: 'right',
       render: (row) => (
-        <div className="inline-flex items-center justify-end gap-1.5">
-          <Button
-            variant="secondary"
-            size="sm"
+        <div className="inline-flex items-center justify-end gap-2">
+          <button
+            type="button"
             onClick={() => handleOpenEdit(row)}
-            leftIcon={<Edit3 className="w-3.5 h-3.5" />}
+            aria-label="Sửa"
+            className="p-1 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer bg-transparent border-0 rounded-none outline-none"
           >
-            Sửa
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
             onClick={() => handleDeleteSlot(row)}
-            leftIcon={<Trash2 className="w-3.5 h-3.5 text-red-600" />}
+            aria-label="Xóa"
+            className="p-1 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer bg-transparent border-0 rounded-none outline-none"
           >
-            Xóa
-          </Button>
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       ),
     },
@@ -227,48 +311,51 @@ export const ProviderAvailabilityPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-ink">
-            Quản lý lịch rảnh & Khóa lịch
-          </h2>
-          <p className="text-sm text-neutral-500 mt-1">
-            UC20 — Khai báo khoảng thời gian AVAILABLE hoặc BLOCKED theo quy ước nửa mở [bắt đầu, kết thúc).
-          </p>
-        </div>
+        <h2 className="font-display text-2xl font-bold text-ink">
+          Lịch làm việc
+        </h2>
 
-        <Button
-          variant="primary"
-          size="md"
-          onClick={handleOpenCreate}
-          leftIcon={<Plus className="w-4 h-4" />}
-        >
-          Thêm khung lịch
-        </Button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="secondary"
+            size="md"
+            isLoading={isBatchCreating}
+            onClick={handleQuickBatchNext3Days}
+            leftIcon={<CalendarRange className="w-4 h-4" />}
+          >
+            Mở nhanh 3 ngày tới
+          </Button>
+
+          <Button
+            variant="primary"
+            size="md"
+            onClick={handleOpenCreate}
+            leftIcon={<Plus className="w-4 h-4" />}
+          >
+            Thêm khung lịch
+          </Button>
+        </div>
       </div>
 
-      {/* Ghi chú quy tắc nghiệp vụ UC20 */}
-      <div className="bg-white border border-neutral-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <ShieldCheck className="w-5 h-5 text-primary-600 shrink-0 mt-0.5" />
-          <div className="text-xs text-neutral-600 leading-relaxed">
-            <span className="font-semibold text-ink">
-              Quy tắc bảo vệ chỗ đặt (UC20 & UC38):
-            </span>{' '}
-            Một đơn kết thúc lúc 10:00 không xung đột với đơn bắt đầu lúc 10:00. Hệ thống không cho phép sửa hoặc khóa lịch làm mất chỗ của đơn đang giữ cọc (PENDING_DEPOSIT), đã xác nhận (CONFIRMED) hoặc đang thực hiện (IN_PROGRESS).
+      {conflictAlert && (
+        <div className="p-4 rounded-lg bg-red-50 border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 text-xs text-red-700 leading-relaxed">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <p>{conflictAlert}</p>
           </div>
+          <Link to="/provider/bookings" className="shrink-0">
+            <Button
+              variant="secondary"
+              size="sm"
+              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+            >
+              Xem đơn đặt
+            </Button>
+          </Link>
         </div>
+      )}
 
-        {isMockMode && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary-50 border border-primary-200 text-xs font-medium text-primary-700 shrink-0">
-            <Info className="w-3.5 h-3.5 text-primary-600" />
-            <span>Dữ liệu mẫu hợp đồng API (BE UC20 - Thuỷ)</span>
-          </div>
-        )}
-      </div>
-
-      {/* Bộ lọc trạng thái */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {STATE_FILTERS.map((tab) => {
           const active = stateFilter === tab.key
@@ -277,10 +364,10 @@ export const ProviderAvailabilityPage = () => {
               key={tab.key}
               type="button"
               onClick={() => handleStateTabChange(tab.key)}
-              className={`h-9 px-4 rounded-full text-xs font-semibold transition-colors duration-150 shrink-0 cursor-pointer ${
+              className={`h-9 px-3.5 rounded-md text-xs font-medium transition-colors duration-150 shrink-0 cursor-pointer ${
                 active
                   ? 'bg-primary-500 text-white'
-                  : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+                  : 'bg-white border border-neutral-200 text-neutral-600 hover:bg-neutral-50 hover:text-ink'
               }`}
             >
               {tab.label}
@@ -289,7 +376,6 @@ export const ProviderAvailabilityPage = () => {
         })}
       </div>
 
-      {/* Bảng hiển thị */}
       <DataTable
         columns={columns}
         data={slots}
@@ -297,7 +383,6 @@ export const ProviderAvailabilityPage = () => {
         error={error}
         onRetry={triggerReload}
         emptyTitle="Chưa có khung lịch nào"
-        emptyDescription="Thêm khoảng thời gian mở nhận việc (AVAILABLE) để khách hàng có thể chọn giờ hẹn khi đặt dịch vụ."
         emptyAction={
           <Button
             variant="primary"
@@ -305,12 +390,11 @@ export const ProviderAvailabilityPage = () => {
             onClick={handleOpenCreate}
             leftIcon={<Plus className="w-4 h-4" />}
           >
-            Khai báo lịch rảnh đầu tiên
+            Thêm khung lịch
           </Button>
         }
       />
 
-      {/* Modal thêm / sửa */}
       <AvailabilityFormModal
         isOpen={modalOpen}
         onClose={() => {

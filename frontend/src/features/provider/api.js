@@ -4,7 +4,7 @@ import {
   MOCK_PROVIDER_AVAILABILITY,
 } from '../../mocks/provider'
 
-// Bộ nhớ tạm phía client khi API của Cường (UC18) và Thuỷ (UC20) chưa sẵn sàng trên môi trường dev
+// Bộ nhớ tạm phía client khi chạy chế độ Dev Seed hoặc chưa bật server BE
 let mockProfileStore = { ...MOCK_PROVIDER_PROFILE }
 let mockAvailabilityStore = [...MOCK_PROVIDER_AVAILABILITY]
 
@@ -20,6 +20,16 @@ const unwrapResponse = (responseData) => {
   return responseData
 }
 
+const normalizeProfileResponse = (raw) => {
+  if (!raw) return null
+  const isVisibleVal = Boolean(raw.visible ?? raw.isVisible ?? true)
+  return {
+    ...raw,
+    visible: isVisibleVal,
+    isVisible: isVisibleVal,
+  }
+}
+
 const isEndpointUnavailable = (error) => {
   const status = error?.response?.status
   return (
@@ -29,21 +39,21 @@ const isEndpointUnavailable = (error) => {
 
 /**
  * Lấy hồ sơ của Nhà cung cấp đang đăng nhập (UC18 - Cường phụ trách BE).
- * Endpoint hợp đồng: GET /api/v1/provider/profile
+ * Endpoint Backend: GET /api/provider/profile (ProviderProfileController.getMine)
  */
 export const getMyProviderProfile = async () => {
   try {
-    const response = await http.get('/v1/provider/profile', {
+    const response = await http.get('/provider/profile', {
       _skipRefresh: true,
     })
     return {
-      data: unwrapResponse(response.data),
+      data: normalizeProfileResponse(unwrapResponse(response.data)),
       isMock: false,
     }
   } catch (error) {
     if (isEndpointUnavailable(error)) {
       return {
-        data: { ...mockProfileStore },
+        data: normalizeProfileResponse({ ...mockProfileStore }),
         isMock: true,
       }
     }
@@ -52,8 +62,9 @@ export const getMyProviderProfile = async () => {
 }
 
 /**
- * Cập nhật các trường thông tin công khai được phép của Nhà cung cấp (UC18).
- * Endpoint hợp đồng: PUT /api/v1/provider/profile
+ * Cập nhật 5 trường thông tin công khai được phép của Nhà cung cấp (UC18).
+ * Endpoint Backend: PUT /api/provider/profile (ProviderProfileController.updateMine)
+ * DTO: UpdateProviderProfileRequest { businessName, bio, city, address, logoUrl }
  */
 export const updateMyProviderProfile = async (payload) => {
   const cleanPayload = {
@@ -62,15 +73,14 @@ export const updateMyProviderProfile = async (payload) => {
     address: payload.address?.trim() || '',
     bio: payload.bio?.trim() || '',
     logoUrl: payload.logoUrl?.trim() || '',
-    isVisible: Boolean(payload.isVisible),
   }
 
   try {
-    const response = await http.put('/v1/provider/profile', cleanPayload, {
+    const response = await http.put('/provider/profile', cleanPayload, {
       _skipRefresh: true,
     })
     return {
-      data: unwrapResponse(response.data),
+      data: normalizeProfileResponse(unwrapResponse(response.data)),
       isMock: false,
     }
   } catch (error) {
@@ -81,7 +91,7 @@ export const updateMyProviderProfile = async (payload) => {
         updatedAt: new Date().toISOString(),
       }
       return {
-        data: { ...mockProfileStore },
+        data: normalizeProfileResponse({ ...mockProfileStore }),
         isMock: true,
       }
     }
@@ -102,19 +112,60 @@ export const isIntervalOverlapping = (startIsoA, endIsoA, startIsoB, endIsoB) =>
 }
 
 /**
- * Lấy danh sách các khoảng lịch rảnh / khóa lịch của NCC (UC20 - Thuỷ phụ trách BE).
- * Endpoint hợp đồng: GET /api/v1/provider/availability
+ * Tự động gộp các slot cùng state tiếp giáp hoặc giao nhau theo quy tắc BR-UC20-05 (Auto-Merge).
  */
-export const getMyAvailabilityList = async (params = {}) => {
+const normalizeAndAutoMergeSlots = (slotsList) => {
+  const sorted = [...slotsList].sort(
+    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+  )
+  const merged = []
+  for (const slot of sorted) {
+    if (merged.length === 0) {
+      merged.push({ ...slot })
+      continue
+    }
+    const prev = merged[merged.length - 1]
+    const prevEnd = new Date(prev.endsAt).getTime()
+    const currStart = new Date(slot.startsAt).getTime()
+    const currEnd = new Date(slot.endsAt).getTime()
+
+    if (prev.state === slot.state && currStart <= prevEnd) {
+      prev.endsAt = new Date(Math.max(prevEnd, currEnd)).toISOString()
+      prev.updatedAt = new Date().toISOString()
+    } else {
+      merged.push({ ...slot })
+    }
+  }
+  return merged
+}
+
+/**
+ * Lấy danh sách các khoảng lịch rảnh / khóa lịch của NCC (UC20 - Thuỷ phụ trách BE).
+ * Endpoint Backend: GET /api/v1/provider/availability?from=...&to=...
+ */
+export const getMyAvailabilityList = async ({
+  from,
+  to,
+  state = 'ALL',
+} = {}) => {
   try {
+    const queryParams = {}
+    if (from) queryParams.from = from
+    if (to) queryParams.to = to
+
     const response = await http.get('/v1/provider/availability', {
-      params,
+      params: queryParams,
       _skipRefresh: true,
     })
     const unwrapped = unwrapResponse(response.data)
-    const items = Array.isArray(unwrapped)
+    let items = Array.isArray(unwrapped)
       ? unwrapped
       : unwrapped?.items || unwrapped?.content || []
+
+    if (state && state !== 'ALL') {
+      items = items.filter((item) => item.state === state)
+    }
+
     return {
       items,
       isMock: false,
@@ -124,8 +175,20 @@ export const getMyAvailabilityList = async (params = {}) => {
       let filtered = [...mockAvailabilityStore].sort(
         (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
       )
-      if (params.state && params.state !== 'ALL') {
-        filtered = filtered.filter((item) => item.state === params.state)
+      if (from) {
+        const fromMs = new Date(from).getTime()
+        filtered = filtered.filter(
+          (item) => new Date(item.endsAt).getTime() > fromMs
+        )
+      }
+      if (to) {
+        const toMs = new Date(to).getTime()
+        filtered = filtered.filter(
+          (item) => new Date(item.startsAt).getTime() < toMs
+        )
+      }
+      if (state && state !== 'ALL') {
+        filtered = filtered.filter((item) => item.state === state)
       }
       return {
         items: filtered,
@@ -138,7 +201,7 @@ export const getMyAvailabilityList = async (params = {}) => {
 
 /**
  * Tạo mới khoảng lịch AVAILABLE / BLOCKED (UC20).
- * Endpoint hợp đồng: POST /api/v1/provider/availability
+ * Endpoint Backend: POST /api/v1/provider/availability
  */
 export const createAvailabilitySlot = async ({ startsAt, endsAt, state }) => {
   const body = { startsAt, endsAt, state }
@@ -152,15 +215,12 @@ export const createAvailabilitySlot = async ({ startsAt, endsAt, state }) => {
     }
   } catch (error) {
     if (isEndpointUnavailable(error)) {
-      const conflict = mockAvailabilityStore.find((slot) =>
-        isIntervalOverlapping(startsAt, endsAt, slot.startsAt, slot.endsAt)
-      )
-      if (conflict) {
-        const conflictErr = new Error(
-          'Khoảng thời gian này bị chồng lấn với một khung lịch đã khai báo trước đó.'
+      if (new Date(endsAt).getTime() <= Date.now()) {
+        const pastErr = new Error(
+          'Thời gian kết thúc phải lớn hơn thời gian bắt đầu và ở tương lai.'
         )
-        conflictErr.code = 'DATA_CONFLICT'
-        throw conflictErr
+        pastErr.code = 'BUSINESS_ERROR'
+        throw pastErr
       }
 
       const newSlot = {
@@ -172,7 +232,10 @@ export const createAvailabilitySlot = async ({ startsAt, endsAt, state }) => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
-      mockAvailabilityStore = [...mockAvailabilityStore, newSlot]
+      mockAvailabilityStore = normalizeAndAutoMergeSlots([
+        ...mockAvailabilityStore,
+        newSlot,
+      ])
       return {
         data: newSlot,
         isMock: true,
@@ -183,8 +246,47 @@ export const createAvailabilitySlot = async ({ startsAt, endsAt, state }) => {
 }
 
 /**
+ * Mở lịch hàng loạt cho Nhà cung cấp (UC20 - Batch Availability).
+ * Endpoint Backend: POST /api/v1/provider/availability/batch
+ * Body: { slots: [{ startsAt, endsAt, state }, ...] }
+ */
+export const createBatchAvailabilitySlots = async (slots) => {
+  const body = { slots }
+  try {
+    const response = await http.post('/v1/provider/availability/batch', body, {
+      _skipRefresh: true,
+    })
+    return {
+      data: unwrapResponse(response.data),
+      isMock: false,
+    }
+  } catch (error) {
+    if (isEndpointUnavailable(error)) {
+      const createdSlots = slots.map((item, idx) => ({
+        id: Date.now() + idx,
+        providerId: mockProfileStore.accountId,
+        startsAt: item.startsAt,
+        endsAt: item.endsAt,
+        state: item.state || 'AVAILABLE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }))
+      mockAvailabilityStore = normalizeAndAutoMergeSlots([
+        ...mockAvailabilityStore,
+        ...createdSlots,
+      ])
+      return {
+        data: createdSlots,
+        isMock: true,
+      }
+    }
+    throw error
+  }
+}
+
+/**
  * Cập nhật khoảng lịch rảnh / khóa lịch (UC20).
- * Endpoint hợp đồng: PUT /api/v1/provider/availability/{id}
+ * Endpoint Backend: PUT /api/v1/provider/availability/{id}
  */
 export const updateAvailabilitySlot = async (id, { startsAt, endsAt, state }) => {
   const body = { startsAt, endsAt, state }
@@ -198,21 +300,8 @@ export const updateAvailabilitySlot = async (id, { startsAt, endsAt, state }) =>
     }
   } catch (error) {
     if (isEndpointUnavailable(error)) {
-      const conflict = mockAvailabilityStore.find(
-        (slot) =>
-          slot.id !== id &&
-          isIntervalOverlapping(startsAt, endsAt, slot.startsAt, slot.endsAt)
-      )
-      if (conflict) {
-        const conflictErr = new Error(
-          'Khoảng thời gian cập nhật bị chồng lấn với khung lịch khác.'
-        )
-        conflictErr.code = 'DATA_CONFLICT'
-        throw conflictErr
-      }
-
       let updatedSlot = null
-      mockAvailabilityStore = mockAvailabilityStore.map((slot) => {
+      const nextList = mockAvailabilityStore.map((slot) => {
         if (slot.id === id) {
           updatedSlot = {
             ...slot,
@@ -225,6 +314,7 @@ export const updateAvailabilitySlot = async (id, { startsAt, endsAt, state }) =>
         }
         return slot
       })
+      mockAvailabilityStore = normalizeAndAutoMergeSlots(nextList)
       return {
         data: updatedSlot,
         isMock: true,
@@ -236,7 +326,7 @@ export const updateAvailabilitySlot = async (id, { startsAt, endsAt, state }) =>
 
 /**
  * Xóa khoảng lịch rảnh khi chưa có đơn giữ chỗ (UC20).
- * Endpoint hợp đồng: DELETE /api/v1/provider/availability/{id}
+ * Endpoint Backend: DELETE /api/v1/provider/availability/{id}
  */
 export const deleteAvailabilitySlot = async (id) => {
   try {

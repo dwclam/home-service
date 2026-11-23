@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { PublicLayout } from '../layouts/PublicLayout'
 import { DashboardLayout } from '../layouts/DashboardLayout'
 import { HomePage } from '../pages/public/HomePage'
+import { ServicesCatalogPage } from '../pages/public/ServicesCatalogPage'
 import { LoginPage } from '../pages/auth/LoginPage'
 import { RegisterPage } from '../pages/auth/RegisterPage'
 import { VerifyOtpPage } from '../pages/auth/VerifyOtpPage'
@@ -12,6 +13,7 @@ import { CustomerBookingsPage } from '../pages/customer/CustomerBookingsPage'
 import { ProviderProfilePage } from '../pages/provider/ProviderProfilePage'
 import { ProviderServicesPage } from '../pages/provider/ProviderServicesPage'
 import { ProviderAvailabilityPage } from '../pages/provider/ProviderAvailabilityPage'
+import { ProviderBookingsPage } from '../pages/provider/ProviderBookingsPage'
 import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage'
 import { PublicRoute } from '../routes/PublicRoute'
 import { ProtectedRoute } from '../routes/ProtectedRoute'
@@ -25,6 +27,10 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: <HomePage />,
+      },
+      {
+        path: 'services',
+        element: <ServicesCatalogPage />,
       },
       {
         path: 'customer/bookings',
@@ -91,6 +97,10 @@ export const router = createBrowserRouter([
       {
         path: 'availability',
         element: <ProviderAvailabilityPage />,
+      },
+      {
+        path: 'bookings',
+        element: <ProviderBookingsPage />,
       },
     ],
   },

@@ -174,3 +174,34 @@ export const cancelBookingSchema = z.object({
     .optional()
     .or(z.literal('')),
 })
+
+/**
+ * Schema xác thực yêu cầu Nhà cung cấp từ chối đơn đặt lịch (UC21).
+ * Khớp với RejectBookingRequest.java:
+ * - reason: @NotBlank, @Size(max = 500)
+ * - version: Long (tùy chọn)
+ */
+export const rejectBookingSchema = z.object({
+  version: z.coerce.number().int().min(0).optional(),
+  reason: z
+    .string()
+    .trim()
+    .min(1, 'Lý do từ chối không được để trống')
+    .max(500, 'Lý do từ chối tối đa 500 ký tự'),
+})
+
+/**
+ * Schema xác thực ghi chú khi Nhà cung cấp Bắt đầu hoặc Hoàn thành dịch vụ (UC22).
+ * Khớp với StartServiceRequest.java & CompleteServiceRequest.java:
+ * - note: @Size(max = 500) (tùy chọn)
+ * - version: Long (tùy chọn)
+ */
+export const serviceActionNoteSchema = z.object({
+  version: z.coerce.number().int().min(0).optional(),
+  note: z
+    .string()
+    .trim()
+    .max(500, 'Ghi chú tối đa 500 ký tự')
+    .optional()
+    .or(z.literal('')),
+})

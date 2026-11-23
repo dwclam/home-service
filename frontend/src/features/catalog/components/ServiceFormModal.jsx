@@ -15,6 +15,7 @@ import { providerServiceSchema } from '../schemas'
 import { SERVICE_STATUS } from '../../../constants/status'
 import { FormField } from '../../../components/ui/FormField'
 import { Input } from '../../../components/ui/Input'
+import { Select } from '../../../components/ui/Select'
 import { Button } from '../../../components/ui/Button'
 
 export const ServiceFormModal = ({
@@ -101,21 +102,13 @@ export const ServiceFormModal = ({
       aria-labelledby="service-modal-title"
     >
       <div className="bg-white border border-neutral-200 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden transition-all duration-200">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between shrink-0">
-          <div>
-            <h3
-              id="service-modal-title"
-              className="text-[17px] font-semibold text-ink"
-            >
-              {isEditing
-                ? 'Chỉnh sửa gói dịch vụ (UC19)'
-                : 'Tạo gói dịch vụ mới (UC19)'}
-            </h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Giá cố định theo đồng VND nguyên; sửa gói không đổi giá trên đơn cũ đã chụp snapshot.
-            </p>
-          </div>
+          <h3
+            id="service-modal-title"
+            className="text-[17px] font-semibold text-ink"
+          >
+            {isEditing ? 'Chỉnh sửa gói dịch vụ' : 'Tạo gói dịch vụ'}
+          </h3>
           <button
             type="button"
             onClick={onClose}
@@ -126,7 +119,6 @@ export const ServiceFormModal = ({
           </button>
         </div>
 
-        {/* Body */}
         <form
           onSubmit={handleSubmit(handleFormSubmit)}
           className="flex-1 overflow-y-auto p-6 space-y-5"
@@ -140,62 +132,60 @@ export const ServiceFormModal = ({
           >
             <Input
               id="service-title"
-              placeholder="Ví dụ: Vệ sinh & bảo dưỡng điều hòa treo tường trọn gói"
+              placeholder="Vệ sinh và bảo dưỡng điều hòa treo tường"
               {...register('title')}
             />
           </FormField>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <FormField
-              label="Danh mục dịch vụ (UC30)"
+              label="Danh mục"
               htmlFor="service-category"
               required
               error={errors.categoryId?.message}
             >
-              <select
-                id="service-category"
-                className="w-full h-10 px-3 text-[15px] font-sans text-ink bg-white rounded-md border border-neutral-200 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
-                {...register('categoryId')}
-              >
+              <Select id="service-category" {...register('categoryId')}>
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
 
             <FormField
-              label="Trạng thái hiển thị"
+              label="Trạng thái"
               htmlFor="service-status"
               required
               error={errors.status?.message}
             >
-              <select
-                id="service-status"
-                className="w-full h-10 px-3 text-[15px] font-sans text-ink bg-white rounded-md border border-neutral-200 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
-                {...register('status')}
-              >
-                <option value={SERVICE_STATUS.DRAFT}>
-                  Bản nháp (DRAFT - Chưa nhận đơn)
+              <Select id="service-status" {...register('status')}>
+                <option
+                  value={SERVICE_STATUS.DRAFT}
+                  disabled={
+                    isEditing &&
+                    initialData?.status &&
+                    initialData.status !== SERVICE_STATUS.DRAFT
+                  }
+                >
+                  Bản nháp
                 </option>
                 <option value={SERVICE_STATUS.PUBLISHED}>
-                  Công khai (PUBLISHED - Cho phép đặt lịch)
+                  Công khai
                 </option>
                 <option value={SERVICE_STATUS.ARCHIVED}>
-                  Lưu trữ (ARCHIVED - Ngừng nhận đơn mới)
+                  Lưu trữ
                 </option>
-              </select>
+              </Select>
             </FormField>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <FormField
-              label="Giá niêm yết cố định (VND)"
+              label="Giá niêm yết"
               htmlFor="service-price"
               required
               error={errors.basePriceVnd?.message}
-              hint="Số nguyên đồng VND, ví dụ: 250000"
             >
               <Input
                 id="service-price"
@@ -208,11 +198,10 @@ export const ServiceFormModal = ({
             </FormField>
 
             <FormField
-              label="Thời lượng thực hiện dự kiến (Phút)"
+              label="Thời lượng dự kiến"
               htmlFor="service-duration"
               required
               error={errors.durationMinutes?.message}
-              hint="Dùng để tính khung lịch rảnh phù hợp (UC38)"
             >
               <Input
                 id="service-duration"
@@ -226,7 +215,7 @@ export const ServiceFormModal = ({
           </div>
 
           <FormField
-            label="Mô tả quy trình & Phạm vi công việc"
+            label="Mô tả công việc"
             htmlFor="service-description"
             required
             error={errors.description?.message}
@@ -234,7 +223,7 @@ export const ServiceFormModal = ({
             <textarea
               id="service-description"
               rows={4}
-              placeholder="Nêu rõ các bước thực hiện, vật tư bao gồm và điều kiện bảo hành..."
+              placeholder="Các bước thực hiện, vật tư bao gồm và điều kiện bảo hành..."
               className={`w-full rounded-md border px-3 py-2.5 text-[15px] font-sans text-ink bg-white outline-none transition-colors duration-150 placeholder:text-neutral-400 ${
                 errors.description
                   ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
@@ -244,17 +233,11 @@ export const ServiceFormModal = ({
             />
           </FormField>
 
-          {/* Quản lý danh sách ảnh & Thứ tự ảnh (service_images) */}
           <div className="pt-2 border-t border-neutral-200">
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <h4 className="text-sm font-semibold text-ink">
-                  Hình ảnh gói dịch vụ & Thứ tự hiển thị ({fields.length}/6)
-                </h4>
-                <p className="text-xs text-neutral-500">
-                  Ảnh vị trí đầu tiên (#1) được dùng làm ảnh bìa hiển thị ngoài danh sách.
-                </p>
-              </div>
+              <h4 className="text-sm font-semibold text-ink">
+                Hình ảnh dịch vụ
+              </h4>
 
               {fields.length < 6 && (
                 <Button
@@ -275,11 +258,7 @@ export const ServiceFormModal = ({
               )}
             </div>
 
-            {fields.length === 0 ? (
-              <div className="p-4 rounded-md bg-neutral-50 border border-dashed border-neutral-200 text-center text-xs text-neutral-500">
-                Chưa có hình ảnh minh họa. Nhấn &ldquo;Thêm ảnh&rdquo; để đính kèm URL hình ảnh thực tế.
-              </div>
-            ) : (
+            {fields.length > 0 && (
               <div className="space-y-3">
                 {fields.map((field, index) => (
                   <div
@@ -294,7 +273,7 @@ export const ServiceFormModal = ({
                         type="button"
                         disabled={index === 0}
                         onClick={() => swap(index, index - 1)}
-                        className="p-1 rounded hover:bg-neutral-200 disabled:opacity-40 cursor-pointer"
+                        className="p-1 text-neutral-400 hover:text-neutral-600 disabled:opacity-40 cursor-pointer"
                         title="Đưa lên trước"
                       >
                         <ArrowUp className="w-3.5 h-3.5" />
@@ -303,7 +282,7 @@ export const ServiceFormModal = ({
                         type="button"
                         disabled={index === fields.length - 1}
                         onClick={() => swap(index, index + 1)}
-                        className="p-1 rounded hover:bg-neutral-200 disabled:opacity-40 cursor-pointer"
+                        className="p-1 text-neutral-400 hover:text-neutral-600 disabled:opacity-40 cursor-pointer"
                         title="Đưa xuống sau"
                       >
                         <ArrowDown className="w-3.5 h-3.5" />
@@ -326,7 +305,7 @@ export const ServiceFormModal = ({
                       </div>
 
                       <Input
-                        placeholder="Mô tả ngắn (alt text)"
+                        placeholder="Mô tả ảnh"
                         {...register(`images.${index}.altText`)}
                       />
                     </div>
@@ -334,7 +313,7 @@ export const ServiceFormModal = ({
                     <button
                       type="button"
                       onClick={() => remove(index)}
-                      className="p-2 rounded-md text-neutral-500 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer shrink-0"
+                      className="p-1 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer shrink-0 bg-transparent border-0 rounded-none"
                       aria-label="Xóa ảnh"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -345,7 +324,6 @@ export const ServiceFormModal = ({
             )}
           </div>
 
-          {/* Footer actions */}
           <div className="pt-4 border-t border-neutral-200 flex items-center justify-end gap-3">
             <Button
               type="button"

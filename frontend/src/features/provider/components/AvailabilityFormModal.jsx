@@ -7,12 +7,21 @@ import { providerAvailabilitySchema } from '../schemas'
 import { AVAILABILITY_STATE } from '../../../constants/status'
 import { FormField } from '../../../components/ui/FormField'
 import { Input } from '../../../components/ui/Input'
+import { Select } from '../../../components/ui/Select'
 import { Button } from '../../../components/ui/Button'
+
+const getTomorrowDateStr = () => {
+  const tomorrow = new Date(Date.now() + 24 * 3600 * 1000)
+  const year = tomorrow.getFullYear()
+  const month = String(tomorrow.getMonth() + 1).padStart(2, '0')
+  const day = String(tomorrow.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 const toLocalParts = (isoStr) => {
   if (!isoStr) {
     return {
-      date: '2026-11-05',
+      date: getTomorrowDateStr(),
       time: '08:00',
     }
   }
@@ -40,11 +49,12 @@ export const AvailabilityFormModal = ({
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(providerAvailabilitySchema),
     defaultValues: {
-      date: '2026-11-05',
+      date: getTomorrowDateStr(),
       startTime: '08:00',
       endTime: '12:00',
       state: AVAILABILITY_STATE.AVAILABLE,
@@ -64,7 +74,7 @@ export const AvailabilityFormModal = ({
       })
     } else {
       reset({
-        date: '2026-11-05',
+        date: getTomorrowDateStr(),
         startTime: '08:00',
         endTime: '12:00',
         state: AVAILABILITY_STATE.AVAILABLE,
@@ -73,6 +83,12 @@ export const AvailabilityFormModal = ({
   }, [isOpen, initialSlot, reset])
 
   if (!isOpen) return null
+
+  const applyQuickShift = (start, end, state = AVAILABILITY_STATE.AVAILABLE) => {
+    setValue('startTime', start, { shouldValidate: true })
+    setValue('endTime', end, { shouldValidate: true })
+    setValue('state', state, { shouldValidate: true })
+  }
 
   const handleFormSubmit = async (values) => {
     const startsAtIso = new Date(
@@ -97,21 +113,13 @@ export const AvailabilityFormModal = ({
       aria-labelledby="availability-modal-title"
     >
       <div className="bg-white border border-neutral-200 rounded-lg shadow-lg w-full max-w-lg overflow-hidden transition-all duration-200">
-        {/* Header */}
         <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
-          <div>
-            <h3
-              id="availability-modal-title"
-              className="text-[17px] font-semibold text-ink"
-            >
-              {isEditing
-                ? 'Cập nhật khung lịch (UC20)'
-                : 'Thêm khung lịch rảnh / khóa lịch (UC20)'}
-            </h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Quy ước nửa mở [bắt đầu, kết thúc): ca kết thúc 10:00 không chặn ca bắt đầu 10:00.
-            </p>
-          </div>
+          <h3
+            id="availability-modal-title"
+            className="text-[17px] font-semibold text-ink"
+          >
+            {isEditing ? 'Cập nhật khung lịch' : 'Thêm khung lịch'}
+          </h3>
           <button
             type="button"
             onClick={onClose}
@@ -122,12 +130,38 @@ export const AvailabilityFormModal = ({
           </button>
         </div>
 
-        {/* Body */}
         <form
           onSubmit={handleSubmit(handleFormSubmit)}
           className="p-6 space-y-5"
           noValidate
         >
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => applyQuickShift('08:00', '12:00')}
+            >
+              Ca sáng 08:00–12:00
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => applyQuickShift('13:00', '17:00')}
+            >
+              Ca chiều 13:00–17:00
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => applyQuickShift('08:00', '17:00')}
+            >
+              Cả ngày 08:00–17:00
+            </Button>
+          </div>
+
           <FormField
             label="Ngày áp dụng"
             htmlFor="slot-date"
@@ -173,24 +207,19 @@ export const AvailabilityFormModal = ({
           </div>
 
           <FormField
-            label="Trạng thái khung giờ"
+            label="Trạng thái"
             htmlFor="slot-state"
             required
             error={errors.state?.message}
-            hint="Chọn Khóa lịch (BLOCKED) nếu bạn bận đột xuất trong khung giờ chưa có đơn giữ chỗ."
           >
-            <select
-              id="slot-state"
-              className="w-full h-10 px-3 text-[15px] font-sans text-ink bg-white rounded-md border border-neutral-200 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
-              {...register('state')}
-            >
+            <Select id="slot-state" {...register('state')}>
               <option value={AVAILABILITY_STATE.AVAILABLE}>
-                Mở nhận việc (AVAILABLE)
+                Mở nhận việc
               </option>
               <option value={AVAILABILITY_STATE.BLOCKED}>
-                Khóa lịch tạm nghỉ (BLOCKED)
+                Khóa lịch
               </option>
-            </select>
+            </Select>
           </FormField>
 
           <div className="pt-4 border-t border-neutral-200 flex items-center justify-end gap-3">
@@ -208,7 +237,7 @@ export const AvailabilityFormModal = ({
               isLoading={isSubmitting}
               leftIcon={<Save className="w-4 h-4" />}
             >
-              {isEditing ? 'Lưu khung lịch' : 'Thêm khung lịch'}
+              {isEditing ? 'Lưu thay đổi' : 'Thêm khung lịch'}
             </Button>
           </div>
         </form>
