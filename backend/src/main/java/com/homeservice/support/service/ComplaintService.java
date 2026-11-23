@@ -6,6 +6,7 @@ import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.audit.entity.AdminAuditLog;
 import com.homeservice.audit.repository.AdminAuditLogRepository;
+import com.homeservice.audit.service.AdminAuditLogService;
 import com.homeservice.booking.entity.Booking;
 import com.homeservice.booking.repository.BookingRepository;
 import com.homeservice.chat.entity.Conversation;
@@ -17,6 +18,7 @@ import com.homeservice.common.dto.PageResponse;
 import com.homeservice.common.exception.BusinessException;
 import com.homeservice.common.exception.DataConflictException;
 import com.homeservice.common.exception.ResourceNotFoundException;
+import com.homeservice.support.dto.request.AdminAssignComplaintRequest;
 import com.homeservice.support.dto.request.AdminComplaintSearchFilter;
 import com.homeservice.support.dto.request.CreateComplaintRequest;
 import com.homeservice.support.dto.request.CustomerComplaintFilter;
@@ -39,6 +41,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +56,8 @@ import java.util.stream.Collectors;
 public class ComplaintService {
 
     public static final String ENTITY_TYPE_COMPLAINT = "COMPLAINT";
+    public static final String ACTION_COMPLAINT_ASSIGNED = "COMPLAINT_ASSIGNED";
+    public static final String ACTION_COMPLAINT_REASSIGNED = "COMPLAINT_REASSIGNED";
 
     public static final List<ComplaintStatus> UNRESOLVED_STATUSES = List.of(
             ComplaintStatus.OPEN,
@@ -69,6 +74,7 @@ public class ComplaintService {
     private final BookingRepository bookingRepository;
     private final AccountRepository accountRepository;
     private final AdminAuditLogRepository adminAuditLogRepository;
+    private final AdminAuditLogService adminAuditLogService;
     private final ComplaintMapper complaintMapper;
 
     /**
@@ -361,6 +367,108 @@ public class ComplaintService {
     }
 
     /**
+     * UC 33 — Admin tiếp nhận xử lý (OPEN -> IN_REVIEW) hoặc chuyển giao Admin phụ trách khác (IN_REVIEW -> IN_REVIEW).
+     * Khóa bi quan dòng complaints để chống 2 Admin nhận trùng đồng thời.
+     * Đổi Admin phụ trách (reassign) bắt buộc có reason (5..500 ký tự) và giữ nguyên toàn bộ lịch sử chat (conversations/messages).
+     * Ghi nhận bắt buộc vào admin_audit_logs trong cùng 1 transaction.
+     */
+    @Transactional
+    public AdminComplaintDetailResponse assignComplaintByAdmin(
+            Long currentAdminId,
+            Long complaintId,
+            AdminAssignComplaintRequest request
+    ) {
+        if (complaintId == null) {
+            throw new ResourceNotFoundException("ID khiếu nại không hợp lệ");
+        }
+
+        // 1. Xác minh Admin thực hiện thao tác đang ACTIVE trong DB
+        Account actingAdmin = loadActiveAdmin(currentAdminId);
+
+        // 2. Xác định Admin mục tiêu được phân công (mặc định là chính actingAdmin nếu targetAdminId == null)
+        Long targetAdminId = (request != null && request.getTargetAdminId() != null)
+                ? request.getTargetAdminId()
+                : actingAdmin.getId();
+        Account targetAdmin = targetAdminId.equals(actingAdmin.getId())
+                ? actingAdmin
+                : loadTargetActiveAdmin(targetAdminId);
+
+        // 3. Khóa bi quan khiếu nại chống race condition
+        Complaint complaint = complaintRepository.findByIdForUpdate(complaintId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khiếu nại với ID: " + complaintId));
+
+        ComplaintStatus previousStatus = complaint.getStatus();
+        if (previousStatus == ComplaintStatus.RESOLVED || previousStatus == ComplaintStatus.REJECTED) {
+            throw new BusinessException(
+                    "Khiếu nại đã được đóng (" + previousStatus + "), không thể tiếp nhận hoặc chuyển giao phân công."
+            );
+        }
+
+        Long previousAssignedAdminId = complaint.getAssignedAdmin() != null
+                ? complaint.getAssignedAdmin().getId()
+                : null;
+        String rawReason = request != null ? request.getReason() : null;
+
+        String action;
+        String auditReason;
+
+        if (previousStatus == ComplaintStatus.OPEN) {
+            // Tiếp nhận mới: OPEN -> IN_REVIEW (reason tùy chọn, nếu có tối đa 500 ký tự)
+            if (rawReason != null && !rawReason.trim().isEmpty()) {
+                String trimmed = rawReason.trim();
+                if (trimmed.length() > 500) {
+                    throw new BusinessException("Lý do phân công không được vượt quá 500 ký tự.");
+                }
+                auditReason = trimmed;
+            } else {
+                auditReason = null;
+            }
+            complaint.setStatus(ComplaintStatus.IN_REVIEW);
+            complaint.setAssignedAdmin(targetAdmin);
+            action = ACTION_COMPLAINT_ASSIGNED;
+        } else if (previousStatus == ComplaintStatus.IN_REVIEW) {
+            // Chuyển giao (reassign): không cho gán trùng chính người đang phụ trách và BẮT BUỘC có reason (5..500 ký tự)
+            if (previousAssignedAdminId != null && previousAssignedAdminId.equals(targetAdmin.getId())) {
+                throw new BusinessException("Khiếu nại này hiện đã được phân công cho Quản trị viên này.");
+            }
+            auditReason = validateAndTrim(rawReason, 5, 500, "Lý do chuyển giao phân công");
+            complaint.setAssignedAdmin(targetAdmin);
+            action = ACTION_COMPLAINT_REASSIGNED;
+        } else {
+            throw new BusinessException("Trạng thái khiếu nại không hợp lệ để phân công: " + previousStatus);
+        }
+
+        Instant now = Instant.now();
+        complaint.setUpdatedAt(now);
+        Complaint savedComplaint = complaintRepository.saveAndFlush(complaint);
+
+        // Ghi nhận admin_audit_logs trong cùng transaction (JSON before/after)
+        Map<String, Object> beforeState = new LinkedHashMap<>();
+        beforeState.put("status", previousStatus.name());
+        beforeState.put("assignedAdminId", previousAssignedAdminId);
+
+        Map<String, Object> afterState = new LinkedHashMap<>();
+        afterState.put("status", savedComplaint.getStatus().name());
+        afterState.put("assignedAdminId", targetAdmin.getId());
+
+        Map<String, Object> changes = new LinkedHashMap<>();
+        changes.put("before", beforeState);
+        changes.put("after", afterState);
+
+        adminAuditLogService.record(
+                actingAdmin,
+                action,
+                ENTITY_TYPE_COMPLAINT,
+                String.valueOf(savedComplaint.getId()),
+                auditReason,
+                changes,
+                now
+        );
+
+        return reloadAndBuildAdminDetail(currentAdminId, savedComplaint);
+    }
+
+    /**
      * Phục vụ MD10 / UC 48 (Đối soát & Chi trả): Kiểm tra đơn hàng có khiếu nại chưa kết thúc hay không.
      */
     @Transactional(readOnly = true)
@@ -385,6 +493,62 @@ public class ComplaintService {
             throw new BusinessException("Tài khoản khách hàng chưa được kích hoạt hoặc đã bị khóa.");
         }
         return customer;
+    }
+
+    private Account loadActiveAdmin(Long adminId) {
+        if (adminId == null) {
+            throw new AccessDeniedException("Không xác định được tài khoản Quản trị viên.");
+        }
+        Account admin = accountRepository.findById(adminId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản Quản trị viên: " + adminId));
+
+        if (admin.getAccountType() != AccountType.ADMIN) {
+            throw new AccessDeniedException("Tài khoản không có quyền Quản trị viên.");
+        }
+        if (admin.getStatus() != AccountStatus.ACTIVE) {
+            throw new AccessDeniedException("Tài khoản Quản trị viên chưa được kích hoạt hoặc đã bị khóa.");
+        }
+        return admin;
+    }
+
+    private Account loadTargetActiveAdmin(Long targetAdminId) {
+        Account target = accountRepository.findById(targetAdminId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Quản trị viên được phân công: " + targetAdminId));
+
+        if (target.getAccountType() != AccountType.ADMIN) {
+            throw new BusinessException("Tài khoản được phân công không phải Quản trị viên.");
+        }
+        if (target.getStatus() != AccountStatus.ACTIVE) {
+            throw new BusinessException("Tài khoản Quản trị viên được phân công chưa được kích hoạt hoặc đã bị khóa.");
+        }
+        return target;
+    }
+
+    private AdminComplaintDetailResponse reloadAndBuildAdminDetail(Long currentAdminId, Complaint savedComplaint) {
+        Complaint hydrated = complaintRepository.findByIdWithDetails(savedComplaint.getId())
+                .orElse(savedComplaint);
+        Conversation conversation = conversationRepository.findByComplaintId(hydrated.getId()).orElse(null);
+
+        long unresolvedCountForBooking = 0L;
+        if (hydrated.getBooking() != null) {
+            unresolvedCountForBooking = complaintRepository.countByBookingIdAndStatusIn(
+                    hydrated.getBooking().getId(),
+                    UNRESOLVED_STATUSES
+            );
+        }
+
+        List<AdminAuditLog> auditLogs = adminAuditLogRepository.findByEntityTypeAndEntityIdOrderByCreatedAtDesc(
+                ENTITY_TYPE_COMPLAINT,
+                String.valueOf(hydrated.getId())
+        );
+
+        return complaintMapper.toAdminDetailResponse(
+                hydrated,
+                conversation,
+                unresolvedCountForBooking,
+                auditLogs,
+                currentAdminId
+        );
     }
 
     private String validateAndTrim(String value, int min, int max, String fieldLabel) {

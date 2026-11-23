@@ -7,6 +7,7 @@ import com.homeservice.common.dto.PageResponse;
 import com.homeservice.common.dto.StandardResponse;
 import com.homeservice.common.exception.ResourceNotFoundException;
 import com.homeservice.security.CurrentAccount;
+import com.homeservice.support.dto.request.AdminAssignComplaintRequest;
 import com.homeservice.support.dto.request.AdminComplaintSearchFilter;
 import com.homeservice.support.dto.response.AdminComplaintDetailResponse;
 import com.homeservice.support.dto.response.AdminComplaintSummaryResponse;
@@ -18,6 +19,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -60,6 +63,22 @@ public class AdminComplaintController {
         Long adminId = resolveAdminId(authentication);
         AdminComplaintDetailResponse response = complaintService.getAdminComplaintDetail(adminId, complaintId);
         return StandardResponse.success("Lấy chi tiết khiếu nại thành công", response);
+    }
+
+    /**
+     * Tiếp nhận xử lý khiếu nại (OPEN -> IN_REVIEW) hoặc chuyển giao Admin phụ trách khác (reassign) (UC 33).
+     * Yêu cầu quyền ROLE_ADMIN + CSRF token.
+     */
+    @PostMapping("/{id}/assign")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<AdminComplaintDetailResponse> assignComplaint(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId,
+            @Valid @RequestBody(required = false) AdminAssignComplaintRequest request
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        AdminComplaintDetailResponse response = complaintService.assignComplaintByAdmin(adminId, complaintId, request);
+        return StandardResponse.success("Phân công xử lý khiếu nại thành công", response);
     }
 
     private Long resolveAdminId(Authentication authentication) {
