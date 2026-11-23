@@ -19,6 +19,7 @@ import com.homeservice.common.exception.BusinessException;
 import com.homeservice.common.exception.DataConflictException;
 import com.homeservice.common.exception.ResourceNotFoundException;
 import com.homeservice.support.dto.request.AdminAssignComplaintRequest;
+import com.homeservice.support.dto.request.AdminCloseComplaintRequest;
 import com.homeservice.support.dto.request.AdminComplaintSearchFilter;
 import com.homeservice.support.dto.request.CreateComplaintRequest;
 import com.homeservice.support.dto.request.CustomerComplaintFilter;
@@ -58,6 +59,7 @@ public class ComplaintService {
     public static final String ENTITY_TYPE_COMPLAINT = "COMPLAINT";
     public static final String ACTION_COMPLAINT_ASSIGNED = "COMPLAINT_ASSIGNED";
     public static final String ACTION_COMPLAINT_REASSIGNED = "COMPLAINT_REASSIGNED";
+    public static final String ACTION_COMPLAINT_RESOLVED = "COMPLAINT_RESOLVED";
 
     public static final List<ComplaintStatus> UNRESOLVED_STATUSES = List.of(
             ComplaintStatus.OPEN,
@@ -465,6 +467,115 @@ public class ComplaintService {
                 now
         );
 
+        return reloadAndBuildAdminDetail(currentAdminId, savedComplaint);
+    }
+
+    /**
+     * UC 33 — Admin phụ trách kết luận giải quyết khiếu nại (IN_REVIEW -> RESOLVED).
+     * Bắt buộc khiếu nại đang IN_REVIEW và thuộc chính Admin đang gọi API.
+     * Lưu resolution, resolvedAt, ghi admin_audit_logs trong cùng transaction và không tự sửa bookings.settlement_status (MD10 Phương án B).
+     */
+    @Transactional
+    public AdminComplaintDetailResponse resolveComplaintByAdmin(
+            Long currentAdminId,
+            Long complaintId,
+            AdminCloseComplaintRequest request
+    ) {
+        return closeComplaintByAdmin(
+                currentAdminId,
+                complaintId,
+                request,
+                ComplaintStatus.RESOLVED,
+                ACTION_COMPLAINT_RESOLVED,
+                "Nội dung kết luận giải quyết"
+        );
+    }
+
+    private AdminComplaintDetailResponse closeComplaintByAdmin(
+            Long currentAdminId,
+            Long complaintId,
+            AdminCloseComplaintRequest request,
+            ComplaintStatus targetStatus,
+            String auditAction,
+            String resolutionFieldLabel
+    ) {
+        if (complaintId == null) {
+            throw new ResourceNotFoundException("ID khiếu nại không hợp lệ");
+        }
+        if (request == null) {
+            throw new BusinessException(resolutionFieldLabel + " không được để trống.");
+        }
+
+        // 1. Validate và chuẩn hóa nội dung kết luận (5..1000 ký tự sau trim)
+        String trimmedResolution = validateAndTrim(request.getResolution(), 5, 1000, resolutionFieldLabel);
+
+        // 2. Xác minh Admin thao tác đang ACTIVE trong DB
+        Account actingAdmin = loadActiveAdmin(currentAdminId);
+
+        // 3. Khóa bi quan dòng khiếu nại chống xung đột đóng / chuyển giao / gửi tin đồng thời
+        Complaint complaint = complaintRepository.findByIdForUpdate(complaintId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khiếu nại với ID: " + complaintId));
+
+        ComplaintStatus previousStatus = complaint.getStatus();
+        if (previousStatus == ComplaintStatus.OPEN) {
+            throw new BusinessException("Vui lòng tiếp nhận hoặc phân công khiếu nại (IN_REVIEW) trước khi chốt kết quả xử lý.");
+        }
+        if (previousStatus == ComplaintStatus.RESOLVED || previousStatus == ComplaintStatus.REJECTED) {
+            throw new BusinessException("Khiếu nại đã được đóng (" + previousStatus + "), không thể thay đổi kết quả.");
+        }
+        if (previousStatus != ComplaintStatus.IN_REVIEW) {
+            throw new BusinessException("Trạng thái khiếu nại không hợp lệ để chốt kết quả: " + previousStatus);
+        }
+
+        // 4. Chỉ Admin đang phụ trách mới được chốt kết quả (Admin khác phải reassign trước)
+        Long assignedAdminId = complaint.getAssignedAdmin() != null
+                ? complaint.getAssignedAdmin().getId()
+                : null;
+        if (assignedAdminId == null || !assignedAdminId.equals(actingAdmin.getId())) {
+            throw new AccessDeniedException(
+                    "Chỉ Quản trị viên đang phụ trách khiếu nại này mới được chốt kết quả xử lý. "
+                            + "Vui lòng chuyển giao phân công (reassign) trước nếu bạn cần tiếp quản."
+            );
+        }
+
+        String previousResolution = complaint.getResolution();
+        Instant previousResolvedAt = complaint.getResolvedAt();
+        Instant now = Instant.now();
+
+        complaint.setStatus(targetStatus);
+        complaint.setResolution(trimmedResolution);
+        complaint.setResolvedAt(now);
+        complaint.setUpdatedAt(now);
+        Complaint savedComplaint = complaintRepository.saveAndFlush(complaint);
+
+        // 5. Ghi nhận bắt buộc admin_audit_logs trong cùng transaction (JSON before/after)
+        Map<String, Object> beforeState = new LinkedHashMap<>();
+        beforeState.put("status", previousStatus.name());
+        beforeState.put("resolution", previousResolution);
+        beforeState.put("resolvedAt", previousResolvedAt != null ? previousResolvedAt.toString() : null);
+        beforeState.put("assignedAdminId", assignedAdminId);
+
+        Map<String, Object> afterState = new LinkedHashMap<>();
+        afterState.put("status", savedComplaint.getStatus().name());
+        afterState.put("resolution", savedComplaint.getResolution());
+        afterState.put("resolvedAt", now.toString());
+        afterState.put("assignedAdminId", assignedAdminId);
+
+        Map<String, Object> changes = new LinkedHashMap<>();
+        changes.put("before", beforeState);
+        changes.put("after", afterState);
+
+        adminAuditLogService.record(
+                actingAdmin,
+                auditAction,
+                ENTITY_TYPE_COMPLAINT,
+                String.valueOf(savedComplaint.getId()),
+                trimmedResolution,
+                changes,
+                now
+        );
+
+        // 6. Không tự sửa bookings.settlement_status (MD10 Phương án B); nạp lại 360° kèm unresolvedComplaintCount mới nhất
         return reloadAndBuildAdminDetail(currentAdminId, savedComplaint);
     }
 

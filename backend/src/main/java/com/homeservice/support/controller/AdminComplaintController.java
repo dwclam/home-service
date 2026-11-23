@@ -8,6 +8,7 @@ import com.homeservice.common.dto.StandardResponse;
 import com.homeservice.common.exception.ResourceNotFoundException;
 import com.homeservice.security.CurrentAccount;
 import com.homeservice.support.dto.request.AdminAssignComplaintRequest;
+import com.homeservice.support.dto.request.AdminCloseComplaintRequest;
 import com.homeservice.support.dto.request.AdminComplaintSearchFilter;
 import com.homeservice.support.dto.response.AdminComplaintDetailResponse;
 import com.homeservice.support.dto.response.AdminComplaintSummaryResponse;
@@ -79,6 +80,23 @@ public class AdminComplaintController {
         Long adminId = resolveAdminId(authentication);
         AdminComplaintDetailResponse response = complaintService.assignComplaintByAdmin(adminId, complaintId, request);
         return StandardResponse.success("Phân công xử lý khiếu nại thành công", response);
+    }
+
+    /**
+     * Kết luận giải quyết khiếu nại (IN_REVIEW -> RESOLVED) (UC 33).
+     * Chỉ Admin đang phụ trách khiếu nại mới được phép chốt kết luận.
+     * Yêu cầu quyền ROLE_ADMIN + CSRF token.
+     */
+    @PostMapping("/{id}/resolve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<AdminComplaintDetailResponse> resolveComplaint(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId,
+            @Valid @RequestBody AdminCloseComplaintRequest request
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        AdminComplaintDetailResponse response = complaintService.resolveComplaintByAdmin(adminId, complaintId, request);
+        return StandardResponse.success("Kết luận giải quyết khiếu nại thành công", response);
     }
 
     private Long resolveAdminId(Authentication authentication) {
