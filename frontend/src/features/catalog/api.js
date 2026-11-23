@@ -1,9 +1,5 @@
 import { http } from '../../lib/http'
 import { SERVICE_STATUS } from '../../constants/status'
-import { MOCK_CATEGORIES, MOCK_PROVIDER_SERVICES } from '../../mocks/services'
-
-let mockServicesStore = [...MOCK_PROVIDER_SERVICES]
-const mockCategoriesStore = [...MOCK_CATEGORIES]
 
 const unwrapResponse = (responseData) => {
   if (
@@ -17,17 +13,6 @@ const unwrapResponse = (responseData) => {
   return responseData
 }
 
-const isEndpointUnavailable = (error) => {
-  const status = error?.response?.status
-  return (
-    !error?.response || status === 404 || status === 401 || status === 403 || status === 502
-  )
-}
-
-/**
- * Làm phẳng cây danh mục CategoryTreeResponse từ Backend (CategoryPublicController.tree)
- * để hiển thị rõ quan hệ Cha — Con trên thẻ <select>.
- */
 const flattenCategoryTree = (treeNodes = [], parentPrefix = '') => {
   const result = []
   for (const node of treeNodes) {
@@ -49,41 +34,25 @@ const flattenCategoryTree = (treeNodes = [], parentPrefix = '') => {
 }
 
 /**
- * Lấy danh sách danh mục đang hoạt động (UC30 - Cường phụ trách BE).
- * Endpoint Backend: GET /api/public/categories/tree (CategoryPublicController.tree)
+ * Lấy danh sách danh mục đang hoạt động (UC30).
+ * Endpoint: GET /api/public/categories/tree
  */
 export const getActiveCategories = async () => {
-  try {
-    const response = await http.get('/public/categories/tree', {
-      _skipRefresh: true,
-    })
-    const unwrapped = unwrapResponse(response.data)
-    const rawTree = Array.isArray(unwrapped)
-      ? unwrapped
-      : unwrapped?.items || unwrapped?.content || []
-    const flattened = flattenCategoryTree(rawTree)
-    return {
-      items:
-        flattened.length > 0
-          ? flattened
-          : mockCategoriesStore.filter((cat) => cat.isActive !== false),
-      isMock: flattened.length === 0,
-    }
-  } catch (error) {
-    if (isEndpointUnavailable(error)) {
-      return {
-        items: mockCategoriesStore.filter((cat) => cat.isActive !== false),
-        isMock: true,
-      }
-    }
-    throw error
+  const response = await http.get('/public/categories/tree')
+  const unwrapped = unwrapResponse(response.data)
+  const rawTree = Array.isArray(unwrapped)
+    ? unwrapped
+    : unwrapped?.items || unwrapped?.content || []
+  return {
+    items: flattenCategoryTree(rawTree),
+    isMock: false,
   }
 }
 
 /**
- * Lấy danh sách gói dịch vụ của Nhà cung cấp có phân trang và lọc (UC19 - Cường phụ trách BE).
- * Endpoint Backend: GET /api/provider/services?status=PUBLISHED&page=0&size=6
- * Nguồn BE: ProviderServiceController.list -> trả về Page<ServiceResponse>
+ * Lấy danh sách gói dịch vụ của Nhà cung cấp có phân trang và lọc (UC19).
+ * Endpoint: GET /api/provider/services?status=PUBLISHED&page=0&size=6
+ * Response: PageResponse<ServiceResponse> { items, page, size, totalElements, totalPages }
  */
 export const getMyServicesPage = async ({
   page = 0,
@@ -91,289 +60,138 @@ export const getMyServicesPage = async ({
   status = 'ALL',
   keyword = '',
 } = {}) => {
-  try {
-    const queryParams = {
-      page,
-      size,
-      ...(status && status !== 'ALL' ? { status } : {}),
-    }
-    const response = await http.get('/provider/services', {
-      params: queryParams,
-      _skipRefresh: true,
-    })
-    const unwrapped = unwrapResponse(response.data)
-    let rawItems = Array.isArray(unwrapped)
-      ? unwrapped
-      : unwrapped?.items || unwrapped?.content || []
+  const queryParams = {
+    page,
+    size,
+    ...(status && status !== 'ALL' ? { status } : {}),
+  }
+  const response = await http.get('/provider/services', {
+    params: queryParams,
+  })
+  const unwrapped = unwrapResponse(response.data)
+  let rawItems = Array.isArray(unwrapped)
+    ? unwrapped
+    : unwrapped?.items || unwrapped?.content || []
 
-    if (keyword?.trim()) {
-      const kw = keyword.trim().toLowerCase()
-      rawItems = rawItems.filter(
-        (s) =>
-          s.title?.toLowerCase().includes(kw) ||
-          s.categoryName?.toLowerCase().includes(kw)
-      )
-    }
+  if (keyword?.trim()) {
+    const kw = keyword.trim().toLowerCase()
+    rawItems = rawItems.filter(
+      (s) =>
+        s.title?.toLowerCase().includes(kw) ||
+        s.categoryName?.toLowerCase().includes(kw)
+    )
+  }
 
-    return {
-      pageData: {
-        items: rawItems,
-        page: unwrapped?.page ?? unwrapped?.number ?? page,
-        size: unwrapped?.size ?? size,
-        totalElements: unwrapped?.totalElements ?? rawItems.length,
-        totalPages: Math.max(1, unwrapped?.totalPages ?? 1),
-      },
-      isMock: false,
-    }
-  } catch (error) {
-    if (isEndpointUnavailable(error)) {
-      let filtered = [...mockServicesStore].sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      )
-
-      if (status && status !== 'ALL') {
-        filtered = filtered.filter((s) => s.status === status)
-      }
-
-      if (keyword?.trim()) {
-        const kw = keyword.trim().toLowerCase()
-        filtered = filtered.filter(
-          (s) =>
-            s.title.toLowerCase().includes(kw) ||
-            s.categoryName?.toLowerCase().includes(kw)
-        )
-      }
-
-      const totalElements = filtered.length
-      const totalPages = Math.max(1, Math.ceil(totalElements / size))
-      const safePage = Math.min(page, totalPages - 1)
-      const items = filtered.slice(safePage * size, (safePage + 1) * size)
-
-      return {
-        pageData: {
-          items,
-          page: safePage,
-          size,
-          totalElements,
-          totalPages,
-        },
-        isMock: true,
-      }
-    }
-    throw error
+  return {
+    pageData: {
+      items: rawItems,
+      page: unwrapped?.page ?? unwrapped?.number ?? page,
+      size: unwrapped?.size ?? size,
+      totalElements: unwrapped?.totalElements ?? rawItems.length,
+      totalPages: Math.max(1, unwrapped?.totalPages ?? 1),
+    },
+    isMock: false,
   }
 }
 
 /**
- * Công khai gói dịch vụ của NCC (UC19).
- * Endpoint Backend: PATCH /api/provider/services/{id}/publish
- */
-export const publishProviderService = async (id) => {
-  try {
-    const response = await http.patch(`/provider/services/${id}/publish`, null, {
-      _skipRefresh: true,
-    })
-    return {
-      data: unwrapResponse(response.data),
-      isMock: false,
-    }
-  } catch (error) {
-    if (isEndpointUnavailable(error)) {
-      let updatedItem = null
-      mockServicesStore = mockServicesStore.map((item) => {
-        if (item.id === id) {
-          updatedItem = {
-            ...item,
-            status: SERVICE_STATUS.PUBLISHED,
-            updatedAt: new Date().toISOString(),
-          }
-          return updatedItem
-        }
-        return item
-      })
-      return {
-        data: updatedItem,
-        isMock: true,
-      }
-    }
-    throw error
-  }
-}
-
-/**
- * Lưu trữ gói dịch vụ của NCC (UC19 - ẩn khỏi khách, giữ nguyên snapshot đơn cũ).
- * Endpoint Backend: PATCH /api/provider/services/{id}/archive
- */
-export const archiveProviderService = async (id) => {
-  try {
-    const response = await http.patch(`/provider/services/${id}/archive`, null, {
-      _skipRefresh: true,
-    })
-    return {
-      data: unwrapResponse(response.data),
-      isMock: false,
-    }
-  } catch (error) {
-    if (isEndpointUnavailable(error)) {
-      let updatedItem = null
-      mockServicesStore = mockServicesStore.map((item) => {
-        if (item.id === id) {
-          updatedItem = {
-            ...item,
-            status: SERVICE_STATUS.ARCHIVED,
-            updatedAt: new Date().toISOString(),
-          }
-          return updatedItem
-        }
-        return item
-      })
-      return {
-        data: updatedItem,
-        isMock: true,
-      }
-    }
-    throw error
-  }
-}
-
-/**
- * Tạo gói dịch vụ mới cho NCC (UC19).
- * Endpoint Backend: POST /api/provider/services (CreateServiceRequest)
- * Lưu ý: Backend luôn tạo mới ở trạng thái DRAFT. Nếu người dùng chọn PUBLISHED trong form,
- * tự động gọi tiếp PATCH /api/provider/services/{id}/publish.
+ * Tạo gói dịch vụ mới cho Nhà cung cấp (UC19).
+ * Endpoint: POST /api/provider/services (+ PATCH /publish hoặc /archive nếu người dùng chọn)
  */
 export const createProviderService = async (payload) => {
-  const category = mockCategoriesStore.find(
-    (c) => c.id === Number(payload.categoryId)
-  )
+  const cleanImages = (payload.images || [])
+    .filter((img) => img.imageUrl?.trim())
+    .map((img, idx) => ({
+      imageUrl: img.imageUrl.trim(),
+      altText: img.altText?.trim() || payload.title.trim(),
+      sortOrder: idx,
+    }))
+
   const createBody = {
     categoryId: Number(payload.categoryId),
     title: payload.title.trim(),
     description: payload.description.trim(),
-    basePriceVnd: Math.round(Number(payload.basePriceVnd)),
-    durationMinutes: Math.round(Number(payload.durationMinutes)),
+    basePriceVnd: Number(payload.basePriceVnd),
+    durationMinutes: Number(payload.durationMinutes),
+    images: cleanImages,
   }
 
-  const normalizedImages = (payload.images || []).map((img, idx) => ({
-    imageUrl: img.imageUrl.trim(),
-    altText: img.altText?.trim() || '',
-    sortOrder: Number(img.sortOrder ?? idx),
-  }))
+  const response = await http.post('/provider/services', createBody)
+  let created = unwrapResponse(response.data)
 
-  try {
-    const response = await http.post('/provider/services', createBody, {
-      _skipRefresh: true,
-    })
-    let createdData = unwrapResponse(response.data)
-
-    if (payload.status === SERVICE_STATUS.PUBLISHED && createdData?.id) {
-      const pubRes = await publishProviderService(createdData.id)
-      createdData = pubRes.data || createdData
-    } else if (payload.status === SERVICE_STATUS.ARCHIVED && createdData?.id) {
-      const arcRes = await archiveProviderService(createdData.id)
-      createdData = arcRes.data || createdData
-    }
-
-    return {
-      data: {
-        ...createdData,
-        images: createdData?.images || normalizedImages,
-      },
-      isMock: false,
-    }
-  } catch (error) {
-    if (isEndpointUnavailable(error)) {
-      const created = {
-        id: Date.now(),
-        providerId: 2001,
-        ...createBody,
-        status: payload.status || SERVICE_STATUS.DRAFT,
-        images: normalizedImages,
-        categoryName: category?.name || 'Danh mục dịch vụ',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      mockServicesStore = [created, ...mockServicesStore]
-      return {
-        data: created,
-        isMock: true,
-      }
-    }
-    throw error
+  if (created?.id && payload.status === SERVICE_STATUS.PUBLISHED) {
+    const pubRes = await http.patch(`/provider/services/${created.id}/publish`)
+    created = unwrapResponse(pubRes.data)
+  } else if (created?.id && payload.status === SERVICE_STATUS.ARCHIVED) {
+    const archRes = await http.patch(`/provider/services/${created.id}/archive`)
+    created = unwrapResponse(archRes.data)
   }
+
+  return { data: created, isMock: false }
 }
 
 /**
- * Cập nhật gói dịch vụ của NCC (UC19).
- * Endpoint Backend: PUT /api/provider/services/{id} (UpdateServiceRequest)
- * Nếu trạng thái thay đổi sang PUBLISHED / ARCHIVED, kết hợp gọi PATCH /publish hoặc /archive.
+ * Cập nhật gói dịch vụ của Nhà cung cấp (UC19).
+ * Endpoint: PUT /api/provider/services/{id} (+ PATCH publish/archive nếu đổi trạng thái)
  */
-export const updateProviderService = async (id, payload, previousStatus) => {
-  const category = mockCategoriesStore.find(
-    (c) => c.id === Number(payload.categoryId)
-  )
+export const updateProviderService = async (serviceId, payload) => {
+  const cleanImages = (payload.images || [])
+    .filter((img) => img.imageUrl?.trim())
+    .map((img, idx) => ({
+      imageUrl: img.imageUrl.trim(),
+      altText: img.altText?.trim() || payload.title.trim(),
+      sortOrder: idx,
+    }))
+
   const updateBody = {
     categoryId: Number(payload.categoryId),
     title: payload.title.trim(),
     description: payload.description.trim(),
-    basePriceVnd: Math.round(Number(payload.basePriceVnd)),
-    durationMinutes: Math.round(Number(payload.durationMinutes)),
+    basePriceVnd: Number(payload.basePriceVnd),
+    durationMinutes: Number(payload.durationMinutes),
+    images: cleanImages,
   }
 
-  const normalizedImages = (payload.images || []).map((img, idx) => ({
-    id: img.id,
-    imageUrl: img.imageUrl.trim(),
-    altText: img.altText?.trim() || '',
-    sortOrder: Number(img.sortOrder ?? idx),
-  }))
+  const response = await http.put(`/provider/services/${serviceId}`, updateBody)
+  let updated = unwrapResponse(response.data)
 
-  try {
-    const response = await http.put(`/provider/services/${id}`, updateBody, {
-      _skipRefresh: true,
-    })
-    let updatedData = unwrapResponse(response.data)
-
-    const targetStatus = payload.status
-    const currentStatus = previousStatus || updatedData?.status
-    if (targetStatus && targetStatus !== currentStatus) {
-      if (targetStatus === SERVICE_STATUS.PUBLISHED) {
-        const pubRes = await publishProviderService(id)
-        updatedData = pubRes.data || updatedData
-      } else if (targetStatus === SERVICE_STATUS.ARCHIVED) {
-        const arcRes = await archiveProviderService(id)
-        updatedData = arcRes.data || updatedData
-      }
-    }
-
-    return {
-      data: {
-        ...updatedData,
-        images: updatedData?.images || normalizedImages,
-      },
-      isMock: false,
-    }
-  } catch (error) {
-    if (isEndpointUnavailable(error)) {
-      let updatedItem = null
-      mockServicesStore = mockServicesStore.map((item) => {
-        if (item.id === id) {
-          updatedItem = {
-            ...item,
-            ...updateBody,
-            status: payload.status || item.status,
-            images: normalizedImages,
-            categoryName: category?.name || item.categoryName,
-            updatedAt: new Date().toISOString(),
-          }
-          return updatedItem
-        }
-        return item
-      })
-      return {
-        data: updatedItem,
-        isMock: true,
-      }
-    }
-    throw error
+  if (
+    payload.status === SERVICE_STATUS.PUBLISHED &&
+    updated?.status !== SERVICE_STATUS.PUBLISHED
+  ) {
+    const pubRes = await http.patch(`/provider/services/${serviceId}/publish`)
+    updated = unwrapResponse(pubRes.data)
+  } else if (
+    payload.status === SERVICE_STATUS.ARCHIVED &&
+    updated?.status !== SERVICE_STATUS.ARCHIVED
+  ) {
+    const archRes = await http.patch(`/provider/services/${serviceId}/archive`)
+    updated = unwrapResponse(archRes.data)
   }
+
+  return { data: updated, isMock: false }
+}
+
+/**
+ * Đổi trạng thái công khai / lưu trữ dịch vụ (UC19).
+ */
+export const updateProviderServiceStatus = async (serviceId, nextStatus) => {
+  const actionPath =
+    nextStatus === SERVICE_STATUS.PUBLISHED
+      ? `/provider/services/${serviceId}/publish`
+      : `/provider/services/${serviceId}/archive`
+
+  const response = await http.patch(actionPath)
+  return {
+    data: unwrapResponse(response.data),
+    isMock: false,
+  }
+}
+
+export const publishProviderService = async (serviceId) => {
+  return updateProviderServiceStatus(serviceId, SERVICE_STATUS.PUBLISHED)
+}
+
+export const archiveProviderService = async (serviceId) => {
+  return updateProviderServiceStatus(serviceId, SERVICE_STATUS.ARCHIVED)
 }

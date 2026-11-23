@@ -9,4 +9,11 @@ fi
 
 # Build only; never invoke spring-boot:run or load .env into the shell.
 ./mvnw -q -DskipTests compile dependency:build-classpath -DincludeScope=runtime -Dmdep.outputFile=target/admin-classpath.txt
-exec java -cp "target/classes:$(cat target/admin-classpath.txt)" com.homeservice.admin.tool.CreateAdmin
+
+# Java trên Windows (Git Bash/MSYS/Cygwin) dùng ';' làm dấu phân cách classpath, Linux/macOS dùng ':'.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) SEP=';' ;;
+    *) SEP=':' ;;
+esac
+
+exec java -cp "target/classes${SEP}$(cat target/admin-classpath.txt)" com.homeservice.admin.tool.CreateAdmin

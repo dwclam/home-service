@@ -7,18 +7,22 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -29,6 +33,49 @@ import java.util.List;
 @Configuration(proxyBeanMethods = false)
 @EnableMethodSecurity
 public class SecurityConfig {
+    private static final String FIRST_PASSWORD_CHANGE = "FIRST_PASSWORD_CHANGE";
+
+    @Bean
+    @Order(1)
+    SecurityFilterChain firstPasswordChangeFilterChain(
+            HttpSecurity http,
+            UrlBasedCorsConfigurationSource corsConfigurationSource,
+            CookieCsrfTokenRepository csrfTokenRepository,
+            SecurityErrorHandler errorHandler,
+            @Qualifier("firstPasswordChangeJwtDecoder") JwtDecoder decoder
+    ) throws Exception {
+        http
+                .securityMatcher(PathPatternRequestMatcher.withDefaults()
+                        .matcher(HttpMethod.POST, "/api/auth/provider/first-password"))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository)
+                        .withObjectPostProcessor(new ObjectPostProcessor<CsrfFilter>() {
+                            @Override
+                            public <T extends CsrfFilter> T postProcess(T filter) {
+                                // A password change requires CSRF even when authenticated by JWT.
+                                filter.setRequireCsrfProtectionMatcher(CsrfFilter.DEFAULT_CSRF_MATCHER);
+                                return filter;
+                            }
+                        }))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .requestCache(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .oauth2ResourceServer(resource -> resource
+                        .jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(token -> {
+                            CurrentAccount account = new CurrentAccount(Long.valueOf(token.getSubject()), null, null);
+                            return UsernamePasswordAuthenticationToken.authenticated(account, null,
+                                    List.of(new SimpleGrantedAuthority(FIRST_PASSWORD_CHANGE)));
+                        }))
+                        .authenticationEntryPoint(errorHandler::passwordChangeTokenInvalid)
+                        .accessDeniedHandler(errorHandler))
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint(errorHandler::passwordChangeTokenInvalid)
+                        .accessDeniedHandler(errorHandler))
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().hasAuthority(FIRST_PASSWORD_CHANGE));
+        return http.build();
+    }
 
     @Bean
     SecurityFilterChain securityFilterChain(
@@ -42,15 +89,37 @@ public class SecurityConfig {
         // Public cookie-based endpoints must still enforce CSRF, even with an Authorization header.
         var paths = PathPatternRequestMatcher.withDefaults();
         var cookieEndpoints = new OrRequestMatcher(paths.matcher("/api/auth/csrf"),
-                paths.matcher("/api/auth/login"), paths.matcher("/api/auth/login/admin"), paths.matcher("/api/auth/refresh"),
+                paths.matcher("/api/auth/login"), paths.matcher("/api/auth/login/admin"),
+                paths.matcher("/api/auth/login/provider"), paths.matcher("/api/auth/refresh"),
                 paths.matcher("/api/auth/logout"), paths.matcher("/api/auth/register/customer"),
                 paths.matcher("/api/auth/verify-email"), paths.matcher("/api/auth/resend-verification"),
                 paths.matcher("/api/provider-applications"),
                 paths.matcher("/api/provider-applications/verify-email"),
                 paths.matcher("/api/provider-applications/resend-verification"));
+        var adminEndpoints = new OrRequestMatcher(paths.matcher("/api/admin/**"), paths.matcher("/api/v1/admin/**"));
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository))
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository)
+                        .withObjectPostProcessor(new ObjectPostProcessor<CsrfFilter>() {
+                            @Override
+                            public <T extends CsrfFilter> T postProcess(T filter) {
+                                // Resource Server normally skips CSRF for Bearer requests. Admin writes require both.
+                                filter.setRequireCsrfProtectionMatcher(request -> {
+                                    if (!CsrfFilter.DEFAULT_CSRF_MATCHER.matches(request)) {
+                                        return false;
+                                    }
+                                    if (adminEndpoints.matches(request) || cookieEndpoints.matches(request)) {
+                                        return true;
+                                    }
+                                    try {
+                                        return bearerTokens.resolve(request) == null;
+                                    } catch (OAuth2AuthenticationException exception) {
+                                        return true;
+                                    }
+                                });
+                                return filter;
+                            }
+                        }))
                 // Access JWTs are verified without a database lookup or servlet session.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(AbstractHttpConfigurer::disable)
@@ -72,14 +141,16 @@ public class SecurityConfig {
                         .accessDeniedHandler(errorHandler))
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/login/admin", "/api/auth/register/customer",
+                        .requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf",
+                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/login/admin",
+                                "/api/auth/login/provider", "/api/auth/register/customer",
                                 "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/logout", "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/provider-applications",
                                 "/api/provider-applications/verify-email",
                                 "/api/provider-applications/resend-verification").permitAll()
-                        .requestMatchers("/api/auth/me").hasAnyRole("CUSTOMER", "ADMIN")
-                        .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/auth/me").hasAnyRole("CUSTOMER", "ADMIN", "PROVIDER")
+                        .requestMatchers(adminEndpoints).hasRole("ADMIN")
                         .requestMatchers("/api/provider/**", "/api/v1/provider/**").hasRole("PROVIDER")
                         .requestMatchers("/api/customer/**", "/api/v1/customer/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated());

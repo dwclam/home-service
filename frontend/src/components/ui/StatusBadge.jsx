@@ -11,6 +11,9 @@ import {
   Lock,
   MinusCircle,
   ShieldCheck,
+  PauseCircle,
+  AlertTriangle,
+  MessageSquare,
   Info,
 } from 'lucide-react'
 import { ALL_STATUS_CONFIG } from '../../constants/status'
@@ -28,6 +31,9 @@ const ICON_MAP = {
   Lock,
   MinusCircle,
   ShieldCheck,
+  PauseCircle,
+  AlertTriangle,
+  MessageSquare,
   Info,
 }
 

@@ -6,9 +6,9 @@ import com.homeservice.service.dto.ServiceResponse;
 import com.homeservice.service.dto.UpdateServiceRequest;
 import com.homeservice.catalog.enums.ServiceStatus;
 import com.homeservice.service.service.ServiceService;
+import com.homeservice.common.dto.PageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -48,7 +48,7 @@ public class ProviderServiceController {
 
     // Danh sách dịch vụ của mình: ?status=PUBLISHED&page=0&size=10
     @GetMapping
-    public Page<ServiceResponse> list(@AuthenticationPrincipal CurrentAccount me,
+    public PageResponse<ServiceResponse> list(@AuthenticationPrincipal CurrentAccount me,
                                       @RequestParam(required = false) ServiceStatus status,
                                       @PageableDefault(size = 10, sort = "createdAt",
                                               direction = Sort.Direction.DESC) Pageable pageable) {

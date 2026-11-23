@@ -1,12 +1,11 @@
-import { Link } from 'react-router-dom'
 import { ArrowRight, CalendarCheck, CircleCheck, Droplets, GraduationCap, Hammer, PawPrint, Search, Sparkles, Star, Zap } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { categories, completedTasks, featuredServices, providers, steps } from '../data/home'
-import { Button } from './ui/Button'
 
 const icons = { Zap, Droplets, Sparkles, PawPrint, GraduationCap, Hammer, Search, CalendarCheck, CircleCheck }
 const container = 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'
 
-function SectionHeading({ title, subtitle, to }) {
+function SectionHeading({ title, subtitle, href, to }) {
   return (
     <div className="mb-10 flex items-end justify-between gap-4">
       <div>
@@ -17,14 +16,21 @@ function SectionHeading({ title, subtitle, to }) {
           <p className="mt-2 text-[15px] text-neutral-500">{subtitle}</p>
         )}
       </div>
-      {to && (
+      {to ? (
         <Link
           to={to}
-          className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-medium text-primary-600 hover:text-primary-700 shrink-0"
+          className="hidden items-center gap-1 whitespace-nowrap text-sm font-medium text-primary-600 hover:text-primary-700 sm:inline-flex"
         >
           Xem tất cả <ArrowRight size={16} />
         </Link>
-      )}
+      ) : href ? (
+        <a
+          href={href}
+          className="hidden items-center gap-1 whitespace-nowrap text-sm font-medium text-primary-600 hover:text-primary-700 sm:inline-flex"
+        >
+          Xem tất cả <ArrowRight size={16} />
+        </a>
+      ) : null}
     </div>
   )
 }
@@ -44,7 +50,7 @@ export function Categories() {
             return (
               <Link
                 key={category.title}
-                to={`/services?category=${encodeURIComponent(category.title)}`}
+                to={`/services?keyword=${encodeURIComponent(category.title)}`}
                 className="group flex flex-col items-center gap-3 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm transition-all hover:border-neutral-300 hover:shadow-md"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-md bg-primary-50 group-hover:bg-primary-100">
@@ -117,10 +123,14 @@ export function CompletedTasks() {
   )
 }
 
-function FeaturedServiceCard({ service }) {
+function FeaturedServiceCard({ service, index = 0 }) {
+  const serviceId = service.id || index + 1
   return (
     <article className="group overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      <div className="relative h-48 overflow-hidden bg-neutral-100">
+      <Link
+        to={`/services/${serviceId}`}
+        className="relative block h-48 overflow-hidden bg-neutral-100"
+      >
         <img
           src={service.image}
           alt={service.category}
@@ -129,10 +139,15 @@ function FeaturedServiceCard({ service }) {
         <span className="absolute left-3 top-3 rounded-md bg-white/95 px-2.5 py-1 text-xs font-medium text-primary-700 backdrop-blur">
           {service.category}
         </span>
-      </div>
+      </Link>
       <div className="p-5">
         <h3 className="mb-2 line-clamp-2 min-h-[3.25rem] text-[17px] font-semibold text-ink">
-          {service.title}
+          <Link
+            to={`/services/${serviceId}`}
+            className="hover:text-primary-600 transition-colors"
+          >
+            {service.title}
+          </Link>
         </h3>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
@@ -145,6 +160,9 @@ function FeaturedServiceCard({ service }) {
             <span className="text-sm font-medium text-neutral-700">
               {service.rating}
             </span>
+            {service.reviews != null && (
+              <span className="text-xs text-neutral-500">({service.reviews})</span>
+            )}
           </span>
         </div>
         <div className="flex items-center justify-between border-t border-neutral-200 pt-4">
@@ -154,11 +172,20 @@ function FeaturedServiceCard({ service }) {
               {service.price}
             </p>
           </div>
-          <Link to={`/customer/bookings/new?serviceId=${service.id}`}>
-            <Button variant="primary" size="sm">
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/services/${serviceId}`}
+              className="inline-flex h-9 items-center rounded-md border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              Chi tiết
+            </Link>
+            <Link
+              to={`/booking/new?serviceId=${serviceId}`}
+              className="inline-flex h-9 items-center rounded-md bg-primary-500 px-3.5 text-xs font-medium text-white hover:bg-primary-600"
+            >
               Đặt lịch
-            </Button>
-          </Link>
+            </Link>
+          </div>
         </div>
       </div>
     </article>
@@ -175,8 +202,12 @@ export function FeaturedServices() {
           to="/services"
         />
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredServices.map((service) => (
-            <FeaturedServiceCard key={service.id || service.title} service={service} />
+          {featuredServices.map((service, index) => (
+            <FeaturedServiceCard
+              key={service.id || service.title}
+              service={service}
+              index={index}
+            />
           ))}
         </div>
       </div>
@@ -222,14 +253,20 @@ export function HowItWorks() {
   )
 }
 
-function ProviderCard({ provider }) {
+function ProviderCard({ provider, index = 0 }) {
+  const providerId = provider.id || index + 1
   return (
     <article className="rounded-lg border border-neutral-200 bg-white p-6 text-center shadow-sm transition-shadow hover:shadow-md">
       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-[18px] font-semibold text-primary-700">
         {provider.initials}
       </div>
       <h3 className="mb-1 text-[16px] font-semibold text-ink">
-        {provider.name}
+        <Link
+          to={`/providers/${providerId}`}
+          className="hover:text-primary-600 transition-colors"
+        >
+          {provider.name}
+        </Link>
       </h3>
       <p className="mb-3 text-xs text-neutral-500">{provider.specialty}</p>
       <div className="mb-4 flex items-center justify-center gap-1">
@@ -237,16 +274,20 @@ function ProviderCard({ provider }) {
         <span className="text-sm font-medium text-neutral-700">
           {provider.rating}
         </span>
+        {provider.reviews != null && (
+          <span className="text-xs text-neutral-500">({provider.reviews})</span>
+        )}
       </div>
       <div className="mb-5 flex items-center justify-center gap-4 border-b border-neutral-200 pb-5 text-xs text-neutral-500">
         <span>{provider.orders}</span>
         <span className="h-1 w-1 rounded-full bg-neutral-300" />
         <span>{provider.experience}</span>
       </div>
-      <Link to={`/services?provider=${encodeURIComponent(provider.name)}`}>
-        <Button variant="secondary" size="sm" fullWidth>
-          Xem dịch vụ
-        </Button>
+      <Link
+        to={`/providers/${providerId}`}
+        className="inline-flex h-9 w-full items-center justify-center rounded-md border border-neutral-200 px-4 text-sm font-medium text-primary-600 hover:border-primary-200 hover:bg-primary-50"
+      >
+        Xem hồ sơ
       </Link>
     </article>
   )
@@ -259,11 +300,15 @@ export function TopProviders() {
         <SectionHeading
           title="Nhà cung cấp hàng đầu"
           subtitle="Được đánh giá cao nhất tháng này"
-          to="/services"
+          href="/#provider"
         />
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {providers.map((provider) => (
-            <ProviderCard key={provider.name} provider={provider} />
+          {providers.map((provider, index) => (
+            <ProviderCard
+              key={provider.name}
+              provider={provider}
+              index={index}
+            />
           ))}
         </div>
       </div>
@@ -287,13 +332,13 @@ export function ProviderCallout() {
             </div>
             <div className="flex flex-col gap-3 sm:flex-row lg:col-span-4 lg:flex-col">
               <Link
-                to="/register"
+                to="/provider/apply"
                 className="inline-flex h-11 items-center justify-center rounded-md bg-white px-6 text-sm font-medium text-ink hover:bg-neutral-100"
               >
                 Đăng ký làm nhà cung cấp
               </Link>
               <a
-                href="#how-it-works"
+                href="/#how-it-works"
                 className="inline-flex h-11 items-center justify-center rounded-md border border-neutral-700 px-6 text-sm font-medium text-white hover:bg-neutral-800"
               >
                 Tìm hiểu thêm

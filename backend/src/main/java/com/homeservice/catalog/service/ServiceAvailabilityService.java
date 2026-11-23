@@ -79,9 +79,9 @@ public class ServiceAvailabilityService {
             from = earliestAllowedStart;
         }
 
-        // Mặc định: to = 1 tuần kể từ from
+        // Mặc định: to = 1 tuần kể từ now
         if (to == null) {
-            to = from.plus(Duration.ofDays(7));
+            to = now.plus(Duration.ofDays(7));
         }
 
         if (!from.isBefore(to)) {

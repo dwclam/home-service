@@ -1,8 +1,6 @@
 /**
- * Ánh xạ các trạng thái nghiệp vụ (BookingStatus, ServiceStatus, AvailabilityState, BankVerificationStatus)
- * tuân thủ nghiêm ngặt FE-guideline-lite:
- * - Badge KHÔNG nền, KHÔNG viền, chỉ icon Lucide + chữ semibold.
- * - Chữ dùng tông đậm (-700) để đủ tương phản trên nền trắng, icon giữ tông -600.
+ * Ánh xạ các trạng thái nghiệp vụ tuân thủ FE-guideline-lite:
+ * - Badge KHÔNG nền, KHÔNG viền, chỉ icon Lucide (-600) + chữ semibold (-700).
  * - Riêng trạng thái IN_PROGRESS ("Đang thực hiện") có spin = true.
  */
 
@@ -33,6 +31,48 @@ export const BANK_VERIFICATION_STATUS = {
   PENDING: 'PENDING',
   VERIFIED: 'VERIFIED',
   REJECTED: 'REJECTED',
+}
+
+export const SETTLEMENT_STATUS = {
+  DRAFT: 'DRAFT',
+  ON_HOLD: 'ON_HOLD',
+  FINALIZED: 'FINALIZED',
+}
+
+export const COMPLAINT_STATUS = {
+  OPEN: 'OPEN',
+  IN_REVIEW: 'IN_REVIEW',
+  RESOLVED: 'RESOLVED',
+  REJECTED: 'REJECTED',
+}
+
+export const COMPLAINT_CATEGORY = {
+  PAYMENT: 'PAYMENT',
+  SERVICE: 'SERVICE',
+  OTHER: 'OTHER',
+}
+
+export const COMPLAINT_CATEGORY_LABELS = {
+  [COMPLAINT_CATEGORY.PAYMENT]: 'Thanh toán & Hoàn tiền',
+  [COMPLAINT_CATEGORY.SERVICE]: 'Chất lượng dịch vụ',
+  [COMPLAINT_CATEGORY.OTHER]: 'Hỗ trợ khác',
+}
+
+export const TERMINATION_REASON_LABELS = {
+  CUSTOMER_CANCEL: 'Khách hàng hủy đơn',
+  PROVIDER_REJECT: 'Nhà cung cấp từ chối',
+  PROVIDER_CANCEL: 'Nhà cung cấp hủy đơn',
+  PROVIDER_UNABLE_TO_CONTINUE: 'Nhà cung cấp không thể tiếp tục',
+  PROVIDER_RESPONSE_TIMEOUT: 'Quá hạn phản hồi của nhà cung cấp',
+  DEPOSIT_TIMEOUT: 'Quá hạn thanh toán đặt cọc',
+  SYSTEM_CANCEL: 'Hủy bởi quản trị hệ thống',
+}
+
+export const ACTOR_TYPE_LABELS = {
+  CUSTOMER: 'Khách hàng',
+  PROVIDER: 'Nhà cung cấp',
+  ADMIN: 'Quản trị viên',
+  SYSTEM: 'Hệ thống',
 }
 
 export const BOOKING_STATUS_CONFIG = {
@@ -162,6 +202,106 @@ export const BANK_VERIFICATION_CONFIG = {
     textClass: 'text-red-600',
     iconClass: 'text-red-600',
     iconName: 'XCircle',
+    spin: false,
+  },
+}
+
+export const SETTLEMENT_STATUS_CONFIG = {
+  [SETTLEMENT_STATUS.DRAFT]: {
+    label: 'Chờ đối soát',
+    textClass: 'text-neutral-600',
+    iconClass: 'text-neutral-500',
+    iconName: 'Clock',
+    spin: false,
+  },
+  [SETTLEMENT_STATUS.ON_HOLD]: {
+    label: 'Tạm giữ đối soát',
+    textClass: 'text-amber-700',
+    iconClass: 'text-amber-600',
+    iconName: 'PauseCircle',
+    spin: false,
+  },
+  [SETTLEMENT_STATUS.FINALIZED]: {
+    label: 'Đã chốt đối soát',
+    textClass: 'text-emerald-700',
+    iconClass: 'text-emerald-600',
+    iconName: 'ShieldCheck',
+    spin: false,
+  },
+}
+
+export const COMPLAINT_STATUS_CONFIG = {
+  [COMPLAINT_STATUS.OPEN]: {
+    label: 'Mới tiếp nhận',
+    textClass: 'text-amber-700',
+    iconClass: 'text-amber-600',
+    iconName: 'Clock',
+    spin: false,
+  },
+  [COMPLAINT_STATUS.IN_REVIEW]: {
+    label: 'Đang xử lý',
+    textClass: 'text-sky-700',
+    iconClass: 'text-sky-600',
+    iconName: 'MessageSquare',
+    spin: false,
+  },
+  [COMPLAINT_STATUS.RESOLVED]: {
+    label: 'Đã giải quyết',
+    textClass: 'text-emerald-700',
+    iconClass: 'text-emerald-600',
+    iconName: 'CheckCircle2',
+    spin: false,
+  },
+  [COMPLAINT_STATUS.REJECTED]: {
+    label: 'Đã từ chối',
+    textClass: 'text-red-600',
+    iconClass: 'text-red-600',
+    iconName: 'XCircle',
+    spin: false,
+  },
+}
+
+export const PAYMENT_STATUS_CONFIG = {
+  CREATED: {
+    label: 'Khởi tạo',
+    textClass: 'text-neutral-600',
+    iconClass: 'text-neutral-500',
+    iconName: 'Clock',
+    spin: false,
+  },
+  PENDING: {
+    label: 'Đang xử lý',
+    textClass: 'text-amber-700',
+    iconClass: 'text-amber-600',
+    iconName: 'Clock',
+    spin: false,
+  },
+  UNKNOWN: {
+    label: 'Chờ đối soát cổng',
+    textClass: 'text-amber-700',
+    iconClass: 'text-amber-600',
+    iconName: 'AlertTriangle',
+    spin: false,
+  },
+  SUCCEEDED: {
+    label: 'Thành công',
+    textClass: 'text-emerald-700',
+    iconClass: 'text-emerald-600',
+    iconName: 'CheckCircle2',
+    spin: false,
+  },
+  FAILED: {
+    label: 'Thất bại',
+    textClass: 'text-red-600',
+    iconClass: 'text-red-600',
+    iconName: 'XCircle',
+    spin: false,
+  },
+  EXPIRED: {
+    label: 'Hết hạn',
+    textClass: 'text-neutral-500',
+    iconClass: 'text-neutral-500',
+    iconName: 'TimerOff',
     spin: false,
   },
 }

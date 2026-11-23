@@ -6,10 +6,9 @@ import toast from 'react-hot-toast'
 import { Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 
 import { loginSchema } from '../schemas'
-import { login, loginAdmin } from '../api'
+import { login } from '../api'
 import { useAuthStore } from '../authStore'
 import { clearCsrfToken } from '../../../lib/http'
-import { ROLE_DEFAULT_ROUTES, ROLES } from '../../../constants/roles'
 import { Button } from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { FormField } from '../../../components/ui/FormField'
@@ -22,7 +21,6 @@ export const LoginForm = () => {
   const verifiedEmail = location.state?.verifiedEmail || ''
   const [showPassword, setShowPassword] = useState(false)
   const [rateLimitSeconds, setRateLimitSeconds] = useState(0)
-  const [loginMode, setLoginMode] = useState('USER')
 
   const {
     register,
@@ -57,8 +55,7 @@ export const LoginForm = () => {
     if (rateLimitSeconds > 0) return
 
     try {
-      const loginFn = loginMode === 'ADMIN' ? loginAdmin : login
-      const data = await loginFn({
+      const data = await login({
         email: values.email,
         password: values.password,
       })
@@ -71,13 +68,13 @@ export const LoginForm = () => {
       clearCsrfToken()
       toast.success('Đăng nhập thành công!')
 
-      const defaultTarget =
-        ROLE_DEFAULT_ROUTES[data.account?.accountType || data.account?.role] ||
-        '/'
-      const from = location.state?.from
-      const redirectPath = from?.pathname
-        ? `${from.pathname}${from.search || ''}`
-        : defaultTarget
+      const fromState = location.state?.from
+      const redirectPath =
+        typeof fromState === 'string'
+          ? fromState
+          : fromState?.pathname
+            ? `${fromState.pathname}${fromState.search || ''}`
+            : '/'
       navigate(redirectPath, { replace: true })
     } catch (error) {
       const errorData = error.response?.data
@@ -111,31 +108,6 @@ export const LoginForm = () => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full" noValidate>
-      <div className="grid grid-cols-2 gap-1 p-1 rounded-md bg-neutral-100 border border-neutral-200 text-xs font-semibold">
-        <button
-          type="button"
-          onClick={() => setLoginMode('USER')}
-          className={`h-8 rounded transition-colors cursor-pointer ${
-            loginMode === 'USER'
-              ? 'bg-white text-ink shadow-xs'
-              : 'text-neutral-600 hover:text-ink'
-          }`}
-        >
-          Khách hàng / Đối tác
-        </button>
-        <button
-          type="button"
-          onClick={() => setLoginMode('ADMIN')}
-          className={`h-8 rounded transition-colors cursor-pointer ${
-            loginMode === 'ADMIN'
-              ? 'bg-white text-ink shadow-xs'
-              : 'text-neutral-600 hover:text-ink'
-          }`}
-        >
-          Quản trị viên
-        </button>
-      </div>
-
       {verifiedEmail && (
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-700 text-sm flex items-center gap-2 font-sans">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -214,79 +186,23 @@ export const LoginForm = () => {
         </Link>
       </p>
 
-      {import.meta.env.DEV && (
-        <div className="pt-4 mt-4 border-t border-neutral-200 grid grid-cols-3 gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setAuth({
-                account: {
-                  id: 1001,
-                  email: 'customer.seed@nestify.vn',
-                  displayName: 'Nguyễn Văn Khách',
-                  accountType: ROLES.CUSTOMER,
-                  status: 'ACTIVE',
-                  mustChangePassword: false,
-                },
-                accessToken: 'dev-seed-customer-token',
-              })
-              const from = location.state?.from
-              const target = from?.pathname
-                ? `${from.pathname}${from.search || ''}`
-                : '/customer/bookings'
-              navigate(target, { replace: true })
-            }}
-          >
-            Khách hàng
-          </Button>
-
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setAuth({
-                account: {
-                  id: 2001,
-                  email: 'provider.seed@nestify.vn',
-                  displayName: 'Điện Lạnh Bách Khoa 247',
-                  accountType: ROLES.PROVIDER,
-                  status: 'ACTIVE',
-                  mustChangePassword: false,
-                },
-                accessToken: 'dev-seed-provider-token',
-              })
-              navigate('/provider/profile', { replace: true })
-            }}
-          >
-            Nhà cung cấp
-          </Button>
-
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setAuth({
-                account: {
-                  id: 9001,
-                  email: 'admin.seed@nestify.vn',
-                  displayName: 'Quản trị viên',
-                  accountType: ROLES.ADMIN,
-                  status: 'ACTIVE',
-                  mustChangePassword: false,
-                },
-                accessToken: 'dev-seed-admin-token',
-              })
-              navigate('/admin', { replace: true })
-            }}
-          >
-            Quản trị
-          </Button>
-        </div>
-      )}
+      <div className="pt-3 border-t border-neutral-100 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-neutral-500 font-sans">
+        <Link
+          to="/provider/login"
+          className="hover:text-primary-600 transition-colors font-medium"
+        >
+          Đăng nhập Đối tác
+        </Link>
+        <span aria-hidden="true" className="text-neutral-300">
+          •
+        </span>
+        <Link
+          to="/admin/login"
+          className="hover:text-primary-600 transition-colors font-medium"
+        >
+          Dành cho Quản trị viên
+        </Link>
+      </div>
     </form>
   )
 }

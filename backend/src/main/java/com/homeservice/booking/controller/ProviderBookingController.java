@@ -1,9 +1,11 @@
 package com.homeservice.booking.controller;
 
 import com.homeservice.account.entity.Account;
+import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
 import com.homeservice.booking.dto.request.AcceptBookingRequest;
 import com.homeservice.booking.dto.request.CompleteServiceRequest;
+import com.homeservice.booking.dto.request.ProviderCancelBookingRequest;
 import com.homeservice.booking.dto.request.RejectBookingRequest;
 import com.homeservice.booking.dto.request.StartServiceRequest;
 import com.homeservice.booking.dto.response.BookingDetailResponse;
@@ -51,6 +53,19 @@ public class ProviderBookingController {
         return StandardResponse.success("Nhà cung cấp đã từ chối đơn đặt lịch thành công", response);
     }
 
+    @PostMapping("/{bookingId}/cancel")
+    public StandardResponse<BookingDetailResponse> cancelBooking(
+            Authentication authentication,
+            @PathVariable Long bookingId,
+            @Valid @RequestBody ProviderCancelBookingRequest request
+    ) {
+        Long providerAccountId = resolveProviderAccountId(authentication);
+        BookingDetailResponse response = bookingService.cancelBookingByProvider(
+                providerAccountId, bookingId, request
+        );
+        return StandardResponse.success("Nhà cung cấp đã hủy đơn đặt lịch thành công", response);
+    }
+
     @PostMapping("/{bookingId}/start")
     public StandardResponse<BookingDetailResponse> startService(
             Authentication authentication,
@@ -83,6 +98,11 @@ public class ProviderBookingController {
         }
         Object principal = authentication.getPrincipal();
         if (principal instanceof CurrentAccount currentAccount) {
+            // Kiểm tra vai trò PROVIDER từ CurrentAccount
+            if (currentAccount.getAccountType() != null
+                    && !AccountType.PROVIDER.name().equalsIgnoreCase(currentAccount.getAccountType())) {
+                throw new AccessDeniedException("Tài khoản không có vai trò Nhà cung cấp");
+            }
             return currentAccount.getId();
         }
         String identifier = authentication.getName();
@@ -90,10 +110,21 @@ public class ProviderBookingController {
             throw new AccessDeniedException("Không xác định được danh tính người dùng");
         }
         return accountRepository.findByEmail(identifier)
-                .map(Account::getId)
+                .map(acc -> {
+                    if (acc.getAccountType() != AccountType.PROVIDER) {
+                        throw new AccessDeniedException("Tài khoản không có vai trò Nhà cung cấp");
+                    }
+                    return acc.getId();
+                })
                 .orElseGet(() -> {
                     try {
-                        return Long.parseLong(identifier);
+                        Long accountId = Long.parseLong(identifier);
+                        Account acc = accountRepository.findById(accountId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản người dùng: " + identifier));
+                        if (acc.getAccountType() != AccountType.PROVIDER) {
+                            throw new AccessDeniedException("Tài khoản không có vai trò Nhà cung cấp");
+                        }
+                        return acc.getId();
                     } catch (NumberFormatException e) {
                         throw new ResourceNotFoundException("Không tìm thấy tài khoản người dùng: " + identifier);
                     }

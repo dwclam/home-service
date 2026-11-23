@@ -76,7 +76,7 @@ WHERE a.email = '<email-admin-da-chuan-hoa>';
 
 Mong đợi: đúng một account, hai loại đều `ADMIN`, `status=ACTIVE`, `email_verified_at` có giá trị và `must_change_password=false`. Không cần truy vấn/in hash để kiểm tra.
 
-ADM-01 chỉ cấp tài khoản. Sau khi bật backend, dùng `POST /api/auth/login/admin` theo [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md); cần lấy CSRF trước. API đã bổ sung trong ADM-02, nhưng kiểm thử riêng admin đang được hoãn. Login khách vẫn từ chối ADMIN.
+Sau khi cấp tài khoản và bật backend, lấy CSRF rồi gọi `POST /api/auth/login/admin`. Bộ test Maven có kiểm thử tích hợp cho login admin, refresh, `/me` và logout. Xem [hướng dẫn UC27](../tai_lieu_api/UC27_DANG_NHAP_ADMIN.md).
 
 ## 5. Kiểm thử và giới hạn
 

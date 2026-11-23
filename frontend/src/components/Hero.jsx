@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { heroServices } from '../data/home'
 
 const heading = 'Đặt dịch vụ\ntại nhà trong\nvài giây'
@@ -47,8 +47,8 @@ export function Hero() {
             <span className="pt-0.5 text-[15px] text-neutral-700">{benefit}</span>
           </li>)}</ol>
           <div className="hero-fade mt-9 flex flex-wrap items-center gap-3" style={{ animationDelay: '1.3s' }}>
-            <Link to="/services" className="inline-flex h-12 items-center gap-2 rounded-md bg-primary-500 px-7 text-[15px] font-medium text-white shadow-sm hover:bg-primary-600">Đặt dịch vụ ngay <ArrowRight size={16} /></Link>
-            <a href="#how-it-works" className="inline-flex h-12 items-center px-5 text-[15px] font-medium text-neutral-700 hover:text-primary-600">Tìm hiểu cách hoạt động</a>
+            <Link to="/services" className="inline-flex h-12 items-center gap-2 rounded-md bg-primary-500 px-7 text-[15px] font-medium text-white shadow-sm hover:bg-primary-600 transition-colors">Đặt dịch vụ ngay <ArrowRight size={16} /></Link>
+            <a href="/#how-it-works" className="inline-flex h-12 items-center px-5 text-[15px] font-medium text-neutral-700 hover:text-primary-600">Tìm hiểu cách hoạt động</a>
           </div>
         </div>
         <div className="relative lg:col-span-6"><div className="v-mask relative grid h-[420px] grid-cols-2 gap-4 sm:h-[560px] lg:h-[620px]">
