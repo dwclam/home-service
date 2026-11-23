@@ -60,6 +60,7 @@ public class ComplaintService {
     public static final String ACTION_COMPLAINT_ASSIGNED = "COMPLAINT_ASSIGNED";
     public static final String ACTION_COMPLAINT_REASSIGNED = "COMPLAINT_REASSIGNED";
     public static final String ACTION_COMPLAINT_RESOLVED = "COMPLAINT_RESOLVED";
+    public static final String ACTION_COMPLAINT_REJECTED = "COMPLAINT_REJECTED";
 
     public static final List<ComplaintStatus> UNRESOLVED_STATUSES = List.of(
             ComplaintStatus.OPEN,
@@ -488,6 +489,27 @@ public class ComplaintService {
                 ComplaintStatus.RESOLVED,
                 ACTION_COMPLAINT_RESOLVED,
                 "Nội dung kết luận giải quyết"
+        );
+    }
+
+    /**
+     * UC 33 — Admin phụ trách từ chối khiếu nại (IN_REVIEW -> REJECTED).
+     * Bắt buộc khiếu nại đang IN_REVIEW và thuộc chính Admin đang gọi API.
+     * Lưu lý do từ chối vào resolution, resolvedAt, ghi admin_audit_logs trong cùng transaction và không tự sửa bookings.settlement_status (MD10 Phương án B).
+     */
+    @Transactional
+    public AdminComplaintDetailResponse rejectComplaintByAdmin(
+            Long currentAdminId,
+            Long complaintId,
+            AdminCloseComplaintRequest request
+    ) {
+        return closeComplaintByAdmin(
+                currentAdminId,
+                complaintId,
+                request,
+                ComplaintStatus.REJECTED,
+                ACTION_COMPLAINT_REJECTED,
+                "Lý do từ chối khiếu nại"
         );
     }
 

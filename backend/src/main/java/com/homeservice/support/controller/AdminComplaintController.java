@@ -99,6 +99,23 @@ public class AdminComplaintController {
         return StandardResponse.success("Kết luận giải quyết khiếu nại thành công", response);
     }
 
+    /**
+     * Từ chối khiếu nại (IN_REVIEW -> REJECTED) (UC 33).
+     * Chỉ Admin đang phụ trách khiếu nại mới được phép từ chối và phải ghi rõ lý do.
+     * Yêu cầu quyền ROLE_ADMIN + CSRF token.
+     */
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<AdminComplaintDetailResponse> rejectComplaint(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId,
+            @Valid @RequestBody AdminCloseComplaintRequest request
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        AdminComplaintDetailResponse response = complaintService.rejectComplaintByAdmin(adminId, complaintId, request);
+        return StandardResponse.success("Từ chối khiếu nại thành công", response);
+    }
+
     private Long resolveAdminId(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new AccessDeniedException("Yêu cầu chưa được xác thực");
