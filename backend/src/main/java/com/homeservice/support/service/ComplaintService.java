@@ -4,6 +4,8 @@ import com.homeservice.account.entity.Account;
 import com.homeservice.account.enums.AccountStatus;
 import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
+import com.homeservice.audit.entity.AdminAuditLog;
+import com.homeservice.audit.repository.AdminAuditLogRepository;
 import com.homeservice.booking.entity.Booking;
 import com.homeservice.booking.repository.BookingRepository;
 import com.homeservice.chat.entity.Conversation;
@@ -18,6 +20,7 @@ import com.homeservice.common.exception.ResourceNotFoundException;
 import com.homeservice.support.dto.request.AdminComplaintSearchFilter;
 import com.homeservice.support.dto.request.CreateComplaintRequest;
 import com.homeservice.support.dto.request.CustomerComplaintFilter;
+import com.homeservice.support.dto.response.AdminComplaintDetailResponse;
 import com.homeservice.support.dto.response.AdminComplaintSummaryResponse;
 import com.homeservice.support.dto.response.CustomerComplaintDetailResponse;
 import com.homeservice.support.dto.response.CustomerComplaintSummaryResponse;
@@ -49,6 +52,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ComplaintService {
 
+    public static final String ENTITY_TYPE_COMPLAINT = "COMPLAINT";
+
     public static final List<ComplaintStatus> UNRESOLVED_STATUSES = List.of(
             ComplaintStatus.OPEN,
             ComplaintStatus.IN_REVIEW
@@ -63,6 +68,7 @@ public class ComplaintService {
     private final MessageRepository messageRepository;
     private final BookingRepository bookingRepository;
     private final AccountRepository accountRepository;
+    private final AdminAuditLogRepository adminAuditLogRepository;
     private final ComplaintMapper complaintMapper;
 
     /**
@@ -314,6 +320,43 @@ public class ComplaintService {
                 complaintPage.getSize(),
                 complaintPage.getTotalElements(),
                 complaintPage.getTotalPages()
+        );
+    }
+
+    /**
+     * UC 33 — Admin xem chi tiết toàn diện 360° của 1 khiếu nại (kèm đơn liên quan, trạng thái đối soát,
+     * số khiếu nại chưa đóng trên đơn, cờ canCurrentAdminReply và nhật ký audit logs).
+     */
+    @Transactional(readOnly = true)
+    public AdminComplaintDetailResponse getAdminComplaintDetail(Long currentAdminId, Long complaintId) {
+        if (complaintId == null) {
+            throw new ResourceNotFoundException("ID khiếu nại không hợp lệ");
+        }
+
+        Complaint complaint = complaintRepository.findByIdWithDetails(complaintId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khiếu nại với ID: " + complaintId));
+
+        Conversation conversation = conversationRepository.findByComplaintId(complaintId).orElse(null);
+
+        long unresolvedCountForBooking = 0L;
+        if (complaint.getBooking() != null) {
+            unresolvedCountForBooking = complaintRepository.countByBookingIdAndStatusIn(
+                    complaint.getBooking().getId(),
+                    UNRESOLVED_STATUSES
+            );
+        }
+
+        List<AdminAuditLog> auditLogs = adminAuditLogRepository.findByEntityTypeAndEntityIdOrderByCreatedAtDesc(
+                ENTITY_TYPE_COMPLAINT,
+                String.valueOf(complaintId)
+        );
+
+        return complaintMapper.toAdminDetailResponse(
+                complaint,
+                conversation,
+                unresolvedCountForBooking,
+                auditLogs,
+                currentAdminId
         );
     }
 

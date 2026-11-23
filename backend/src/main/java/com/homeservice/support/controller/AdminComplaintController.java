@@ -8,6 +8,7 @@ import com.homeservice.common.dto.StandardResponse;
 import com.homeservice.common.exception.ResourceNotFoundException;
 import com.homeservice.security.CurrentAccount;
 import com.homeservice.support.dto.request.AdminComplaintSearchFilter;
+import com.homeservice.support.dto.response.AdminComplaintDetailResponse;
 import com.homeservice.support.dto.response.AdminComplaintSummaryResponse;
 import com.homeservice.support.service.ComplaintService;
 import jakarta.validation.Valid;
@@ -16,6 +17,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -43,6 +45,21 @@ public class AdminComplaintController {
         resolveAdminId(authentication);
         PageResponse<AdminComplaintSummaryResponse> response = complaintService.getAdminComplaints(filter);
         return StandardResponse.success("Lấy danh sách khiếu nại thành công", response);
+    }
+
+    /**
+     * Xem chi tiết toàn diện 360° một khiếu nại dành cho Admin (UC 33).
+     * Yêu cầu quyền ROLE_ADMIN.
+     */
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<AdminComplaintDetailResponse> getComplaintDetail(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        AdminComplaintDetailResponse response = complaintService.getAdminComplaintDetail(adminId, complaintId);
+        return StandardResponse.success("Lấy chi tiết khiếu nại thành công", response);
     }
 
     private Long resolveAdminId(Authentication authentication) {
