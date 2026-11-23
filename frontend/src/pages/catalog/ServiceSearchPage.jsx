@@ -67,6 +67,7 @@ export const ServiceSearchPage = () => {
     totalPages: 1,
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [authRequired, setAuthRequired] = useState(false)
   const [showFilterDrawer, setShowFilterDrawer] = useState(false)
 
   // Tải cây danh mục
@@ -121,14 +122,27 @@ export const ServiceSearchPage = () => {
     searchCustomerServices(params)
       .then((res) => {
         if (isMounted) {
+          setAuthRequired(false)
           setServicesData(res)
         }
       })
       .catch((err) => {
-        console.warn('Lỗi tìm kiếm dịch vụ:', err)
-        if (isMounted) {
-          toast.error('Không thể tải danh sách dịch vụ.')
+        if (!isMounted) return
+        const status = err?.response?.status
+        if (status === 401 || status === 403) {
+          setAuthRequired(true)
+          setServicesData({
+            items: [],
+            page: 0,
+            size: 9,
+            totalElements: 0,
+            totalPages: 1,
+          })
+          return
         }
+        toast.error(
+          err?.response?.data?.message || 'Không thể tải danh sách dịch vụ.'
+        )
       })
       .finally(() => {
         if (isMounted) setIsLoading(false)
@@ -417,16 +431,26 @@ export const ServiceSearchPage = () => {
               Không tìm thấy dịch vụ phù hợp
             </h2>
             <p className="text-sm text-neutral-500 max-w-md mx-auto">
-              Không có dịch vụ nào khớp với bộ lọc hiện tại của bạn. Vui lòng thử tìm với từ khóa khác hoặc xóa bớt tiêu chí lọc.
+              {authRequired
+                ? 'Vui lòng đăng nhập bằng tài khoản Khách hàng để tìm kiếm và đặt các gói dịch vụ trên hệ thống.'
+                : 'Không có dịch vụ nào khớp với bộ lọc hiện tại của bạn. Vui lòng thử tìm với từ khóa khác hoặc xóa bớt tiêu chí lọc.'}
             </p>
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={handleResetFilters}
-            >
-              Xóa toàn bộ bộ lọc
-            </Button>
+            {authRequired ? (
+              <Link to="/login">
+                <Button type="button" variant="primary" size="md">
+                  Đăng nhập Khách hàng
+                </Button>
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={handleResetFilters}
+              >
+                Xóa toàn bộ bộ lọc
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -1,14 +1,19 @@
 import { Navigate, Outlet, useLocation, Link } from 'react-router-dom'
-import { Loader2, ShieldAlert, ArrowLeft, UserCheck } from 'lucide-react'
+import { Loader2, ShieldAlert, ArrowLeft } from 'lucide-react'
 import { useAuthStore } from '../features/auth/authStore'
-import { ROLE_LABELS } from '../constants/roles'
+import { ROLE_LABELS, ROLES } from '../constants/roles'
 import { Button } from '../components/ui/Button'
+
+const ROLE_LOGIN_ROUTES = {
+  [ROLES.CUSTOMER]: '/login',
+  [ROLES.PROVIDER]: '/provider/login',
+  [ROLES.ADMIN]: '/admin/login',
+}
 
 export const ProtectedRoute = ({ allowedRoles = [], children }) => {
   const location = useLocation()
-  const { isAuthenticated, isInitialized, account, setAuth } = useAuthStore()
+  const { isAuthenticated, isInitialized, account } = useAuthStore()
 
-  // Trong lúc ứng dụng đang bootstrap khôi phục token từ refresh cookie
   if (!isInitialized) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-50 font-sans">
@@ -20,12 +25,10 @@ export const ProtectedRoute = ({ allowedRoles = [], children }) => {
     )
   }
 
-  // Chưa đăng nhập thì chuyển hướng sang trang Login, lưu lại pathname để sau khi login xong quay lại
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  // Kiểm tra phân quyền theo vai trò nếu route có quy định allowedRoles
   const userRole = account?.accountType || account?.role
   if (
     Array.isArray(allowedRoles) &&
@@ -34,26 +37,7 @@ export const ProtectedRoute = ({ allowedRoles = [], children }) => {
   ) {
     const requiredRole = allowedRoles[0]
     const requiredRoleLabel = ROLE_LABELS[requiredRole] || requiredRole
-
-    const handleSwitchDevRole = () => {
-      setAuth({
-        account: {
-          id: requiredRole === 'ADMIN' ? 9001 : 2001,
-          email:
-            requiredRole === 'ADMIN'
-              ? 'admin.seed@nestify.vn'
-              : 'provider.seed@nestify.vn',
-          displayName:
-            requiredRole === 'ADMIN'
-              ? 'Admin Vận Hành (Seed)'
-              : 'Điện Lạnh Bách Khoa 247',
-          accountType: requiredRole,
-          status: 'ACTIVE',
-          mustChangePassword: false,
-        },
-        accessToken: 'dev-seed-access-token',
-      })
-    }
+    const loginPath = ROLE_LOGIN_ROUTES[requiredRole] || '/login'
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-50 px-4 font-sans">
@@ -62,7 +46,7 @@ export const ProtectedRoute = ({ allowedRoles = [], children }) => {
             <ShieldAlert className="w-6 h-6" />
           </div>
           <h1 className="text-[17px] font-semibold text-ink mb-2">
-            Giới hạn quyền truy cập (403)
+            Giới hạn quyền truy cập
           </h1>
           <p className="text-sm text-neutral-500 mb-6 leading-relaxed">
             Khu vực này yêu cầu vai trò{' '}
@@ -86,16 +70,11 @@ export const ProtectedRoute = ({ allowedRoles = [], children }) => {
               </Button>
             </Link>
 
-            {import.meta.env.DEV && (
-              <Button
-                variant="primary"
-                size="md"
-                onClick={handleSwitchDevRole}
-                leftIcon={<UserCheck className="w-4 h-4" />}
-              >
-                Dùng tài khoản {requiredRoleLabel} mẫu (Dev)
+            <Link to={loginPath} className="w-full sm:w-auto">
+              <Button variant="primary" size="md" fullWidth>
+                Đăng nhập {requiredRoleLabel}
               </Button>
-            )}
+            </Link>
           </div>
         </div>
       </div>
