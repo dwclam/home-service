@@ -145,6 +145,108 @@ public class SupportChatService {
     }
 
     /**
+     * UC 33 — Quản trị viên lấy lịch sử tin nhắn hỗ trợ của một khiếu nại (cursor beforeId + polling afterId).
+     * Bất kỳ Admin nào đều được đọc lịch sử tin nhắn (kể cả khi OPEN hoặc đã đóng) để nắm bối cảnh trước khi nhận/kiểm tra.
+     * Cờ canSendMessage chỉ = true khi khiếu nại đang IN_REVIEW và chính Admin đang gọi là người phụ trách.
+     */
+    @Transactional(readOnly = true)
+    public MessagePageResponse getAdminMessages(
+            Long currentAdminId,
+            Long complaintId,
+            Long beforeId,
+            Long afterId,
+            Integer limit
+    ) {
+        if (currentAdminId == null) {
+            throw new AccessDeniedException("Không xác định được tài khoản Quản trị viên.");
+        }
+        if (complaintId == null) {
+            throw new ResourceNotFoundException("ID khiếu nại không hợp lệ");
+        }
+        if (beforeId != null && afterId != null) {
+            throw new BusinessException("Không thể truyền đồng thời cả beforeId và afterId.");
+        }
+
+        Complaint complaint = complaintRepository.findByIdWithDetails(complaintId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khiếu nại với ID: " + complaintId));
+
+        Conversation conversation = conversationRepository.findByComplaintId(complaintId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cuộc trò chuyện hỗ trợ cho khiếu nại: " + complaintId));
+
+        boolean canSend = complaint.getStatus() == ComplaintStatus.IN_REVIEW
+                && complaint.getAssignedAdmin() != null
+                && complaint.getAssignedAdmin().getId().equals(currentAdminId);
+
+        return loadMessagePage(conversation.getId(), complaintId, canSend, beforeId, afterId, limit);
+    }
+
+    /**
+     * UC 33 — Quản trị viên đang phụ trách gửi tin nhắn phản hồi trong cuộc trò chuyện hỗ trợ (chỉ khi IN_REVIEW).
+     * Khóa bi quan dòng complaint chống xung đột với reassign / resolve / reject đồng thời.
+     */
+    @Transactional
+    public MessageResponse sendAdminMessage(
+            Long currentAdminId,
+            Long complaintId,
+            SendMessageRequest request
+    ) {
+        if (complaintId == null) {
+            throw new ResourceNotFoundException("ID khiếu nại không hợp lệ");
+        }
+        if (request == null) {
+            throw new BusinessException("Nội dung tin nhắn không được để trống.");
+        }
+
+        String trimmedBody = validateAndTrimBody(request.getBody());
+        Account adminAccount = loadActiveAdmin(currentAdminId);
+
+        // Khóa bi quan complaint chống race condition khi Admin khác reassign hoặc đóng khiếu nại đồng thời
+        Complaint complaint = complaintRepository.findByIdForUpdate(complaintId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khiếu nại với ID: " + complaintId));
+
+        ComplaintStatus status = complaint.getStatus();
+        if (status == ComplaintStatus.OPEN) {
+            throw new BusinessException("Vui lòng tiếp nhận xử lý khiếu nại (assign) trước khi gửi phản hồi cho khách hàng.");
+        }
+        if (status == ComplaintStatus.RESOLVED || status == ComplaintStatus.REJECTED) {
+            throw new BusinessException(
+                    "Khiếu nại đã được đóng (" + status + "), không thể gửi thêm tin nhắn."
+            );
+        }
+        if (status != ComplaintStatus.IN_REVIEW) {
+            throw new BusinessException("Trạng thái khiếu nại không hợp lệ để gửi phản hồi: " + status);
+        }
+
+        if (complaint.getAssignedAdmin() == null || !complaint.getAssignedAdmin().getId().equals(adminAccount.getId())) {
+            throw new AccessDeniedException("Chỉ Quản trị viên đang phụ trách khiếu nại này mới được gửi phản hồi.");
+        }
+
+        Booking messageBooking = resolveMessageBookingForAdmin(complaint, request.getBookingId());
+
+        Conversation conversation = conversationRepository.findByComplaintId(complaintId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cuộc trò chuyện hỗ trợ cho khiếu nại: " + complaintId));
+
+        Instant now = Instant.now();
+
+        Message message = new Message();
+        message.setConversation(conversation);
+        message.setSender(adminAccount);
+        message.setBooking(messageBooking);
+        message.setBody(trimmedBody);
+        message.setReadAt(null);
+        message.setCreatedAt(now);
+        Message savedMessage = messageRepository.saveAndFlush(message);
+
+        // Cập nhật mốc hoạt động gần nhất của conversation & complaint
+        conversation.setUpdatedAt(now);
+        conversationRepository.saveAndFlush(conversation);
+        complaint.setUpdatedAt(now);
+        complaintRepository.saveAndFlush(complaint);
+
+        return messageMapper.toResponse(savedMessage);
+    }
+
+    /**
      * Hàm dùng chung nạp trang tin nhắn theo cursor beforeId hoặc polling afterId (tái sử dụng cho UC33 Admin).
      */
     protected MessagePageResponse loadMessagePage(
@@ -236,6 +338,44 @@ public class SupportChatService {
             throw new BusinessException("Tài khoản khách hàng chưa được kích hoạt hoặc đã bị khóa.");
         }
         return customer;
+    }
+
+    private Booking resolveMessageBookingForAdmin(Complaint complaint, Long requestedBookingId) {
+        Booking complaintBooking = complaint.getBooking();
+        if (requestedBookingId == null) {
+            return complaintBooking;
+        }
+
+        if (complaintBooking != null) {
+            if (!complaintBooking.getId().equals(requestedBookingId)) {
+                throw new BusinessException("Đơn đặt lịch đính kèm tin nhắn phải khớp với đơn của khiếu nại.");
+            }
+            return complaintBooking;
+        }
+
+        Booking booking = bookingRepository.findById(requestedBookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn đặt lịch với ID: " + requestedBookingId));
+        if (complaint.getCustomer() == null
+                || booking.getCustomer() == null
+                || !booking.getCustomer().getId().equals(complaint.getCustomer().getId())) {
+            throw new BusinessException("Đơn đặt lịch đính kèm không thuộc khách hàng của khiếu nại này.");
+        }
+        return booking;
+    }
+
+    private Account loadActiveAdmin(Long adminId) {
+        if (adminId == null) {
+            throw new AccessDeniedException("Không xác định được tài khoản Quản trị viên.");
+        }
+        Account admin = accountRepository.findById(adminId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản Quản trị viên: " + adminId));
+        if (admin.getAccountType() != AccountType.ADMIN) {
+            throw new AccessDeniedException("Tài khoản không có quyền Quản trị viên.");
+        }
+        if (admin.getStatus() != AccountStatus.ACTIVE) {
+            throw new AccessDeniedException("Tài khoản Quản trị viên chưa được kích hoạt hoặc đã bị khóa.");
+        }
+        return admin;
     }
 
     private String validateAndTrimBody(String body) {
