@@ -2,9 +2,7 @@ import { http } from '../../lib/http'
 
 /**
  * Đăng nhập khách hàng bằng email và mật khẩu.
- * Phản hồi 200: { account, accessToken, tokenType, expiresAt } và cookie HttpOnly NESTIFY_REFRESH.
- * @param {{ email: string, password: string }} payload
- * @returns {Promise<{ account: object, accessToken: string, tokenType: string, expiresAt: string }>}
+ * Endpoint: POST /api/auth/login
  */
 export const login = async ({ email, password }) => {
   const body = {
@@ -19,9 +17,6 @@ export const login = async ({ email, password }) => {
 /**
  * Đăng nhập quản trị viên bằng email và mật khẩu.
  * Endpoint: POST /api/auth/login/admin
- * Phản hồi 200: { account, accessToken, tokenType, expiresAt }
- * @param {{ email: string, password: string }} payload
- * @returns {Promise<{ account: object, accessToken: string, tokenType: string, expiresAt: string }>}
  */
 export const loginAdmin = async ({ email, password }) => {
   const body = {
@@ -36,10 +31,6 @@ export const loginAdmin = async ({ email, password }) => {
 /**
  * Đăng nhập nhà cung cấp bằng email và mật khẩu.
  * Endpoint: POST /api/auth/login/provider
- * Phản hồi 200 có 2 nhánh:
- * - Cần đổi mật khẩu lần đầu: { mustChangePassword: true, passwordChangeToken, expiresAt }
- * - Đã đổi mật khẩu: { account, accessToken, tokenType, expiresAt }
- * @param {{ email: string, password: string }} payload
  */
 export const loginProvider = async ({ email, password }) => {
   const body = {
@@ -54,8 +45,6 @@ export const loginProvider = async ({ email, password }) => {
 /**
  * Đổi mật khẩu lần đầu cho tài khoản nhà cung cấp bằng passwordChangeToken tạm thời.
  * Endpoint: POST /api/auth/provider/first-password
- * Phản hồi 200: { account, accessToken, tokenType, expiresAt } và cookie refresh mới.
- * @param {{ currentPassword: string, newPassword: string, passwordChangeToken: string }} payload
  */
 export const changeProviderFirstPassword = async ({
   currentPassword,
@@ -78,8 +67,6 @@ export const changeProviderFirstPassword = async ({
 
 /**
  * Đăng xuất khỏi hệ thống: Thu hồi chuỗi refresh token hiện tại và xóa cookie.
- * Phản hồi 204: No Content.
- * @returns {Promise<void>}
  */
 export const logout = async () => {
   await http.post('/auth/logout')
@@ -87,8 +74,6 @@ export const logout = async () => {
 
 /**
  * Lấy thông tin tài khoản đang đăng nhập (principal).
- * Yêu cầu Authorization Bearer access JWT.
- * @returns {Promise<{ id: number, email: string, displayName: string, status: string, accountType: string }>}
  */
 export const getMe = async () => {
   const response = await http.get('/auth/me')
@@ -97,8 +82,6 @@ export const getMe = async () => {
 
 /**
  * Đăng ký tài khoản khách hàng mới.
- * @param {{ email: string, password: string, displayName: string, phone?: string }} payload
- * @returns {Promise<{ email: string, registrationToken: string, expiresAt: string, resendAvailableAt: string }>}
  */
 export const registerCustomer = async ({ email, password, displayName, phone }) => {
   const body = {
@@ -114,8 +97,6 @@ export const registerCustomer = async ({ email, password, displayName, phone }) 
 
 /**
  * Xác thực email bằng mã OTP 6 số và registrationToken.
- * @param {{ email: string, code: string, registrationToken: string }} payload
- * @returns {Promise<{ id: number, email: string, displayName: string, status: string, accountType: string }>}
  */
 export const verifyEmail = async ({ email, code, registrationToken }) => {
   const body = {
@@ -130,8 +111,6 @@ export const verifyEmail = async ({ email, code, registrationToken }) => {
 
 /**
  * Gửi lại mã OTP xác thực email.
- * @param {{ email: string, registrationToken: string }} payload
- * @returns {Promise<{ email: string, registrationToken: string, expiresAt: string, resendAvailableAt: string }>}
  */
 export const resendVerification = async ({ email, registrationToken }) => {
   const body = {

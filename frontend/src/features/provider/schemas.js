@@ -1,13 +1,8 @@
 import { z } from 'zod'
+import { AVAILABILITY_STATE } from '../../constants/status'
 
 /**
- * Kiểm tra tính hợp lệ của đường dẫn tài liệu Google Drive / Google Docs.
- * Tuân thủ chặt chẽ ràng buộc backend:
- * - Giao thức bắt buộc là HTTPS
- * - Host thuộc drive.google.com hoặc docs.google.com (không phân biệt hoa thường)
- * - Không chứa user info (username:password@)
- * - Cổng mặc định hoặc 443
- * - Có đường dẫn path cụ thể (không được rỗng hoặc chỉ có '/')
+ * Kiểm tra tính hợp lệ của đường dẫn tài liệu Google Drive / Google Docs (UC16).
  */
 const isValidGoogleDocsOrDriveUrl = (val) => {
   if (!val) return false
@@ -92,3 +87,76 @@ export const providerVerifyOtpSchema = z.object({
     .length(6, 'Mã xác thực phải gồm đúng 6 chữ số')
     .regex(/^\d{6}$/, 'Mã xác thực chỉ chứa các chữ số từ 0 đến 9'),
 })
+
+/**
+ * Schema cập nhật hồ sơ công khai của Nhà cung cấp (UC18).
+ */
+export const providerProfileSchema = z.object({
+  businessName: z
+    .string()
+    .trim()
+    .min(1, 'Tên cơ sở không được để trống')
+    .max(200, 'Tên cơ sở tối đa 200 ký tự'),
+
+  city: z
+    .string()
+    .trim()
+    .min(1, 'Thành phố không được để trống')
+    .max(150, 'Thành phố tối đa 150 ký tự'),
+
+  address: z
+    .string()
+    .trim()
+    .max(500, 'Địa chỉ chi tiết tối đa 500 ký tự')
+    .optional()
+    .or(z.literal('')),
+
+  bio: z
+    .string()
+    .trim()
+    .max(2000, 'Giới thiệu năng lực tối đa 2000 ký tự')
+    .optional()
+    .or(z.literal('')),
+
+  logoUrl: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(''))
+    .refine(
+      (val) => !val || /^https?:\/\/.+/i.test(val),
+      'Đường dẫn ảnh đại diện phải bắt đầu bằng http:// hoặc https://'
+    ),
+})
+
+/**
+ * Schema tạo/cập nhật khoảng lịch rảnh của Nhà cung cấp (UC20).
+ */
+export const providerAvailabilitySchema = z
+  .object({
+    date: z.string().min(1, 'Vui lòng chọn ngày áp dụng'),
+    startTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Giờ bắt đầu không hợp lệ (HH:mm)'),
+    endTime: z
+      .string()
+      .regex(
+        /^([01]\d|2[0-3]):([0-5]\d)$/,
+        'Giờ kết thúc không hợp lệ (HH:mm)'
+      ),
+    state: z.enum([AVAILABILITY_STATE.AVAILABLE, AVAILABILITY_STATE.BLOCKED], {
+      message: 'Trạng thái lịch không hợp lệ',
+    }),
+  })
+  .refine(
+    (data) => {
+      if (!data.startTime || !data.endTime) return false
+      const [sh, sm] = data.startTime.split(':').map(Number)
+      const [eh, em] = data.endTime.split(':').map(Number)
+      return eh * 60 + em - (sh * 60 + sm) >= 30
+    },
+    {
+      message: 'Giờ kết thúc phải lớn hơn giờ bắt đầu ít nhất 30 phút',
+      path: ['endTime'],
+    }
+  )

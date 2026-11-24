@@ -16,9 +16,15 @@ import {
   X,
   CreditCard,
   Building,
+  History,
+  LifeBuoy,
 } from 'lucide-react'
 
 import { getBookingDetail, cancelBooking } from '../../features/booking/api'
+import {
+  BOOKING_STATUS_CONFIG,
+  ACTOR_TYPE_LABELS,
+} from '../../constants/status'
 import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
 import { StatusText } from '../../components/ui/StatusText'
@@ -239,6 +245,7 @@ export const BookingDetailPage = () => {
   }
 
   const isPending = booking.status === 'PENDING_PROVIDER'
+  const canCancel = ['PENDING_PROVIDER', 'PENDING_DEPOSIT', 'CONFIRMED'].includes(booking.status)
   const isCancelled = booking.status === 'CANCELLED'
   const statusBadge = getStatusBadge(booking.status)
 
@@ -249,11 +256,11 @@ export const BookingDetailPage = () => {
           {/* Navigation Breadcrumb */}
           <div className="flex items-center">
             <Link
-              to="/"
+              to="/customer/bookings"
               className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-primary-600 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Về trang chủ</span>
+              <span>Quay lại danh sách đơn</span>
             </Link>
           </div>
 
@@ -432,26 +439,106 @@ export const BookingDetailPage = () => {
               </div>
 
               <div className="flex items-center justify-between text-neutral-600 border-t border-neutral-100 pt-2.5">
-                <span>Số tiền còn lại thanh toán khi hoàn thành (70%):</span>
+                <span>Số tiền còn lại thanh toán khi hoàn thành:</span>
                 <span className="font-semibold text-ink tabular-nums">
                   {formatVnd(booking.balanceAmountVnd)}
                 </span>
               </div>
+
+              {booking.paymentSummary && (
+                <div className="border-t border-neutral-100 pt-3 mt-2 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-neutral-600">
+                    <span>Tổng tiền đã thanh toán:</span>
+                    <span className="font-semibold text-emerald-700 tabular-nums">
+                      {formatVnd(booking.paymentSummary.paidAmountVnd)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-neutral-600">
+                    <span>Trạng thái cọc:</span>
+                    <span className="font-medium text-ink">
+                      {booking.paymentSummary.depositPaid ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-neutral-600">
+                    <span>Trạng thái phần còn lại:</span>
+                    <span className="font-medium text-ink">
+                      {booking.paymentSummary.balancePaid ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                    </span>
+                  </div>
+                  {booking.paymentSummary.refundDueVnd != null &&
+                    booking.paymentSummary.refundDueVnd > 0 && (
+                      <div className="flex items-center justify-between text-neutral-600">
+                        <span>Khoản hoàn dự kiến:</span>
+                        <span className="font-semibold text-amber-700 tabular-nums">
+                          {formatVnd(booking.paymentSummary.refundDueVnd)}
+                        </span>
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
           </div>
 
+          {Array.isArray(booking.history) && booking.history.length > 0 && (
+            <div className="bg-white p-6 rounded-md border border-neutral-200 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
+                <History className="w-4 h-4 text-primary-600" />
+                <h2 className="font-display font-bold text-base text-ink">
+                  Lịch sử trạng thái đơn
+                </h2>
+              </div>
+              <div className="divide-y divide-neutral-100">
+                {booking.history.map((item, idx) => (
+                  <div
+                    key={`${item.createdAt}-${idx}`}
+                    className="py-2.5 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
+                  >
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-ink">
+                        {item.fromStatus
+                          ? `${BOOKING_STATUS_CONFIG[item.fromStatus]?.label || item.fromStatus} → `
+                          : ''}
+                        {BOOKING_STATUS_CONFIG[item.toStatus]?.label || item.toStatus}
+                      </p>
+                      {item.note && (
+                        <p className="text-neutral-600">{item.note}</p>
+                      )}
+                    </div>
+                    <div className="text-neutral-400 sm:text-right shrink-0">
+                      <p>{ACTOR_TYPE_LABELS[item.actorType] || 'Hệ thống'}</p>
+                      <p className="tabular-nums">{formatDateTime(item.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Actions Footer */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <Link to="/booking/new" className="w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              <Link to="/customer/bookings" className="w-full sm:w-auto">
                 <Button variant="secondary" size="md" fullWidth>
-                  Đặt dịch vụ khác
+                  Danh sách đơn của tôi
+                </Button>
+              </Link>
+              <Link
+                to={`/customer/complaints?bookingId=${booking.id}`}
+                className="w-full sm:w-auto"
+              >
+                <Button
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  leftIcon={<LifeBuoy className="w-4 h-4" />}
+                >
+                  Gửi yêu cầu hỗ trợ
                 </Button>
               </Link>
             </div>
 
             {/* Action Cancel Order (UC11) */}
-            {isPending && (
+            {canCancel && (
               <Button
                 type="button"
                 variant="danger"

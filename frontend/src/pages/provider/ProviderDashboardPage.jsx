@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react'
-import { CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ClipboardList,
+  Wrench,
+  CalendarClock,
+  Store,
+  ArrowRight,
+} from 'lucide-react'
 
 import { useAuthStore } from '../../features/auth/authStore'
 import { getMe } from '../../features/auth/api'
@@ -117,6 +127,45 @@ export const ProviderDashboardPage = () => {
             </dd>
           </div>
         </dl>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            to: '/provider/bookings',
+            label: 'Đơn đặt lịch',
+            icon: ClipboardList,
+          },
+          {
+            to: '/provider/services',
+            label: 'Gói dịch vụ',
+            icon: Wrench,
+          },
+          {
+            to: '/provider/availability',
+            label: 'Lịch làm việc',
+            icon: CalendarClock,
+          },
+          {
+            to: '/provider/profile',
+            label: 'Hồ sơ cơ sở',
+            icon: Store,
+          },
+        ].map(({ to, label, icon: Icon }) => (
+          <Link
+            key={to}
+            to={to}
+            className="bg-white rounded-md border border-neutral-200 p-4 flex items-center justify-between hover:border-primary-300 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-9 h-9 rounded-md bg-primary-50 flex items-center justify-center text-primary-600 shrink-0">
+                <Icon className="w-4 h-4" />
+              </span>
+              <span className="text-sm font-semibold text-ink">{label}</span>
+            </div>
+            <ArrowRight className="w-4 h-4 text-neutral-400" />
+          </Link>
+        ))}
       </div>
     </div>
   )

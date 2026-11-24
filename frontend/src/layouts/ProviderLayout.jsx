@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
+  ClipboardList,
+  Wrench,
+  CalendarClock,
+  Store,
   Globe,
   Menu,
   X,
@@ -40,11 +44,30 @@ export const ProviderLayout = () => {
       icon: LayoutDashboard,
       end: true,
     },
+    {
+      to: '/provider/bookings',
+      label: 'Đơn đặt lịch',
+      icon: ClipboardList,
+    },
+    {
+      to: '/provider/services',
+      label: 'Gói dịch vụ',
+      icon: Wrench,
+    },
+    {
+      to: '/provider/availability',
+      label: 'Lịch làm việc',
+      icon: CalendarClock,
+    },
+    {
+      to: '/provider/profile',
+      label: 'Hồ sơ cơ sở',
+      icon: Store,
+    },
   ]
 
   return (
     <div className="min-h-screen bg-neutral-50 flex font-sans">
-      {/* Sidebar Desktop */}
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r border-neutral-200 shrink-0">
         <div className="h-16 flex items-center justify-between px-6 border-b border-neutral-200">
           <BrandLogo size="sm" to="/provider" />
@@ -77,7 +100,6 @@ export const ProviderLayout = () => {
         </nav>
       </aside>
 
-      {/* Main Column */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-neutral-200 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
@@ -104,7 +126,6 @@ export const ProviderLayout = () => {
           />
         </header>
 
-        {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-b border-neutral-200 px-4 py-3 space-y-1 font-sans">
             {navItems.map((item) => {
@@ -131,7 +152,6 @@ export const ProviderLayout = () => {
           </div>
         )}
 
-        {/* Main Content View */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
         </main>
