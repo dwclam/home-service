@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /**
- * Schema xác thực dữ liệu tạo yêu cầu đặt lịch dịch vụ.
+ * Schema xác thực dữ liệu tạo yêu cầu đặt lịch dịch vụ (UC08).
  */
 export const createBookingSchema = z
   .object({
@@ -99,10 +99,74 @@ export const createBookingSchema = z
  * Schema xác thực lý do hủy đơn của khách hàng (UC11).
  */
 export const cancelBookingSchema = z.object({
+  version: z.coerce.number().int().min(0).optional(),
   reason: z
     .string()
     .trim()
     .max(500, 'Lý do hủy đơn tối đa 500 ký tự')
     .optional()
     .or(z.literal('')),
+})
+
+/**
+ * Schema xác thực yêu cầu Nhà cung cấp từ chối đơn đặt lịch (UC21).
+ */
+export const rejectBookingSchema = z.object({
+  version: z.coerce.number().int().min(0).optional(),
+  reason: z
+    .string()
+    .trim()
+    .min(1, 'Lý do từ chối không được để trống')
+    .max(500, 'Lý do từ chối tối đa 500 ký tự'),
+})
+
+/**
+ * Schema xác thực yêu cầu Nhà cung cấp hủy đơn đã nhận (UC41).
+ * Khớp ProviderCancelBookingRequest: reason @NotBlank, @Size(min=5, max=500).
+ */
+export const providerCancelBookingSchema = z.object({
+  version: z.coerce.number().int().min(0).optional(),
+  reason: z
+    .string()
+    .trim()
+    .min(5, 'Lý do hủy đơn phải có ít nhất 5 ký tự')
+    .max(500, 'Lý do hủy đơn tối đa 500 ký tự'),
+})
+
+/**
+ * Schema xác thực ghi chú khi Nhà cung cấp Bắt đầu hoặc Hoàn thành dịch vụ (UC22).
+ */
+export const serviceActionNoteSchema = z.object({
+  version: z.coerce.number().int().min(0).optional(),
+  note: z
+    .string()
+    .trim()
+    .max(500, 'Ghi chú tối đa 500 ký tự')
+    .optional()
+    .or(z.literal('')),
+})
+
+/**
+ * Schema xác thực hành động Admin can thiệp hủy đơn (UC31).
+ */
+export const adminCancelBookingSchema = z.object({
+  reasonCode: z.enum(['SYSTEM_CANCEL', 'PROVIDER_UNABLE_TO_CONTINUE'], {
+    message: 'Vui lòng chọn lý do can thiệp hợp lệ',
+  }),
+  reason: z
+    .string()
+    .trim()
+    .min(5, 'Lý do can thiệp phải từ 5 đến 500 ký tự')
+    .max(500, 'Lý do can thiệp tối đa 500 ký tự'),
+})
+
+/**
+ * Schema xác thực hành động Admin tạm giữ / mở lại đối soát (UC31).
+ */
+export const adminSettlementActionSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(5, 'Lý do phải từ 5 đến 500 ký tự')
+    .max(500, 'Lý do tối đa 500 ký tự'),
 })

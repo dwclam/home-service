@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 
 import { loginSchema } from '../schemas'
 import { login } from '../api'
@@ -35,7 +35,6 @@ export const LoginForm = () => {
     mode: 'onTouched',
   })
 
-  // Đếm ngược Rate Limit (429) nếu vượt quá tần suất đăng nhập
   useEffect(() => {
     if (rateLimitSeconds <= 0) return
 
@@ -61,18 +60,14 @@ export const LoginForm = () => {
         password: values.password,
       })
 
-      // 1. Cập nhật state xác thực trong RAM
       setAuth({
         account: data.account,
         accessToken: data.accessToken,
       })
 
-      // 2. Xóa token CSRF cũ trong RAM vì backend đã reset cookie CSRF sau login
       clearCsrfToken()
-
       toast.success('Đăng nhập thành công!')
 
-      // Điều hướng về trang được yêu cầu trước đó (bao gồm query string) hoặc trang chủ
       const fromState = location.state?.from
       const redirectPath =
         typeof fromState === 'string'
@@ -86,7 +81,6 @@ export const LoginForm = () => {
       const status = error.response?.status
       const code = errorData?.code
 
-      // Xử lý Rate Limit (429 Too Many Requests)
       if (status === 429 || code === 'LOGIN_RATE_LIMITED') {
         const retryHeader =
           error.response?.headers?.['retry-after'] ||
@@ -98,7 +92,6 @@ export const LoginForm = () => {
         return
       }
 
-      // Xử lý sai thông tin tài khoản hoặc mật khẩu (401 Unauthorized)
       if (status === 401 || code === 'INVALID_CREDENTIALS') {
         const message =
           errorData?.message || 'Địa chỉ email hoặc mật khẩu không chính xác.'
@@ -106,7 +99,6 @@ export const LoginForm = () => {
         return
       }
 
-      // Các lỗi khác
       const message =
         errorData?.message ||
         'Không thể đăng nhập vào lúc này. Vui lòng kiểm tra lại kết nối.'
@@ -116,7 +108,13 @@ export const LoginForm = () => {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 w-full" noValidate>
-      {/* Email */}
+      {verifiedEmail && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-700 text-sm flex items-center gap-2 font-sans">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>Tài khoản của bạn đã được kích hoạt. Hãy đăng nhập ngay!</span>
+        </div>
+      )}
+
       <FormField
         label="Địa chỉ email"
         htmlFor="email"
@@ -133,7 +131,6 @@ export const LoginForm = () => {
         />
       </FormField>
 
-      {/* Mật khẩu */}
       <FormField
         label="Mật khẩu"
         htmlFor="password"
@@ -174,7 +171,7 @@ export const LoginForm = () => {
           disabled={rateLimitSeconds > 0}
         >
           {rateLimitSeconds > 0
-            ? `Thử lại sau (${rateLimitSeconds}s)`
+            ? `Thử lại sau ${rateLimitSeconds}s`
             : 'Đăng nhập'}
         </Button>
       </div>

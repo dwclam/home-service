@@ -1,12 +1,19 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { Navigate, Outlet, useLocation, Link } from 'react-router-dom'
+import { Loader2, ShieldAlert, ArrowLeft } from 'lucide-react'
 import { useAuthStore } from '../features/auth/authStore'
+import { ROLE_LABELS, ROLES } from '../constants/roles'
+import { Button } from '../components/ui/Button'
 
-export const ProtectedRoute = ({ children }) => {
+const ROLE_LOGIN_ROUTES = {
+  [ROLES.CUSTOMER]: '/login',
+  [ROLES.PROVIDER]: '/provider/login',
+  [ROLES.ADMIN]: '/admin/login',
+}
+
+export const ProtectedRoute = ({ allowedRoles = [], children }) => {
   const location = useLocation()
-  const { isAuthenticated, isInitialized } = useAuthStore()
+  const { isAuthenticated, isInitialized, account } = useAuthStore()
 
-  // Trong lúc ứng dụng đang bootstrap khôi phục token từ refresh cookie
   if (!isInitialized) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-50 font-sans">
@@ -18,9 +25,60 @@ export const ProtectedRoute = ({ children }) => {
     )
   }
 
-  // Chưa đăng nhập thì chuyển hướng sang trang Login, lưu lại pathname để sau khi login xong quay lại
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />
+  }
+
+  const userRole = account?.accountType || account?.role
+  if (
+    Array.isArray(allowedRoles) &&
+    allowedRoles.length > 0 &&
+    !allowedRoles.includes(userRole)
+  ) {
+    const requiredRole = allowedRoles[0]
+    const requiredRoleLabel = ROLE_LABELS[requiredRole] || requiredRole
+    const loginPath = ROLE_LOGIN_ROUTES[requiredRole] || '/login'
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-50 px-4 font-sans">
+        <div className="max-w-md w-full bg-white border border-neutral-200 rounded-lg shadow-sm p-6 text-center">
+          <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <h1 className="text-[17px] font-semibold text-ink mb-2">
+            Giới hạn quyền truy cập
+          </h1>
+          <p className="text-sm text-neutral-500 mb-6 leading-relaxed">
+            Khu vực này yêu cầu vai trò{' '}
+            <span className="font-semibold text-ink">{requiredRoleLabel}</span>.
+            Tài khoản hiện tại của bạn đang có vai trò{' '}
+            <span className="font-semibold text-ink">
+              {ROLE_LABELS[userRole] || userRole || 'Khách hàng'}
+            </span>
+            .
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5">
+            <Link to="/" className="w-full sm:w-auto">
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+              >
+                Về trang chủ
+              </Button>
+            </Link>
+
+            <Link to={loginPath} className="w-full sm:w-auto">
+              <Button variant="primary" size="md" fullWidth>
+                Đăng nhập {requiredRoleLabel}
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return children || <Outlet />

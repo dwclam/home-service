@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
+  ClipboardList,
   Layers,
   UserCheck,
   Globe,
@@ -36,6 +37,11 @@ export const AdminLayout = () => {
 
   const navItems = [
     {
+      to: '/admin/bookings',
+      label: 'Quản lý Đơn hàng',
+      icon: ClipboardList,
+    },
+    {
       to: '/admin/categories',
       label: 'Quản lý Danh mục',
       icon: Layers,
@@ -49,10 +55,9 @@ export const AdminLayout = () => {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex font-sans">
-      {/* Sidebar Desktop */}
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r border-neutral-200 shrink-0">
         <div className="h-16 flex items-center justify-between px-6 border-b border-neutral-200">
-          <BrandLogo size="sm" to="/admin/categories" />
+          <BrandLogo size="sm" to="/admin/bookings" />
           <span className="text-xs font-medium text-neutral-500">
             Quản trị
           </span>
@@ -81,7 +86,6 @@ export const AdminLayout = () => {
         </nav>
       </aside>
 
-      {/* Main Column */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-white border-b border-neutral-200 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
@@ -108,7 +112,6 @@ export const AdminLayout = () => {
           />
         </header>
 
-        {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-b border-neutral-200 px-4 py-3 space-y-1 font-sans">
             {navItems.map((item) => {
@@ -134,7 +137,6 @@ export const AdminLayout = () => {
           </div>
         )}
 
-        {/* Main Content View */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <Outlet />
         </main>

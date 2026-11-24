@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { Link, Outlet, useNavigate } from 'react-router-dom'
-import { Menu, X, LogOut, Shield, Briefcase } from 'lucide-react'
+import {
+  Menu,
+  X,
+  LogOut,
+  Shield,
+  Briefcase,
+  ClipboardList,
+  LifeBuoy,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 
 import { useAuthStore } from '../features/auth/authStore'
@@ -9,10 +17,10 @@ import { clearCsrfToken } from '../lib/http'
 import { Button } from '../components/ui/Button'
 import { BrandLogo } from '../components/ui/BrandLogo'
 import { AccountMenu } from '../components/layout/AccountMenu'
+import { ScrollToTop } from '../components/ui/ScrollToTop'
 
 const navLinks = [
   { label: 'Dịch vụ', to: '/services' },
-  { label: 'Danh mục', href: '/#categories' },
   { label: 'Cách hoạt động', href: '/#how-it-works' },
   { label: 'Về chúng tôi', href: '/#footer' },
 ]
@@ -22,7 +30,6 @@ const footerGroups = [
     title: 'Dịch vụ',
     links: [
       { label: 'Khám phá dịch vụ', to: '/services' },
-      { label: 'Danh mục', href: '/#categories' },
       { label: 'Cách hoạt động', href: '/#how-it-works' },
     ],
   },
@@ -55,7 +62,6 @@ function Header() {
     }
   }
 
-  // Lấy chữ cái đầu cho Avatar (Mobile drawer)
   const initialLetter = (account?.displayName || account?.email || 'U')
     .trim()
     .charAt(0)
@@ -65,23 +71,34 @@ function Header() {
   if (account?.accountType === 'ADMIN') {
     accountMenuLinks.push({
       label: 'Quản trị hệ thống',
-      to: '/admin/categories',
+      to: '/admin/bookings',
       icon: Shield,
     })
-  }
-  if (account?.accountType === 'PROVIDER') {
+  } else if (account?.accountType === 'PROVIDER') {
     accountMenuLinks.push({
       label: 'Kênh Nhà cung cấp',
       to: '/provider',
       icon: Briefcase,
     })
+  } else if (isAuthenticated) {
+    accountMenuLinks.push(
+      {
+        label: 'Đơn đặt của tôi',
+        to: '/customer/bookings',
+        icon: ClipboardList,
+      },
+      {
+        label: 'Hỗ trợ & Khiếu nại',
+        to: '/customer/complaints',
+        icon: LifeBuoy,
+      }
+    )
   }
 
   return (
     <header id="top" className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-3">
-          {/* Logo & Navigation chính */}
           <div className="flex items-center gap-10">
             <BrandLogo size="md" />
             <nav aria-label="Điều hướng chính" className="hidden items-center gap-7 lg:flex">
@@ -107,11 +124,10 @@ function Header() {
             </nav>
           </div>
 
-          {/* Cụm điều hướng Auth bên phải (Desktop) */}
           <div className="hidden items-center gap-3 sm:flex font-sans">
             <Link
               to="/provider/apply"
-              className="inline-flex h-9 items-center rounded-full bg-primary-50 px-4 text-xs font-medium text-ink hover:bg-primary-100 transition-colors"
+              className="inline-flex h-9 items-center rounded-md bg-primary-50 px-3.5 text-xs font-medium text-ink hover:bg-primary-100 transition-colors"
             >
               Trở thành nhà cung cấp
             </Link>
@@ -141,7 +157,6 @@ function Header() {
             )}
           </div>
 
-          {/* Nút Hamburger menu Mobile */}
           <button
             type="button"
             className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 lg:hidden cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20"
@@ -149,13 +164,15 @@ function Header() {
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen(!menuOpen)}
           >
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            {menuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
 
-        {/* Mobile Navigation Drawer */}
         {menuOpen && (
-          <nav aria-label="Điều hướng di động" className="flex flex-col gap-1 border-t border-neutral-200 py-3 lg:hidden font-sans">
+          <nav
+            aria-label="Điều hướng di động"
+            className="flex flex-col gap-1 border-t border-neutral-200 py-3 lg:hidden font-sans"
+          >
             {navLinks.map(({ label, href, to }) =>
               to ? (
                 <Link
@@ -189,19 +206,15 @@ function Header() {
             <div className="pt-2 mt-2 border-t border-neutral-200 flex flex-col gap-2">
               {!isAuthenticated ? (
                 <>
-                  <Link
-                    to="/login"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center justify-center h-10 rounded-md border border-neutral-200 text-sm font-medium text-ink hover:bg-neutral-50"
-                  >
-                    Đăng nhập
+                  <Link to="/login" onClick={() => setMenuOpen(false)}>
+                    <Button variant="secondary" size="md" fullWidth>
+                      Đăng nhập
+                    </Button>
                   </Link>
-                  <Link
-                    to="/register"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center justify-center h-10 rounded-md bg-primary-500 text-sm font-medium text-white hover:bg-primary-600"
-                  >
-                    Đăng ký tài khoản
+                  <Link to="/register" onClick={() => setMenuOpen(false)}>
+                    <Button variant="primary" size="md" fullWidth>
+                      Đăng ký tài khoản
+                    </Button>
                   </Link>
                 </>
               ) : (
@@ -218,27 +231,20 @@ function Header() {
                     </div>
                   </div>
 
-                  {account?.accountType === 'ADMIN' && (
-                    <Link
-                      to="/admin/categories"
-                      onClick={() => setMenuOpen(false)}
-                      className="w-full flex items-center justify-center gap-2 h-10 rounded-md bg-neutral-100 text-neutral-800 text-sm font-medium hover:bg-neutral-200 transition-colors"
-                    >
-                      <Shield className="w-4 h-4 text-primary-600" />
-                      <span>Quản trị hệ thống</span>
-                    </Link>
-                  )}
-
-                  {account?.accountType === 'PROVIDER' && (
-                    <Link
-                      to="/provider"
-                      onClick={() => setMenuOpen(false)}
-                      className="w-full flex items-center justify-center gap-2 h-10 rounded-md bg-neutral-100 text-neutral-800 text-sm font-medium hover:bg-neutral-200 transition-colors"
-                    >
-                      <Briefcase className="w-4 h-4 text-primary-600" />
-                      <span>Kênh Nhà cung cấp</span>
-                    </Link>
-                  )}
+                  {accountMenuLinks.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setMenuOpen(false)}
+                        className="w-full flex items-center justify-center gap-2 h-10 rounded-md bg-neutral-100 text-neutral-800 text-sm font-medium hover:bg-neutral-200 transition-colors"
+                      >
+                        {Icon && <Icon className="w-4 h-4 text-primary-600" />}
+                        <span>{item.label}</span>
+                      </Link>
+                    )
+                  })}
 
                   <button
                     type="button"
@@ -309,6 +315,7 @@ function Footer() {
 export const PublicLayout = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      <ScrollToTop />
       <Header />
       <main className="flex-1">{children || <Outlet />}</main>
       <Footer />

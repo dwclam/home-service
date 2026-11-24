@@ -4,7 +4,6 @@ import { RegisterForm } from '../../features/auth/components/RegisterForm'
 export const RegisterPage = () => {
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
         <BrandLogo size="lg" className="mb-4" />
 
@@ -13,9 +12,8 @@ export const RegisterPage = () => {
         </h1>
       </div>
 
-      {/* Register Card */}
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white py-8 px-6 sm:px-8 shadow-sm border border-neutral-200 rounded-md">
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
+        <div className="bg-white py-8 px-6 sm:px-8 shadow-sm border border-neutral-200 rounded-lg">
           <RegisterForm />
         </div>
       </div>
