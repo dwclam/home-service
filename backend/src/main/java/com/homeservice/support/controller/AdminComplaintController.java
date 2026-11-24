@@ -3,6 +3,9 @@ package com.homeservice.support.controller;
 import com.homeservice.account.entity.Account;
 import com.homeservice.account.enums.AccountType;
 import com.homeservice.account.repository.AccountRepository;
+import com.homeservice.chat.dto.request.SendMessageRequest;
+import com.homeservice.chat.dto.response.MessagePageResponse;
+import com.homeservice.chat.dto.response.MessageResponse;
 import com.homeservice.common.dto.PageResponse;
 import com.homeservice.common.dto.StandardResponse;
 import com.homeservice.common.exception.ResourceNotFoundException;
@@ -13,8 +16,10 @@ import com.homeservice.support.dto.request.AdminComplaintSearchFilter;
 import com.homeservice.support.dto.response.AdminComplaintDetailResponse;
 import com.homeservice.support.dto.response.AdminComplaintSummaryResponse;
 import com.homeservice.support.service.ComplaintService;
+import com.homeservice.support.service.SupportChatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -23,6 +28,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -34,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminComplaintController {
 
     private final ComplaintService complaintService;
+    private final SupportChatService supportChatService;
     private final AccountRepository accountRepository;
 
     /**
@@ -114,6 +122,42 @@ public class AdminComplaintController {
         Long adminId = resolveAdminId(authentication);
         AdminComplaintDetailResponse response = complaintService.rejectComplaintByAdmin(adminId, complaintId, request);
         return StandardResponse.success("Từ chối khiếu nại thành công", response);
+    }
+
+    /**
+     * Lấy lịch sử tin nhắn hỗ trợ của một khiếu nại (hỗ trợ cursor beforeId tải ngược & polling afterId lấy tin mới) (UC 33).
+     * Bất kỳ Admin nào đều được đọc; cờ canSendMessage = true chỉ khi IN_REVIEW và đúng Admin phụ trách.
+     * Yêu cầu quyền ROLE_ADMIN.
+     */
+    @GetMapping("/{id}/messages")
+    @PreAuthorize("hasRole('ADMIN')")
+    public StandardResponse<MessagePageResponse> getComplaintMessages(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId,
+            @RequestParam(value = "beforeId", required = false) Long beforeId,
+            @RequestParam(value = "afterId", required = false) Long afterId,
+            @RequestParam(value = "limit", required = false) Integer limit
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        MessagePageResponse response = supportChatService.getAdminMessages(adminId, complaintId, beforeId, afterId, limit);
+        return StandardResponse.success("Lấy lịch sử tin nhắn hỗ trợ thành công", response);
+    }
+
+    /**
+     * Quản trị viên đang phụ trách gửi tin nhắn phản hồi trong cuộc trò chuyện hỗ trợ (chỉ khi IN_REVIEW) (UC 33).
+     * Yêu cầu quyền ROLE_ADMIN + CSRF token.
+     */
+    @PostMapping("/{id}/messages")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public StandardResponse<MessageResponse> sendComplaintMessage(
+            Authentication authentication,
+            @PathVariable("id") Long complaintId,
+            @Valid @RequestBody SendMessageRequest request
+    ) {
+        Long adminId = resolveAdminId(authentication);
+        MessageResponse response = supportChatService.sendAdminMessage(adminId, complaintId, request);
+        return StandardResponse.success("Gửi tin nhắn phản hồi thành công", response);
     }
 
     private Long resolveAdminId(Authentication authentication) {
