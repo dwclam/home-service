@@ -1,9 +1,45 @@
-import { ArrowRight, CalendarCheck, CircleCheck, Droplets, GraduationCap, Hammer, PawPrint, Search, Sparkles, Star, Zap } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import {
+  ArrowRight,
+  CalendarCheck,
+  CircleCheck,
+  Clock,
+  Droplets,
+  GraduationCap,
+  Hammer,
+  MapPin,
+  PawPrint,
+  Search,
+  Sparkles,
+  Wrench,
+  Zap,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { categories, completedTasks, featuredServices, providers, steps } from '../data/home'
 
-const icons = { Zap, Droplets, Sparkles, PawPrint, GraduationCap, Hammer, Search, CalendarCheck, CircleCheck }
+import { steps } from '../data/home'
+import { useAuthStore } from '../features/auth/authStore'
+import {
+  getPublicCategoryTree,
+  searchCustomerServices,
+} from '../features/catalog/customerCatalogApi'
+
+const icons = {
+  Zap,
+  Droplets,
+  Sparkles,
+  PawPrint,
+  GraduationCap,
+  Hammer,
+  Wrench,
+  Search,
+  CalendarCheck,
+  CircleCheck,
+}
+
 const container = 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'
+
+const formatVnd = (amount) =>
+  new Intl.NumberFormat('vi-VN').format(Number(amount || 0)) + ' đ'
 
 function SectionHeading({ title, subtitle, href, to }) {
   return (
@@ -36,31 +72,50 @@ function SectionHeading({ title, subtitle, href, to }) {
 }
 
 export function Categories() {
+  const { isAuthenticated } = useAuthStore()
+  const [categories, setCategories] = useState([])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let isMounted = true
+
+    getPublicCategoryTree()
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setCategories(data)
+        }
+      })
+      .catch(() => {
+        if (isMounted) setCategories([])
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [isAuthenticated])
+
+  if (!isAuthenticated || categories.length === 0) {
+    return null
+  }
+
   return (
     <section id="categories" className="bg-neutral-50 py-20">
       <div className={container}>
-        <SectionHeading
-          title="Danh mục phổ biến"
-          subtitle="Chọn dịch vụ bạn đang cần"
-          to="/services"
-        />
+        <SectionHeading title="Danh mục dịch vụ" to="/services" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {categories.map((category) => {
-            const Icon = icons[category.icon]
+            const Icon = icons[category.iconName] || Wrench
             return (
               <Link
-                key={category.title}
-                to={`/services?keyword=${encodeURIComponent(category.title)}`}
-                className="group flex flex-col items-center gap-3 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm transition-all hover:border-neutral-300 hover:shadow-md"
+                key={category.id}
+                to={`/services?categoryId=${category.id}`}
+                className="group flex flex-col items-center justify-center gap-3 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm transition-all hover:border-neutral-300 hover:shadow-md"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-md bg-primary-50 group-hover:bg-primary-100">
                   <Icon className="h-6 w-6 text-primary-600" />
                 </span>
                 <span className="text-center text-sm font-medium text-ink">
-                  {category.title}
-                </span>
-                <span className="text-xs text-neutral-500">
-                  {category.count} dịch vụ
+                  {category.name}
                 </span>
               </Link>
             )
@@ -71,143 +126,105 @@ export function Categories() {
   )
 }
 
-function CompletedTaskCard({ task }) {
-  return (
-    <article className="w-[min(380px,calc(100vw-32px))] flex-none rounded-xl border border-neutral-200 bg-neutral-50 p-6">
-      <div className="flex items-start gap-4">
-        <img
-          src={task.image}
-          alt=""
-          className="h-12 w-12 rounded-full object-cover"
-        />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-            {task.category}
-          </p>
-          <h3 className="mt-1.5 text-[17px] font-semibold leading-snug text-ink">
-            {task.title}
-          </h3>
-        </div>
-      </div>
-      <div className="mt-5 flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-ink">
-          <Star className="h-3.5 w-3.5 fill-accent-500 text-accent-500" />
-          {task.rating}
-        </span>
-        <span className="text-[18px] font-semibold text-ink">{task.price}</span>
-      </div>
-    </article>
-  )
-}
-
-export function CompletedTasks() {
-  return (
-    <section className="overflow-hidden bg-white py-20">
-      <div className={`${container} mb-10`}>
-        <h2 className="font-display text-[32px] font-bold leading-[1.15] text-ink sm:text-[44px] lg:text-[52px]">
-          Xem khách hàng đã
-          <br className="hidden sm:block" /> hoàn thành những gì
-        </h2>
-        <p className="mt-3 max-w-xl text-[15px] text-neutral-500">
-          Hàng nghìn công việc được hoàn thành mỗi ngày trên Nestify
-        </p>
-      </div>
-      <div className="h-marquee-wrap">
-        <div className="h-marquee">
-          {[...completedTasks, ...completedTasks].map((task, index) => (
-            <CompletedTaskCard key={`${task.title}-${index}`} task={task} />
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function FeaturedServiceCard({ service, index = 0 }) {
-  const serviceId = service.id || index + 1
-  return (
-    <article className="group overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      <Link
-        to={`/services/${serviceId}`}
-        className="relative block h-48 overflow-hidden bg-neutral-100"
-      >
-        <img
-          src={service.image}
-          alt={service.category}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-        />
-        <span className="absolute left-3 top-3 rounded-md bg-white/95 px-2.5 py-1 text-xs font-medium text-primary-700 backdrop-blur">
-          {service.category}
-        </span>
-      </Link>
-      <div className="p-5">
-        <h3 className="mb-2 line-clamp-2 min-h-[3.25rem] text-[17px] font-semibold text-ink">
-          <Link
-            to={`/services/${serviceId}`}
-            className="hover:text-primary-600 transition-colors"
-          >
-            {service.title}
-          </Link>
-        </h3>
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
-            {service.initials}
-          </span>
-          <span className="text-sm text-neutral-600">{service.provider}</span>
-          <span className="text-neutral-300">•</span>
-          <span className="flex items-center gap-1">
-            <Star className="h-3.5 w-3.5 fill-accent-500 text-accent-500" />
-            <span className="text-sm font-medium text-neutral-700">
-              {service.rating}
-            </span>
-            {service.reviews != null && (
-              <span className="text-xs text-neutral-500">({service.reviews})</span>
-            )}
-          </span>
-        </div>
-        <div className="flex items-center justify-between border-t border-neutral-200 pt-4">
-          <div>
-            <p className="text-xs text-neutral-500">Từ</p>
-            <p className="text-[17px] font-semibold text-primary-600">
-              {service.price}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to={`/services/${serviceId}`}
-              className="inline-flex h-9 items-center rounded-md border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-            >
-              Chi tiết
-            </Link>
-            <Link
-              to={`/booking/new?serviceId=${serviceId}`}
-              className="inline-flex h-9 items-center rounded-md bg-primary-500 px-3.5 text-xs font-medium text-white hover:bg-primary-600"
-            >
-              Đặt lịch
-            </Link>
-          </div>
-        </div>
-      </div>
-    </article>
-  )
-}
-
 export function FeaturedServices() {
+  const { isAuthenticated, account } = useAuthStore()
+  const isCustomer = isAuthenticated && account?.accountType === 'CUSTOMER'
+  const [services, setServices] = useState([])
+
+  useEffect(() => {
+    if (!isCustomer) return
+    let isMounted = true
+
+    searchCustomerServices({ sort: 'NEWEST', page: 0, size: 6 })
+      .then((res) => {
+        if (isMounted) {
+          setServices(res?.items || [])
+        }
+      })
+      .catch(() => {
+        if (isMounted) setServices([])
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [isCustomer])
+
+  if (!isCustomer || services.length === 0) {
+    return null
+  }
+
   return (
-    <section id="featured" className="bg-neutral-50 py-20">
+    <section id="featured" className="bg-white py-20 border-t border-neutral-100">
       <div className={container}>
-        <SectionHeading
-          title="Dịch vụ nổi bật"
-          subtitle="Được đặt nhiều nhất tuần này"
-          to="/services"
-        />
+        <SectionHeading title="Dịch vụ mới nhất" to="/services" />
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredServices.map((service, index) => (
-            <FeaturedServiceCard
-              key={service.id || service.title}
-              service={service}
-              index={index}
-            />
+          {services.map((service) => (
+            <article
+              key={service.id}
+              className="flex flex-col justify-between rounded-lg border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-primary-600">
+                    {service.categoryName || 'Dịch vụ'}
+                  </span>
+                  {service.durationMinutes != null && (
+                    <span className="inline-flex items-center gap-1 text-xs text-neutral-500 tabular-nums">
+                      <Clock className="h-3.5 w-3.5 text-neutral-400" />
+                      {service.durationMinutes} phút
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="line-clamp-2 min-h-[3rem] text-[17px] font-semibold text-ink">
+                  <Link
+                    to={`/services/${service.id}`}
+                    className="hover:text-primary-600 transition-colors"
+                  >
+                    {service.title}
+                  </Link>
+                </h3>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">
+                  <Link
+                    to={`/providers/${service.providerId}`}
+                    className="font-medium text-ink hover:text-primary-600 transition-colors"
+                  >
+                    {service.providerName}
+                  </Link>
+                  {service.providerCity && (
+                    <span className="inline-flex items-center gap-1 text-neutral-500">
+                      <MapPin className="h-3.5 w-3.5 text-neutral-400" />
+                      {service.providerCity}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center justify-between border-t border-neutral-200 pt-4">
+                <div>
+                  <p className="text-xs text-neutral-500">Giá dịch vụ</p>
+                  <p className="text-[17px] font-semibold text-primary-600 tabular-nums">
+                    {formatVnd(service.basePriceVnd)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    to={`/services/${service.id}`}
+                    className="inline-flex h-9 items-center rounded-md border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Chi tiết
+                  </Link>
+                  <Link
+                    to={`/booking/new?serviceId=${service.id}`}
+                    className="inline-flex h-9 items-center rounded-md bg-primary-500 px-3.5 text-xs font-medium text-white hover:bg-primary-600"
+                  >
+                    Đặt lịch
+                  </Link>
+                </div>
+              </div>
+            </article>
           ))}
         </div>
       </div>
@@ -217,7 +234,7 @@ export function FeaturedServices() {
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="bg-white py-20">
+    <section id="how-it-works" className="bg-neutral-50 py-20 border-t border-neutral-100">
       <div className={container}>
         <div className="mx-auto mb-14 max-w-2xl text-center">
           <h2 className="font-display text-[30px] font-bold leading-tight text-ink sm:text-[40px]">
@@ -253,72 +270,9 @@ export function HowItWorks() {
   )
 }
 
-function ProviderCard({ provider, index = 0 }) {
-  const providerId = provider.id || index + 1
-  return (
-    <article className="rounded-lg border border-neutral-200 bg-white p-6 text-center shadow-sm transition-shadow hover:shadow-md">
-      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-[18px] font-semibold text-primary-700">
-        {provider.initials}
-      </div>
-      <h3 className="mb-1 text-[16px] font-semibold text-ink">
-        <Link
-          to={`/providers/${providerId}`}
-          className="hover:text-primary-600 transition-colors"
-        >
-          {provider.name}
-        </Link>
-      </h3>
-      <p className="mb-3 text-xs text-neutral-500">{provider.specialty}</p>
-      <div className="mb-4 flex items-center justify-center gap-1">
-        <Star className="h-4 w-4 fill-accent-500 text-accent-500" />
-        <span className="text-sm font-medium text-neutral-700">
-          {provider.rating}
-        </span>
-        {provider.reviews != null && (
-          <span className="text-xs text-neutral-500">({provider.reviews})</span>
-        )}
-      </div>
-      <div className="mb-5 flex items-center justify-center gap-4 border-b border-neutral-200 pb-5 text-xs text-neutral-500">
-        <span>{provider.orders}</span>
-        <span className="h-1 w-1 rounded-full bg-neutral-300" />
-        <span>{provider.experience}</span>
-      </div>
-      <Link
-        to={`/providers/${providerId}`}
-        className="inline-flex h-9 w-full items-center justify-center rounded-md border border-neutral-200 px-4 text-sm font-medium text-primary-600 hover:border-primary-200 hover:bg-primary-50"
-      >
-        Xem hồ sơ
-      </Link>
-    </article>
-  )
-}
-
-export function TopProviders() {
-  return (
-    <section id="providers" className="bg-neutral-50 py-20">
-      <div className={container}>
-        <SectionHeading
-          title="Nhà cung cấp hàng đầu"
-          subtitle="Được đánh giá cao nhất tháng này"
-          href="/#provider"
-        />
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {providers.map((provider, index) => (
-            <ProviderCard
-              key={provider.name}
-              provider={provider}
-              index={index}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
 export function ProviderCallout() {
   return (
-    <section id="provider" className="bg-white pb-20">
+    <section id="provider" className="bg-white py-20">
       <div className={container}>
         <div className="overflow-hidden rounded-2xl bg-ink p-10 lg:p-14">
           <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-12">

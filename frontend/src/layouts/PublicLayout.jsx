@@ -21,7 +21,6 @@ import { ScrollToTop } from '../components/ui/ScrollToTop'
 
 const navLinks = [
   { label: 'Dịch vụ', to: '/services' },
-  { label: 'Danh mục', href: '/#categories' },
   { label: 'Cách hoạt động', href: '/#how-it-works' },
   { label: 'Về chúng tôi', href: '/#footer' },
 ]
@@ -31,7 +30,6 @@ const footerGroups = [
     title: 'Dịch vụ',
     links: [
       { label: 'Khám phá dịch vụ', to: '/services' },
-      { label: 'Danh mục', href: '/#categories' },
       { label: 'Cách hoạt động', href: '/#how-it-works' },
     ],
   },
