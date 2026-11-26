@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,8 +31,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.MailSendException;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -91,6 +93,7 @@ class CustomerAuthIntegrationTests {
         identities.deleteAllInBatch();
         now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         when(clock.instant()).thenAnswer(invocation -> now);
+        when(mail.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
     }
 
     @Test
@@ -339,18 +342,19 @@ class CustomerAuthIntegrationTests {
     @Test
     void smtpFailureRollsBackRegistrationAndFailedResendPreservesOldCode() throws Exception {
         Browser browser = new Browser();
-        doThrow(new MailSendException("test-only failure")).when(mail).send(any(SimpleMailMessage.class));
+        doThrow(new MailSendException("test-only failure")).when(mail).send(any(MimeMessage.class));
         assertError(browser.postJson("/register/customer", registration(EMAIL)), 503, "EMAIL_DELIVERY_FAILED");
         assertThat(accounts.count()).isZero();
         assertThat(identities.count()).isZero();
         assertThat(challenges.count()).isZero();
 
         reset(mail);
+        when(mail.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
         register(browser);
         String code = sentCode();
         Long challengeId = latestChallenge().getId();
         now = now.plusSeconds(60);
-        doThrow(new MailSendException("test-only failure")).when(mail).send(any(SimpleMailMessage.class));
+        doThrow(new MailSendException("test-only failure")).when(mail).send(any(MimeMessage.class));
         assertError(browser.postJson("/resend-verification", browser.resendPayload()), 503, "EMAIL_DELIVERY_FAILED");
         assertThat(challenges.count()).isEqualTo(1);
         assertThat(challenges.findById(challengeId).orElseThrow().getInvalidatedAt()).isNull();
@@ -395,7 +399,7 @@ class CustomerAuthIntegrationTests {
         var replacement = new LinkedHashMap<>(registration(EMAIL));
         replacement.put("password", "Replacement-password-456!");
         replacement.put("displayName", "Replacement");
-        doThrow(new MailSendException("test-only failure")).when(mail).send(any(SimpleMailMessage.class));
+        doThrow(new MailSendException("test-only failure")).when(mail).send(any(MimeMessage.class));
 
         assertError(browser.postJson("/register/customer", replacement), 503, "EMAIL_DELIVERY_FAILED");
         Account account = accounts.findByEmail(EMAIL).orElseThrow();
@@ -674,16 +678,17 @@ class CustomerAuthIntegrationTests {
         assertError(old.postJson("/verify-email", old.verification(code)), 400, "VERIFICATION_NOT_AVAILABLE");
         assertError(old.postJson("/resend-verification", old.resendPayload()), 400, "VERIFICATION_NOT_AVAILABLE");
         assertThat(challenges.count()).isEqualTo(count);
-        verify(mail, times(2)).send(any(SimpleMailMessage.class));
+        verify(mail, times(2)).send(any(MimeMessage.class));
         now = now.plusSeconds(1);
         assertError(old.postJson("/verify-email", old.verification(code)), 400, "VERIFICATION_NOT_AVAILABLE");
         assertError(old.postJson("/resend-verification", old.resendPayload()), 400, "VERIFICATION_NOT_AVAILABLE");
-        verify(mail, times(2)).send(any(SimpleMailMessage.class));
-        doThrow(new MailSendException("test-only failure")).when(mail).send(any(SimpleMailMessage.class));
+        verify(mail, times(2)).send(any(MimeMessage.class));
+        doThrow(new MailSendException("test-only failure")).when(mail).send(any(MimeMessage.class));
         assertError(new Browser().postJson("/register/customer", registration(EMAIL)), 503, "EMAIL_DELIVERY_FAILED");
         assertThat(accounts.findByEmail(EMAIL).orElseThrow().getId()).isEqualTo(original.getId());
         assertError(old.postJson("/verify-email", old.verification(code)), 400, "VERIFICATION_NOT_AVAILABLE");
         reset(mail);
+        when(mail.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
         Browser replacement = new Browser();
         register(replacement);
         assertThat(accounts.findByEmail(EMAIL).orElseThrow().getId()).isNotEqualTo(original.getId());
@@ -838,14 +843,23 @@ class CustomerAuthIntegrationTests {
         assertStatus(browser.postJson("/verify-email", browser.verification(sentCode())), 200);
     }
 
-    private String sentCode() {
-        ArgumentCaptor<SimpleMailMessage> message = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    private String sentCode() throws Exception {
+        ArgumentCaptor<MimeMessage> message = ArgumentCaptor.forClass(MimeMessage.class);
         verify(mail, atLeastOnce()).send(message.capture());
-        SimpleMailMessage last = message.getAllValues().getLast();
-        assertThat(last.getTo()).containsExactly(EMAIL);
-        var matcher = Pattern.compile("[0-9]{6}").matcher(last.getText());
+        MimeMessage last = message.getAllValues().getLast();
+        last.saveChanges();
+        assertThat(last.getAllRecipients()).extracting(Object::toString).containsExactly(EMAIL);
+        assertThat(last.getSubject()).isEqualTo("Nestify — Xác thực email");
+        assertThat(last.isMimeType("multipart/alternative")).isTrue();
+        MimeMultipart body = (MimeMultipart) last.getContent();
+        assertThat(body.getBodyPart(0).isMimeType("text/plain")).isTrue();
+        assertThat(body.getBodyPart(1).isMimeType("text/html")).isTrue();
+        var matcher = Pattern.compile("Mã xác thực: ([0-9]{6})").matcher((String) body.getBodyPart(0).getContent());
         assertThat(matcher.find()).isTrue();
-        return matcher.group();
+        String code = matcher.group(1);
+        assertThat((String) body.getBodyPart(1).getContent())
+                .contains(code, "kích hoạt tài khoản Nestify").doesNotContain("{{");
+        return code;
     }
 
     private String wrongCode(String correct) {

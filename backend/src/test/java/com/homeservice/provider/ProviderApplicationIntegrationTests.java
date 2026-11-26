@@ -14,6 +14,8 @@ import com.homeservice.auth.service.TokenService;
 import com.homeservice.provider.entity.ProviderApplication;
 import com.homeservice.provider.enums.ProviderApplicationStatus;
 import com.homeservice.provider.repository.ProviderApplicationRepository;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,8 +26,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.MailSendException;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -84,6 +86,7 @@ class ProviderApplicationIntegrationTests {
         identities.deleteAllInBatch();
         now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         when(clock.instant()).thenAnswer(invocation -> now);
+        when(mail.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
     }
 
     @Test
@@ -233,7 +236,7 @@ class ProviderApplicationIntegrationTests {
                 "registrationToken", browser.token)), 400, "REGISTRATION_INVALID");
         error(browser.post(ROOT + "/verify-email", Map.of("email", EMAIL, "code", sentCode())), 400, "VALIDATION_ERROR");
         assertThat(latestChallenge().getAttemptCount()).isZero();
-        verify(mail, times(1)).send(any(SimpleMailMessage.class));
+        verify(mail, times(1)).send(any(MimeMessage.class));
     }
 
     @Test
@@ -285,17 +288,18 @@ class ProviderApplicationIntegrationTests {
     @Test
     void smtpFailureRollsBackNewAndReplacementSubmissionsAndResends() throws Exception {
         Browser browser = new Browser();
-        doThrow(new MailSendException("SMTP unavailable")).when(mail).send(any(SimpleMailMessage.class));
+        doThrow(new MailSendException("SMTP unavailable")).when(mail).send(any(MimeMessage.class));
         status(browser.post(ROOT, submission()), 503);
         assertThat(applications.count()).isZero();
         assertThat(identities.count()).isZero();
         assertThat(challenges.count()).isZero();
         reset(mail);
+        when(mail.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
         status(browser.post(ROOT, submission()), 201);
         String code = sentCode();
         Long challengeId = latestChallenge().getId();
         now = now.plusSeconds(60);
-        doThrow(new MailSendException("SMTP unavailable")).when(mail).send(any(SimpleMailMessage.class));
+        doThrow(new MailSendException("SMTP unavailable")).when(mail).send(any(MimeMessage.class));
         var replacement = submission();
         replacement.put("businessName", "Không được lưu");
         status(browser.post(ROOT, replacement), 503);
@@ -478,16 +482,17 @@ class ProviderApplicationIntegrationTests {
         error(old.post(ROOT + "/verify-email", old.verification(code)), 400, "REGISTRATION_INVALID");
         error(old.post(ROOT + "/resend-verification", old.resend()), 400, "REGISTRATION_INVALID");
         assertThat(challenges.count()).isEqualTo(count);
-        verify(mail, times(2)).send(any(SimpleMailMessage.class));
+        verify(mail, times(2)).send(any(MimeMessage.class));
         now = now.plusSeconds(1);
         error(old.post(ROOT + "/verify-email", old.verification(code)), 400, "REGISTRATION_INVALID");
         error(old.post(ROOT + "/resend-verification", old.resend()), 400, "REGISTRATION_INVALID");
-        verify(mail, times(2)).send(any(SimpleMailMessage.class));
-        doThrow(new MailSendException("test failure")).when(mail).send(any(SimpleMailMessage.class));
+        verify(mail, times(2)).send(any(MimeMessage.class));
+        doThrow(new MailSendException("test failure")).when(mail).send(any(MimeMessage.class));
         status(new Browser().post(ROOT, submission()), 503);
         assertThat(latestApplication().getId()).isEqualTo(original.getId());
         error(old.post(ROOT + "/verify-email", old.verification(code)), 400, "REGISTRATION_INVALID");
         reset(mail);
+        when(mail.createMimeMessage()).thenAnswer(invocation -> new JavaMailSenderImpl().createMimeMessage());
         Browser replacement = submit();
         assertThat(latestApplication().getId()).isNotEqualTo(original.getId());
         assertThat(latestApplication().getCreatedAt()).isEqualTo(now);
@@ -737,15 +742,23 @@ class ProviderApplicationIntegrationTests {
                 EmailChallengePurpose.VERIFY_PROVIDER_APPLICATION).orElseThrow();
     }
 
-    private String sentCode() {
-        ArgumentCaptor<SimpleMailMessage> message = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    private String sentCode() throws Exception {
+        ArgumentCaptor<MimeMessage> message = ArgumentCaptor.forClass(MimeMessage.class);
         verify(mail, atLeastOnce()).send(message.capture());
-        SimpleMailMessage last = message.getAllValues().getLast();
-        assertThat(last.getTo()).containsExactly(EMAIL);
+        MimeMessage last = message.getAllValues().getLast();
+        last.saveChanges();
+        assertThat(last.getAllRecipients()).extracting(Object::toString).containsExactly(EMAIL);
         assertThat(last.getSubject()).contains("hồ sơ nhà cung cấp");
-        var matcher = Pattern.compile("[0-9]{6}").matcher(last.getText());
+        assertThat(last.isMimeType("multipart/alternative")).isTrue();
+        MimeMultipart body = (MimeMultipart) last.getContent();
+        assertThat(body.getBodyPart(0).isMimeType("text/plain")).isTrue();
+        assertThat(body.getBodyPart(1).isMimeType("text/html")).isTrue();
+        var matcher = Pattern.compile("Mã xác thực: ([0-9]{6})").matcher((String) body.getBodyPart(0).getContent());
         assertThat(matcher.find()).isTrue();
-        return matcher.group();
+        String code = matcher.group(1);
+        assertThat((String) body.getBodyPart(1).getContent())
+                .contains(code, "quản trị viên để xét duyệt").doesNotContain("{{");
+        return code;
     }
 
     private JsonNode body(MvcResult result) throws Exception {

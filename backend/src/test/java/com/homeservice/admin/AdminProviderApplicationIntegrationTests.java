@@ -27,6 +27,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -289,6 +290,7 @@ class AdminProviderApplicationIntegrationTests {
 
     @Test
     void applicantCanSubmitWithSameEmailAfterRejection() throws Exception {
+        when(mail.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
         var application = createApplication(PENDING_REVIEW, NOW);
         assertThat(reject(application.getId(), adminJwt, Map.of("reason", REASON)).getResponse().getStatus()).isEqualTo(200);
         var submission = postJson(PUBLIC_ROOT, null, Map.of("email", EMAIL, "applicantName", "Người nộp hồ sơ",

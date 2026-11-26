@@ -10,6 +10,8 @@
 /docs/backend-config.md
 /docs/PLAN.md
 /frontend/GEMINI.md
+/frontend-playground
+
 
 # Local environment files
 /.env

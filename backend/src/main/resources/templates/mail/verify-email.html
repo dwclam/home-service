@@ -1,65 +1,59 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xác thực Email - Nestify</title>
+    <title>{{title}} | Nestify</title>
+    <style>
+        @media only screen and (max-width: 480px) {
+            .email-frame { padding: 20px 12px !important; }
+            .email-inset { padding-left: 20px !important; padding-right: 20px !important; }
+            .email-title { font-size: 25px !important; line-height: 32px !important; }
+        }
+    </style>
 </head>
-<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6; padding:32px 16px;">
+<body style="margin:0; padding:0; background-color:#F1F5F9; font-family:'Segoe UI',Arial,sans-serif;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F1F5F9;">
     <tr>
-        <td align="center">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-
-                <!-- Header -->
+        <td class="email-frame" align="center" style="padding:40px 16px;">
+            <!--[if mso]><table role="presentation" width="520" align="center" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:520px; border:1px solid #DCE5F1; border-radius:20px; border-spacing:0; background-color:#FFFFFF;">
                 <tr>
-                    <td align="center" style="background-color:#3B82F6; padding:28px 24px;">
-                        <span style="font-size:26px; font-weight:700; color:#ffffff; letter-spacing:1px;">Nestify</span>
+                    <td class="email-inset" style="padding:22px 32px; background-color:#0B1437; border-radius:19px 19px 0 0; border-bottom:4px solid #3B82F6;">
+                        <span style="font-family:'Segoe UI',Arial,sans-serif; font-size:26px; line-height:32px; font-weight:700; letter-spacing:-0.5px; color:#FFFFFF;">Nestify</span>
                     </td>
                 </tr>
-
-                <!-- Body -->
                 <tr>
-                    <td style="padding:36px 32px 12px 32px;">
-                        <h2 style="margin:0 0 12px 0; font-size:22px; color:#111827;">Xác thực địa chỉ email</h2>
-                        <p style="margin:0; font-size:15px; line-height:24px; color:#4b5563;">
-                            Xin chào, cảm ơn bạn đã đăng ký Nestify. Vui lòng nhập mã dưới đây để hoàn tất xác thực email của bạn.
-                        </p>
+                    <td class="email-inset" style="padding:30px 32px 24px;">
+                        <h1 class="email-title" style="margin:0 0 12px; font-size:28px; line-height:36px; font-weight:700; color:#0B1437;">{{title}}</h1>
+                        <p style="margin:0; font-size:15px; line-height:24px; color:#475569;">{{instructions}}</p>
                     </td>
                 </tr>
-
-                <!-- OTP -->
                 <tr>
-                    <td align="center" style="padding:20px 32px;">
-                        <div style="display:inline-block; background-color:#EFF6FF; border:1px dashed #3B82F6; border-radius:10px; padding:16px 32px;">
-                            <span style="font-size:34px; font-weight:700; letter-spacing:10px; color:#3B82F6; font-family:'Courier New',monospace;">{{otp}}</span>
-                        </div>
+                    <td class="email-inset" style="padding:0 32px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#EFF6FF; border:1px solid #BFDBFE; border-radius:14px;">
+                            <tr>
+                                <td align="center" style="padding:21px 12px 20px;">
+                                    <p style="margin:0 0 6px; font-size:13px; line-height:18px; font-weight:700; color:#1D4ED8;">Mã xác thực</p>
+                                    <p style="margin:0 0 8px; font-family:Consolas,'Courier New',monospace; font-size:38px; line-height:48px; font-weight:700; letter-spacing:0.14em; white-space:nowrap; color:#0B1437;">{{otp}}</p>
+                                    <p style="margin:0; font-size:13px; line-height:20px; color:#475569;">Có hiệu lực tối đa <strong style="color:#0B1437;">10 phút</strong>.</p>
+                                </td>
+                            </tr>
+                        </table>
                     </td>
                 </tr>
-
-                <!-- Notes -->
                 <tr>
-                    <td style="padding:4px 32px 32px 32px;">
-                        <p style="margin:0 0 8px 0; font-size:14px; line-height:22px; color:#4b5563; text-align:center;">
-                            Mã có hiệu lực trong <strong>10 phút</strong>.
-                        </p>
-                        <p style="margin:0; font-size:13px; line-height:20px; color:#9ca3af; text-align:center;">
-                            Vì lý do bảo mật, không chia sẻ mã này với bất kỳ ai.
-                        </p>
+                    <td class="email-inset" style="padding:19px 32px 28px;">
+                        <p style="margin:0; font-size:14px; line-height:22px; color:#475569;">Không chia sẻ mã này với bất kỳ ai.</p>
                     </td>
                 </tr>
-
-                <!-- Footer -->
                 <tr>
-                    <td style="background-color:#f9fafb; padding:20px 32px; border-top:1px solid #e5e7eb;">
-                        <p style="margin:0; font-size:12px; line-height:18px; color:#9ca3af; text-align:center;">
-                            Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email này.<br>
-                            &copy; Nestify. Đây là email tự động, vui lòng không trả lời.
-                        </p>
+                    <td class="email-inset" style="padding:16px 32px; background-color:#F8FAFC; border-top:1px solid #E2E8F0; border-radius:0 0 19px 19px;">
+                        <p style="margin:0; font-size:13px; line-height:20px; color:#475569;">Nếu bạn không yêu cầu mã này, hãy bỏ qua email.</p>
                     </td>
                 </tr>
-
             </table>
+            <!--[if mso]></td></tr></table><![endif]-->
         </td>
     </tr>
 </table>
