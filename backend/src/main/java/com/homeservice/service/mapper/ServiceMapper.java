@@ -94,7 +94,7 @@ public class ServiceMapper {
     }
 
     // Một ảnh -> response
-    private ServiceImageResponse toImageResponse(ServiceImage img) {
+    public ServiceImageResponse toImageResponse(ServiceImage img) {
         ServiceImageResponse r = new ServiceImageResponse();
         r.setId(img.getId());
         r.setImageUrl(img.getImageUrl());
